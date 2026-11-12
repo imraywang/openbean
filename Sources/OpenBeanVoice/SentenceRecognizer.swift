@@ -16,8 +16,10 @@ public final class SentenceRecognizer {
 
     public static let sampleRate = 16000
     private let recognizer: OpaquePointer
-    private let vad: OpaquePointer
-    private let window: Int
+    private var vad: OpaquePointer
+    private let window = 512
+    private let vadPath: String
+    private let minSilence: Float
     private var pending: [Float] = []
     // 保留最近 60 秒原始音频：VAD 给的片段起点偏晚，会吞掉句首的字，解码时前后各补一点
     private var history: [Float] = []
@@ -60,10 +62,20 @@ public final class SentenceRecognizer {
         guard let r else { throw VoiceError.initFailed("SenseVoice") }
         recognizer = r
 
-        var vc = SherpaOnnxVadModelConfig()
-        let v: OpaquePointer? = vadPath.withCString { path in
+        self.vadPath = vadPath
+        self.minSilence = minSilence
+        guard let v = Self.makeVAD(path: vadPath, minSilence: minSilence) else {
+            SherpaOnnxDestroyOfflineRecognizer(r)
+            throw VoiceError.initFailed("Silero VAD")
+        }
+        vad = v
+    }
+
+    private static func makeVAD(path: String, minSilence: Float) -> OpaquePointer? {
+        path.withCString { p in
             "cpu".withCString { provider in
-                vc.silero_vad.model = path
+                var vc = SherpaOnnxVadModelConfig()
+                vc.silero_vad.model = p
                 vc.silero_vad.threshold = 0.5
                 vc.silero_vad.min_silence_duration = minSilence
                 vc.silero_vad.min_speech_duration = 0.2
@@ -75,9 +87,17 @@ public final class SentenceRecognizer {
                 return SherpaOnnxCreateVoiceActivityDetector(&vc, 60)
             }
         }
-        guard let v else { SherpaOnnxDestroyOfflineRecognizer(r); throw VoiceError.initFailed("Silero VAD") }
-        vad = v
-        window = 512
+    }
+
+    /// 开始新的一次听写：时间轴从 0 重新算（SenseVoice 模型不用重新加载）
+    public func reset() {
+        if let v = Self.makeVAD(path: vadPath, minSilence: minSilence) {
+            SherpaOnnxDestroyVoiceActivityDetector(vad)
+            vad = v
+        }
+        pending.removeAll()
+        history.removeAll()
+        historyStart = 0
     }
 
     deinit {
@@ -108,9 +128,7 @@ public final class SentenceRecognizer {
             pending.removeAll()
         }
         SherpaOnnxVoiceActivityDetectorFlush(vad)
-        let out = drain()
-        SherpaOnnxVoiceActivityDetectorReset(vad)
-        return out
+        return drain()
     }
 
     /// 单独识别一段完整音频（不经过 VAD）

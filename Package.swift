@@ -8,6 +8,7 @@ let package = Package(
         .library(name: "OpenBeanKit", targets: ["OpenBeanKit"]),
         .library(name: "OpenBeanVoice", targets: ["OpenBeanVoice"]),
         .executable(name: "openbean", targets: ["openbean"]),
+        .executable(name: "OpenBeanApp", targets: ["OpenBeanApp"]),
     ],
     targets: [
         .target(name: "OpenBeanKit"),
@@ -30,6 +31,8 @@ let package = Package(
                               "-Xlinker", "__info_plist", "-Xlinker", "Support/Info.plist"]),
             ]
         ),
+        // 菜单栏语音输入 App；用 bin/build-app 打包成 .build/OpenBean.app
+        .executableTarget(name: "OpenBeanApp", dependencies: ["OpenBeanKit", "OpenBeanVoice"]),
         .testTarget(name: "OpenBeanKitTests", dependencies: ["OpenBeanKit"]),
         .testTarget(
             name: "OpenBeanVoiceTests",

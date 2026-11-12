@@ -1,0 +1,16 @@
+#!/bin/zsh
+# 打包菜单栏语音输入 App：.build/OpenBean.app（本机临时签名）
+set -e
+ROOT="${0:A:h}/.."
+cd "$ROOT"
+[[ -f Vendor/sherpa-onnx/lib/libsherpa-onnx-c-api.dylib ]] || Scripts/fetch-deps.sh
+swift build -q -c release --product OpenBeanApp
+APP=.build/OpenBean.app
+rm -rf "$APP"
+mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Frameworks"
+cp .build/release/OpenBeanApp "$APP/Contents/MacOS/OpenBean"
+cp Support/App-Info.plist "$APP/Contents/Info.plist"
+cp Vendor/sherpa-onnx/lib/libsherpa-onnx-c-api.dylib Vendor/sherpa-onnx/lib/libonnxruntime.dylib "$APP/Contents/Frameworks/"
+for f in "$APP"/Contents/Frameworks/*.dylib; do codesign -s - -f "$f" >/dev/null 2>&1; done
+codesign -s - -f "$APP" >/dev/null 2>&1
+echo "已打包：$ROOT/$APP"

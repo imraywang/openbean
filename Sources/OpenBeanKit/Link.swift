@@ -53,6 +53,8 @@ public final class Link: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     public var onPacket: ((Packet) -> Void)?
     /// 常驻：每一帧都会回调（按键、充电这类设备主动发的事件从这里拿），与传输用的 onPacket 互不影响
     public var onEvent: ((Packet) -> Void)?
+    /// 连接断开（BLE 队列上回调）
+    public var onDisconnect: (() -> Void)?
     public var verbose = false
     public private(set) var rxBytes = 0
 
@@ -171,6 +173,7 @@ public final class Link: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     public func centralManager(_ c: CBCentralManager, didDisconnectPeripheral p: CBPeripheral, error: Error?) {
         log("断开：\(error?.localizedDescription ?? "正常")")
         finishConnect(.failure(LinkError.disconnected))
+        if p.identifier == peripheral?.identifier { onDisconnect?() }
         let w = waiters
         waiters = []
         w.forEach { $0.cont.resume(throwing: LinkError.disconnected) }
