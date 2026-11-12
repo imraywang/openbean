@@ -46,5 +46,13 @@
 	<string>OpenBean connects to your soundcore Work recorder to use it as a microphone and to sync recordings.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>OpenBean transcribes your speech on this Mac, offline.</string>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<key>SUFeedURL</key>
+	<string>https://raw.githubusercontent.com/imraywang/openbean/master/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>BjLS2mK2S8UTBjerLJvUbUGQdToKi3/ffYsX/LQp0Kc=</string>
+	<key>SUScheduledCheckInterval</key>
+	<integer>86400</integer>
 </dict>
 </plist>

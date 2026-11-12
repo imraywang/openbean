@@ -152,6 +152,26 @@
         }
       }
     },
+    "%lld notes saved": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已保存 %lld 条笔记"
+          }
+        }
+      }
+    },
+    "%lld of %lld": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld / %lld"
+          }
+        }
+      }
+    },
     "%lld on this Mac": {
       "localizations": {
         "zh-Hans": {
@@ -252,6 +272,16 @@
         }
       }
     },
+    "Action items": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "待办事项"
+          }
+        }
+      }
+    },
     "All recordings": {
       "localizations": {
         "zh-Hans": {
@@ -282,6 +312,16 @@
         }
       }
     },
+    "All transcribed recordings have notes": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已转写的录音都有笔记了"
+          }
+        }
+      }
+    },
     "Allow typing into other apps": {
       "localizations": {
         "zh-Hans": {
@@ -298,6 +338,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "已允许"
+          }
+        }
+      }
+    },
+    "Any OpenAI-compatible server works: llama.cpp (llama-server), Ollama, LM Studio. It removes filler words, fixes likely homophones using your word list and keeps your wording.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "支持任意 OpenAI 兼容服务：llama.cpp（llama-server）、Ollama、LM Studio。会去掉口头禅、按个人词表纠正同音字，并保留你的说法。"
           }
         }
       }
@@ -462,6 +512,56 @@
         }
       }
     },
+    "Choose": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择"
+          }
+        }
+      }
+    },
+    "Choose a folder for recording notes, for example a folder in your Obsidian vault.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择存放录音笔记的文件夹，例如 Obsidian 知识库里的某个文件夹。"
+          }
+        }
+      }
+    },
+    "Choose a notes folder in Settings → Library.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请先在「设置 → 录音库」里选择笔记文件夹。"
+          }
+        }
+      }
+    },
+    "Choose…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择…"
+          }
+        }
+      }
+    },
+    "Clean up each sentence with a local LLM": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "用本地大模型润色每一句"
+          }
+        }
+      }
+    },
     "Clean up each sentence with an LLM": {
       "localizations": {
         "zh-Hans": {
@@ -478,6 +578,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "用大模型润色"
+          }
+        }
+      }
+    },
+    "Clean up with local LLM": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本地大模型润色"
           }
         }
       }
@@ -842,6 +952,16 @@
         }
       }
     },
+    "Edit note template…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "编辑笔记模板…"
+          }
+        }
+      }
+    },
     "Edit personal word list…": {
       "localizations": {
         "zh-Hans": {
@@ -988,6 +1108,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "在本机保存语音输入记录"
+          }
+        }
+      }
+    },
+    "Key points": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "要点"
           }
         }
       }
@@ -1202,6 +1332,16 @@
         }
       }
     },
+    "Not chosen": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未选择"
+          }
+        }
+      }
+    },
     "Not connected": {
       "localizations": {
         "zh-Hans": {
@@ -1272,6 +1412,36 @@
         }
       }
     },
+    "Notes": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "笔记"
+          }
+        }
+      }
+    },
+    "Notes are named date-title.md. A note you have edited is never overwritten: OpenBean writes a new one next to it.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "笔记文件名为「日期-标题.md」。你改过的笔记不会被覆盖：OpenBean 会在旁边另写一份。"
+          }
+        }
+      }
+    },
+    "Notes folder": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "笔记文件夹"
+          }
+        }
+      }
+    },
     "Nothing heard": {
       "localizations": {
         "zh-Hans": {
@@ -1308,6 +1478,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "在录音豆上"
+          }
+        }
+      }
+    },
+    "One Markdown file per recording with the summary and the transcript, for example in an Obsidian vault. Audio stays in the library.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每条录音一个 Markdown 文件，包含摘要和转写，例如放进 Obsidian 知识库。音频仍留在录音库里。"
           }
         }
       }
@@ -1402,6 +1582,16 @@
         }
       }
     },
+    "OpenBean never pairs, unbinds, resets, deletes recordings on or updates the recorder.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OpenBean 不会对录音豆做配对、解绑、恢复出厂、删除录音或固件升级。"
+          }
+        }
+      }
+    },
     "Output": {
       "localizations": {
         "zh-Hans": {
@@ -1428,6 +1618,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "概览"
+          }
+        }
+      }
+    },
+    "Pauses": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "停顿"
           }
         }
       }
@@ -1652,6 +1852,16 @@
         }
       }
     },
+    "Replace with a new version": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "用新版本替换"
+          }
+        }
+      }
+    },
     "Retry": {
       "localizations": {
         "zh-Hans": {
@@ -1668,6 +1878,56 @@
           "stringUnit": {
             "state": "translated",
             "value": "用 SenseVoice 在本机转写"
+          }
+        }
+      }
+    },
+    "Save a note for each recording to a folder": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "为每条录音在文件夹里保存一份笔记"
+          }
+        }
+      }
+    },
+    "Save as a new note": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "另存为新笔记"
+          }
+        }
+      }
+    },
+    "Save note to folder": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保存笔记到文件夹"
+          }
+        }
+      }
+    },
+    "Save notes for existing recordings": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "为已有录音补写笔记"
+          }
+        }
+      }
+    },
+    "Search": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "搜索"
           }
         }
       }
@@ -1812,6 +2072,16 @@
         }
       }
     },
+    "Short pauses finalise a phrase; slightly longer ones become a comma, longer ones a full stop. A too-short phrase pause chops sentences and hurts accuracy. Restart OpenBean after changing it.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "短停顿定稿一句；稍长的停顿补逗号，更长的补句号。定稿停顿太短会把一句话切碎、错字变多。修改后需重启 OpenBean。"
+          }
+        }
+      }
+    },
     "Shortcut: %@": {
       "localizations": {
         "zh-Hans": {
@@ -1838,6 +2108,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "在访达中显示"
+          }
+        }
+      }
+    },
+    "Show library folder": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开录音库文件夹"
           }
         }
       }
@@ -1972,6 +2252,56 @@
         }
       }
     },
+    "Summaries": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "摘要"
+          }
+        }
+      }
+    },
+    "Summarise": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "摘要"
+          }
+        }
+      }
+    },
+    "Summarise again": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新摘要"
+          }
+        }
+      }
+    },
+    "Summarise recordings after transcription": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "转写后自动生成摘要"
+          }
+        }
+      }
+    },
+    "Summarising…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在摘要…"
+          }
+        }
+      }
+    },
     "Sync": {
       "localizations": {
         "zh-Hans": {
@@ -2092,6 +2422,56 @@
         }
       }
     },
+    "The LLM service did not answer: %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "大模型服务没有响应：%@"
+          }
+        }
+      }
+    },
+    "The LLM service is not reachable. Check Settings → Clean-up.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连不上大模型服务，请检查「设置 → 润色」。"
+          }
+        }
+      }
+    },
+    "The LLM service rejected the API key.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "大模型服务拒绝了 API Key。"
+          }
+        }
+      }
+    },
+    "The model's reply could not be used. Try again or use a larger model.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "模型的回复无法使用，请重试或换一个更大的模型。"
+          }
+        }
+      }
+    },
+    "The server address in Clean-up is not valid.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「润色」里的服务器地址无效。"
+          }
+        }
+      }
+    },
     "The text of each sentence is sent to %@. Audio and speech recognition stay on this Mac.": {
       "localizations": {
         "zh-Hans": {
@@ -2118,6 +2498,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "本月"
+          }
+        }
+      }
+    },
+    "This note was edited after OpenBean wrote it.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这份笔记在 OpenBean 写入之后被改过。"
           }
         }
       }
@@ -2168,6 +2558,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "标题"
+          }
+        }
+      }
+    },
+    "Title, summary, key points and action items, written by the LLM service set up in Clean-up. Skipped when the service is not running.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "由「润色」里设置的大模型服务生成标题、摘要、要点和待办事项；服务没开时跳过。"
           }
         }
       }
@@ -2278,6 +2678,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "转写文字（Markdown）…"
+          }
+        }
+      }
+    },
+    "Transcripts are sent to %@ for summaries.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "生成摘要时转写文字会发送到 %@。"
           }
         }
       }

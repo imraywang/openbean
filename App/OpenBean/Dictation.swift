@@ -165,6 +165,7 @@ final class Dictation {
         Log.write("开始听写 file=\(fileId)")
         startedAt = Date()
         currentFile = fileId
+        recordOnly = nil   // 听写开始就不再是「只录音」，免得下次停止时多记一条时长
         onStarted(fileId)
         await device.beginDictation()
 
