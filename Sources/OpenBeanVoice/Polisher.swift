@@ -11,9 +11,7 @@ public final class Polisher: @unchecked Sendable {
         public let fellBack: Bool
     }
 
-    private let endpoint: URL
-    private let apiKey: String?
-    private let model: String
+    private let service: LLMService
     private let system: String
     private var context: [String] = []
     private let session: URLSession
@@ -37,66 +35,26 @@ public final class Polisher: @unchecked Sendable {
     ///   - apiKey: 云端服务的 Key，按 `Authorization: Bearer` 发送；本机服务留空
     public init(endpoint: URL, apiKey: String? = nil, model: String = "local", prompt: String = Polisher.defaultPrompt,
                 glossary: [String] = []) {
-        self.endpoint = endpoint
-        self.apiKey = apiKey.flatMap { $0.isEmpty ? nil : $0 }
-        self.model = model
+        service = LLMService(endpoint: endpoint, apiKey: apiKey, model: model)
         var s = prompt
         if !glossary.isEmpty { s += "\n用户常用词：" + glossary.joined(separator: "、") }
         system = s
-        session = Polisher.session(for: endpoint)
-    }
-
-    /// 本机服务不走代理（代理软件可能拦下 127.0.0.1）；云端走系统代理，等得久一点
-    private static func session(for base: URL, timeout: TimeInterval? = nil) -> URLSession {
-        let cfg = URLSessionConfiguration.ephemeral
-        if isLocal(base) {
-            cfg.connectionProxyDictionary = [kCFNetworkProxiesHTTPEnable as String: 0, kCFNetworkProxiesHTTPSEnable as String: 0]
-        }
-        cfg.timeoutIntervalForRequest = timeout ?? (isLocal(base) ? 8 : 15)
-        return URLSession(configuration: cfg)
+        session = service.makeSession()
     }
 
     /// 地址是不是本机或局域网（不是的话，文字会离开这台 Mac）
-    public static func isLocal(_ base: URL) -> Bool {
-        guard let h = base.host?.lowercased() else { return true }
-        if ["localhost", "127.0.0.1", "::1", "0.0.0.0"].contains(h) || h.hasSuffix(".local") { return true }
-        let p = h.split(separator: ".").compactMap { Int($0) }
-        guard p.count == 4 else { return false }
-        return p[0] == 10 || p[0] == 127 || (p[0] == 192 && p[1] == 168) || (p[0] == 172 && (16...31).contains(p[1]))
-    }
+    public static func isLocal(_ base: URL) -> Bool { LLMService.isLocal(base) }
 
-    /// 根地址可以带或不带 `/v1`（有的服务给的基础地址就以 /v1 结尾，如通义千问兼容模式）
-    static func url(_ base: URL, _ path: String) -> URL {
-        let b = base.path.hasSuffix("/") ? String(base.path.dropLast()) : base.path
-        return b.hasSuffix("/v1") ? base.appendingPathComponent(path) : base.appendingPathComponent("v1").appendingPathComponent(path)
-    }
+    static func url(_ base: URL, _ path: String) -> URL { LLMService.url(base, path) }
 
     /// 新的一次听写，清空前文
     public func resetContext() { context.removeAll() }
 
-    public enum Status: Equatable {
-        case ok
-        /// 连上了但 Key 不对（401 / 403）
-        case unauthorized
-        case unreachable(String)
-    }
+    public typealias Status = LLMService.Status
 
     /// 检查服务：本机等 1 秒，云端等 6 秒
     public static func check(_ base: URL, apiKey: String? = nil) async -> Status {
-        var req = URLRequest(url: url(base, "models"))
-        if let apiKey, !apiKey.isEmpty { req.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization") }
-        let s = session(for: base, timeout: isLocal(base) ? 1 : 6)
-        do {
-            let (_, r) = try await s.data(for: req)
-            let code = (r as? HTTPURLResponse)?.statusCode ?? 0
-            switch code {
-            case 200: return .ok
-            case 401, 403: return .unauthorized
-            default: return .unreachable("HTTP \(code)")
-            }
-        } catch {
-            return .unreachable(error.localizedDescription)
-        }
+        await LLMService.check(base, apiKey: apiKey)
     }
 
     public static func isUp(_ base: URL, apiKey: String? = nil) async -> Bool {
@@ -106,25 +64,10 @@ public final class Polisher: @unchecked Sendable {
     public func polish(_ raw: String) async -> Result {
         let t0 = Date()
         let prior = context.suffix(3).joined()
-        let body: [String: Any] = [
-            "messages": [
-                ["role": "system", "content": system],
-                ["role": "user", "content": "前文：\(prior.isEmpty ? "（无）" : prior)\n本句：\(raw)"],
-            ],
-            "model": model, "temperature": 0, "max_tokens": 400,
-        ]
-        var req = URLRequest(url: Polisher.url(endpoint, "chat/completions"))
-        req.httpMethod = "POST"
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        if let apiKey { req.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization") }
-        req.httpBody = try? JSONSerialization.data(withJSONObject: body)
         var out = raw
         var fellBack = true
-        if let (d, _) = try? await session.data(for: req),
-           let obj = try? JSONSerialization.jsonObject(with: d) as? [String: Any],
-           let choice = (obj["choices"] as? [[String: Any]])?.first,
-           let msg = choice["message"] as? [String: Any],
-           var text = msg["content"] as? String {
+        if var text = try? await service.chat(system: system, user: "前文：\(prior.isEmpty ? "（无）" : prior)\n本句：\(raw)",
+                                              maxTokens: 400, session: session) {
             if let r = text.range(of: "</think>") { text = String(text[r.upperBound...]) }
             text = text.trimmingCharacters(in: .whitespacesAndNewlines)
                 .trimmingCharacters(in: CharacterSet(charactersIn: "\"“”「」"))
