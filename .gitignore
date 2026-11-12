@@ -3,3 +3,4 @@
 *.ogg
 *.opus.raw
 *.wav
+Vendor/

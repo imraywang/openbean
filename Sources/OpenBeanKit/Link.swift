@@ -51,6 +51,8 @@ public final class Link: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
 
     /// 每收到一帧都会在 BLE 队列上回调（用于收文件分片这类连续数据）。
     public var onPacket: ((Packet) -> Void)?
+    /// 常驻：每一帧都会回调（按键、充电这类设备主动发的事件从这里拿），与传输用的 onPacket 互不影响
+    public var onEvent: ((Packet) -> Void)?
     public var verbose = false
     public private(set) var rxBytes = 0
 
@@ -212,6 +214,7 @@ public final class Link: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                 log("\(pkt)  \(pkt.raw.prefix(48).hex)\(pkt.raw.count > 48 ? " …" : "")")
             }
             onPacket?(pkt)
+            onEvent?(pkt)
             if let idx = waiters.firstIndex(where: { $0.match(pkt) }) {
                 waiters.remove(at: idx).cont.resume(returning: pkt)
             }

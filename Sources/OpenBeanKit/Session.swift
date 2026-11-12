@@ -94,6 +94,8 @@ public final class D3200Session {
         return all.values.sorted { $0.id > $1.id }
     }
 
+    func installTransfer(_ st: TransferState) { install(st) }
+
     private func install(_ st: TransferState) {
         let crypto = self.crypto
         link.onPacket = { p in Self.handle(p, st, crypto) }
@@ -211,5 +213,89 @@ public final class D3200Session {
         _ = try? await link.request(Cmd.pauseRecord(), label: "暂停录音") { $0.type == 0x18 && $0.id == 0x82 }
         try await Task.sleep(nanoseconds: 3_000_000_000) // 收尾巴
         return finish(st, started: started)
+    }
+}
+
+// MARK: - 设备事件与实时流（给常驻应用用）
+
+public enum DeviceEvent: Sendable {
+    /// 开始录音（含按录音豆按键）。`fileId` 是新录音文件
+    case recordingStarted(fileId: UInt32)
+    /// 停止录音（含按键）
+    case recordingStopped
+    case charging(recorder: Bool, chargingCase: Bool)
+    case battery(recorder: Int?, chargingCase: Int?)
+}
+
+extension DeviceEvent {
+    /// 把设备主动发来的帧翻译成事件；不认识的返回 nil
+    public init?(packet p: Packet) {
+        let b = Array(p.payload)
+        switch (p.type, p.id) {
+        case (0x1A, 0x06) where b.count >= 4:
+            let id = readU32(b, 0)
+            guard id > 0 else { return nil }
+            self = .recordingStarted(fileId: id)
+        // 按键停止推送 payload 首字节 00；我们自己发暂停命令的回包首字节 02
+        case (0x18, 0x82) where b.first == 0x00 || b.first == 0x02:
+            self = .recordingStopped
+        case (0x01, 0x04) where b.count >= 2:
+            self = .charging(recorder: b[0] == 1, chargingCase: b[1] == 1)
+        case (0x01, 0x03) where b.count >= 2:
+            self = .battery(recorder: DeviceInfo.battery(b[0]), chargingCase: DeviceInfo.battery(b[1]))
+        default:
+            return nil
+        }
+    }
+}
+
+/// 一路实时流。`stop()` 只停止接收，不会让设备停止录音。
+public final class RealtimeStream: @unchecked Sendable {
+    fileprivate let state: TransferState
+    fileprivate let started = Date()
+    fileprivate weak var session: D3200Session?
+    public let fileId: UInt32
+
+    fileprivate init(fileId: UInt32, state: TransferState, session: D3200Session) {
+        self.fileId = fileId
+        self.state = state
+        self.session = session
+    }
+
+    public var bytes: Int { session?.link.sync { state.bytes } ?? 0 }
+
+    @discardableResult
+    public func stop() -> Transfer? { session?.finishRealtime(self) }
+}
+
+extension D3200Session {
+    /// 订阅设备事件（回调在 BLE 队列上）
+    public func observeEvents(_ handler: @escaping (DeviceEvent) -> Void) {
+        link.sync { link.onEvent = { p in if let e = DeviceEvent(packet: p) { handler(e) } } }
+    }
+
+    public func startRecording() async throws {
+        _ = try await link.request(Cmd.startRecord(), label: "开始录音") { $0.type == 0x18 && $0.id == 0x82 }
+    }
+
+    public func pauseRecording() async throws {
+        _ = try await link.request(Cmd.pauseRecord(), label: "暂停录音") { $0.type == 0x18 && $0.id == 0x82 }
+    }
+
+    /// 对正在录的文件开实时流。`onFrame` 在 BLE 队列上收到每个解密后的 Opus 帧。
+    public func startRealtime(fileId: UInt32, onFrame: @escaping (UInt32, [UInt8]) -> Void) throws -> RealtimeStream {
+        let st = TransferState(fileId: fileId)
+        st.onFrame = onFrame
+        let stream = RealtimeStream(fileId: fileId, state: st, session: self)
+        link.sync { installTransfer(st) }
+        try link.send(Cmd.transferFile(id: fileId, realtime: true))
+        return stream
+    }
+
+    fileprivate func finishRealtime(_ s: RealtimeStream) -> Transfer {
+        link.sync {
+            link.onPacket = nil
+            return Self.makeTransfer(s.state, started: s.started)
+        }
     }
 }

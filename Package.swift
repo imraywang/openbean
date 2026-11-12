@@ -6,10 +6,21 @@ let package = Package(
     platforms: [.macOS(.v14), .iOS(.v17)],
     products: [
         .library(name: "OpenBeanKit", targets: ["OpenBeanKit"]),
+        .library(name: "OpenBeanVoice", targets: ["OpenBeanVoice"]),
         .executable(name: "openbean", targets: ["openbean"]),
     ],
     targets: [
         .target(name: "OpenBeanKit"),
+        // sherpa-onnx 动态库由 Scripts/fetch-deps.sh 放到 Vendor/sherpa-onnx
+        .systemLibrary(name: "CSherpaOnnx", path: "Sources/CSherpaOnnx"),
+        .target(
+            name: "OpenBeanVoice",
+            dependencies: ["OpenBeanKit", "CSherpaOnnx"],
+            linkerSettings: [
+                .unsafeFlags(["-LVendor/sherpa-onnx/lib",
+                              "-Xlinker", "-rpath", "-Xlinker", "@executable_path/../Frameworks"]),
+            ]
+        ),
         .executableTarget(
             name: "openbean",
             dependencies: ["OpenBeanKit"],
@@ -20,5 +31,11 @@ let package = Package(
             ]
         ),
         .testTarget(name: "OpenBeanKitTests", dependencies: ["OpenBeanKit"]),
+        .testTarget(
+            name: "OpenBeanVoiceTests",
+            dependencies: ["OpenBeanVoice"],
+            linkerSettings: [.unsafeFlags(["-Xlinker", "-rpath", "-Xlinker", "@loader_path/../../../../Vendor/sherpa-onnx/lib",
+                                           "-Xlinker", "-rpath", "-Xlinker", "\(Context.packageDirectory)/Vendor/sherpa-onnx/lib"])]
+        ),
     ]
 )

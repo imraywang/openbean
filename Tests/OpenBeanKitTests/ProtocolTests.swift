@@ -126,6 +126,21 @@ final class ProtocolTests: XCTestCase {
         XCTAssertEqual(Cmd.openSoftAP(ssid: "ab", password: "c")[9...13].map { $0 }, [2, 0x61, 0x62, 1, 0x63])
     }
 
+    /// 真机 watch 抓到的帧（固件 04.82）
+    func testDeviceEventsFromRealFrames() {
+        func ev(_ h: String) -> DeviceEvent? {
+            var f = FrameAssembler()
+            return f.feed(hex(h.replacingOccurrences(of: " ", with: ""))).first.flatMap { DeviceEvent(packet: $0) }
+        }
+        if case let .charging(r, c)? = ev("09 FF 00 00 01 01 04 0C 00 00 01 1B") { XCTAssertFalse(r); XCTAssertTrue(c) } else { XCTFail("充电") }
+        if case let .recordingStarted(id)? = ev("09 FF 00 00 01 1A 06 13 00 26 76 F5 6A 00 00 00 00 00 37") {
+            XCTAssertEqual(id, 0x6AF5_7626)
+        } else { XCTFail("开始") }
+        if case .recordingStopped? = ev("09 FF 00 00 01 18 82 14 00 00 01 05 00 00 00 00 00 00 00 BD") {} else { XCTFail("按键停止") }
+        // 我们自己发「开始录音」的回包不算事件（随后会有 1A/06）
+        XCTAssertNil(ev("09 FF 00 00 01 18 82 0C 00 01 9C 4C"))
+    }
+
     func testOggPageLayout() {
         let ogg = OggOpus.mux(frames: [[0xFC, 1, 2], [0xFC, 3]])
         XCTAssertEqual(Array(ogg.prefix(4)), Array("OggS".utf8))
