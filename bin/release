@@ -1,0 +1,81 @@
+#!/bin/zsh
+# 打发布包：Developer ID 签名 + hardened runtime → DMG → 公证 → 钉票 → Gatekeeper 检查
+#
+#   bin/release              # 全流程，产物 .build/release/OpenBean-<版本>.dmg
+#   bin/release --no-notarize  # 只签名打包，不公证（先看签名对不对）
+#
+# 公证凭据存在钥匙串里，第一次用前在终端执行一次（会提示输入 App 专用密码）：
+#   xcrun notarytool store-credentials openbean-notary --apple-id <你的 Apple ID> --team-id ZHPS34Z8M9
+# 换名字用 OPENBEAN_NOTARY_PROFILE，换证书用 OPENBEAN_RELEASE_ID / OPENBEAN_TEAM_ID。
+set -euo pipefail
+ROOT="${0:A:h}/.."
+cd "$ROOT"
+
+NOTARIZE=1
+[[ "${1:-}" == "--no-notarize" ]] && NOTARIZE=0
+
+TEAM="${OPENBEAN_TEAM_ID:-ZHPS34Z8M9}"
+SIGN_ID="${OPENBEAN_RELEASE_ID:-Developer ID Application: UPTHOS LLC ($TEAM)}"
+PROFILE="${OPENBEAN_NOTARY_PROFILE:-openbean-notary}"
+VERSION=$(sed -nE 's/^ *MARKETING_VERSION: *"?([^"]+)"?/\1/p' App/project.yml | head -1)
+OUT=.build/release
+APP="$OUT/OpenBean.app"
+DMG="$OUT/OpenBean-$VERSION.dmg"
+
+command -v xcodegen >/dev/null || { echo "需要 XcodeGen：brew install xcodegen"; exit 1; }
+ids=$(security find-identity -v -p codesigning)
+grep -q "\"$SIGN_ID\"" <<<"$ids" || { echo "钥匙串里没有证书：$SIGN_ID"; exit 1; }
+if (( NOTARIZE )); then
+  xcrun notarytool history --keychain-profile "$PROFILE" >/dev/null 2>&1 || {
+    echo "没有公证凭据「$PROFILE」，先执行："
+    echo "  xcrun notarytool store-credentials $PROFILE --apple-id <Apple ID> --team-id $TEAM"
+    exit 1
+  }
+fi
+[[ -f Vendor/sherpa-onnx/lib/libsherpa-onnx-c-api.dylib ]] || Scripts/fetch-deps.sh
+
+echo "▸ 编译 $VERSION（$SIGN_ID）"
+(cd App && xcodegen generate -q)
+rm -rf App/build-release "$OUT"
+mkdir -p "$OUT"
+xcodebuild -project App/OpenBean.xcodeproj -scheme OpenBean -configuration Release \
+  -derivedDataPath App/build-release -quiet \
+  CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY="$SIGN_ID" DEVELOPMENT_TEAM="$TEAM" \
+  ENABLE_HARDENED_RUNTIME=YES OTHER_CODE_SIGN_FLAGS="--timestamp" CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO \
+  build
+ditto App/build-release/Build/Products/Release/OpenBean.app "$APP"
+
+echo "▸ 检查签名"
+codesign --verify --deep --strict --verbose=1 "$APP"
+for f in "$APP" "$APP"/Contents/Frameworks/*.dylib; do
+  info=$(codesign -dvv "$f" 2>&1)
+  grep -q "Authority=$SIGN_ID" <<<"$info" || { echo "签名不对：$f"; exit 1; }
+  grep -q "Timestamp=" <<<"$info" || { echo "缺安全时间戳：$f"; exit 1; }
+done
+info=$(codesign -dv "$APP" 2>&1)
+grep -q "flags=.*runtime" <<<"$info" || { echo "没开 hardened runtime"; exit 1; }
+
+echo "▸ 打 DMG"
+STAGE=$(mktemp -d)
+ditto "$APP" "$STAGE/OpenBean.app"
+ln -s /Applications "$STAGE/Applications"
+hdiutil create -quiet -volname "OpenBean $VERSION" -srcfolder "$STAGE" -fs HFS+ -format UDZO -ov "$DMG"
+rm -rf "$STAGE"
+codesign --sign "$SIGN_ID" --timestamp "$DMG"
+
+if (( NOTARIZE )); then
+  echo "▸ 公证（通常几分钟）"
+  xcrun notarytool submit "$DMG" --keychain-profile "$PROFILE" --wait --timeout 30m | tee "$OUT/notary.log"
+  grep -q "status: Accepted" "$OUT/notary.log" || {
+    id=$(sed -nE 's/^ *id: ([0-9a-f-]+).*/\1/p' "$OUT/notary.log" | head -1)
+    [[ -n "$id" ]] && xcrun notarytool log "$id" --keychain-profile "$PROFILE"
+    exit 1
+  }
+  xcrun stapler staple "$DMG"
+  xcrun stapler validate "$DMG"
+  echo "▸ Gatekeeper"
+  spctl --assess --type open --context context:primary-signature --verbose=2 "$DMG"
+fi
+
+shasum -a 256 "$DMG" | tee "$DMG.sha256"
+echo "完成：$ROOT/$DMG"

@@ -54,8 +54,14 @@ LLM clean-up adds 0.1–0.5 s with Qwen3-30B-A3B on an M5 Max.
 ### Requirements
 
 - macOS 26 or later (Apple's on-device speech API), Apple silicon
-- Xcode 26 or later and [XcodeGen](https://github.com/yonaskolb/XcodeGen) (`brew install xcodegen`)
+- To build it yourself: Xcode 26 or later and [XcodeGen](https://github.com/yonaskolb/XcodeGen) (`brew install xcodegen`)
 - ~250 MB for the speech models; optionally ~18 GB for a local LLM
+
+### Download
+
+Get the signed and notarized `OpenBean-<version>.dmg` from
+[Releases](https://github.com/imraywang/openbean/releases/latest), open it and drag OpenBean to Applications.
+Apple silicon and macOS 26 or later only.
 
 ### Build and run
 
@@ -71,6 +77,10 @@ permissions. macOS asks for **Bluetooth**; to type into other apps OpenBean also
 **System Settings → Privacy & Security → Accessibility** (shown as *Device Control and Data Access* on some versions).
 
 To work on the app in Xcode: `cd App && xcodegen generate && open OpenBean.xcodeproj`.
+
+**Releases** are built with `bin/release`: Developer ID signing with the hardened runtime, a DMG, notarization and
+stapling (`bin/release --no-notarize` stops after signing). It needs the Developer ID certificate and a `notarytool`
+keychain profile; the script prints the one-time setup command if the profile is missing.
 
 **Why the signing certificate:** macOS remembers permissions per code signature. With ad-hoc signing every rebuild
 looks like a new app and you have to grant Accessibility again. `make-signing-cert.sh` creates a self-signed
@@ -116,7 +126,7 @@ Pauses decide punctuation and layout (all adjustable in Settings):
 | longer | full stop |
 | over 2.5 s | full stop and a new paragraph (typed as Shift+Return, so chat apps don't send) |
 
-### Optional: local LLM clean-up
+### Optional: LLM clean-up
 
 Run any OpenAI-compatible server, for example llama.cpp:
 
@@ -124,8 +134,12 @@ Run any OpenAI-compatible server, for example llama.cpp:
 llama-server -hf unsloth/Qwen3-30B-A3B-Instruct-2507-GGUF:Q4_K_M --port 8092 -c 4096 -ngl 99
 ```
 
-Then turn on *Clean up with local LLM* in the menu. The address and model name are in Settings (Ollama and LM Studio
-work too). Smaller models such as Qwen3-4B are faster to download but worse at fixing homophones.
+Then turn on *Clean up with an LLM* in the menu. The address and model name are in Settings → Clean-up (Ollama and
+LM Studio work too). Smaller models such as Qwen3-4B are faster to download but worse at fixing homophones.
+
+A cloud service works the same way: put its base URL (with or without `/v1`, e.g. `https://api.deepseek.com`), its
+model name (e.g. `deepseek-chat`) and an API key in Settings → Clean-up. The key is kept in your keychain. The text of
+each sentence is then sent to that service; audio and speech recognition still stay on your Mac.
 
 **Personal word list:** Settings → *Edit personal word list…* opens `~/Library/Application Support/openbean/glossary.txt`.
 One term per line (names, product names, jargon). The clean-up step prefers these when a word sounds similar.
@@ -223,10 +237,14 @@ openbean 是录音豆的开源本地驱动：通过蓝牙和 Wi‑Fi 连接设�
 ### 语音输入
 
 - **识别**：Apple 设备端听写出灰字预览；每句停顿后由 SenseVoice-Small 定稿（每句约 0.1 秒，带标点）。
-- **润色（可选）**：接任意 OpenAI 兼容的本地服务（如 llama.cpp 跑 Qwen3-30B-A3B），去口头禅、按个人词表纠正同音字，保留你的说法。
+- **润色（可选）**：接任意 OpenAI 兼容服务，本机的（如 llama.cpp 跑 Qwen3-30B-A3B）或云端的（DeepSeek、通义千问等，填 API Key，Key 存钥匙串），去口头禅、按个人词表纠正同音字，保留你的说法。用云端时每句话的文字会发给该服务，录音和语音识别仍在本机。
 - **按停顿排版**：停 0.8 秒定稿一句；稍长用逗号，更长用句号，超过 2.5 秒换段（用 Shift+回车，聊天软件里不会误发送）。均可在设置里调。
 
-**要求**：macOS 26 及以上，Apple 芯片，Xcode 26+ 和 XcodeGen（`brew install xcodegen`）。目前没有签名发布版，需要自己编译。
+**要求**：macOS 26 及以上，Apple 芯片。
+
+**下载**：在 [Releases](https://github.com/imraywang/openbean/releases/latest) 下载已签名、已公证的 `OpenBean-<版本>.dmg`，打开后拖进「应用程序」。
+
+**自己编译**：需要 Xcode 26+ 和 XcodeGen（`brew install xcodegen`）。
 
 ```bash
 Scripts/fetch-deps.sh          # 下载 sherpa-onnx 和语音模型（一次）
