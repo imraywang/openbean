@@ -1,5 +1,5 @@
 #!/bin/zsh
-# 打发布包：Developer ID 签名 + hardened runtime → DMG → 公证 → 钉票 → Gatekeeper 检查
+# 打发布包：Developer ID 签名 + hardened runtime → App 公证钉票 → DMG → DMG 公证钉票 → Gatekeeper 检查
 #
 #   bin/release              # 全流程，产物 .build/release/OpenBean-<版本>.dmg
 #   bin/release --no-notarize  # 只签名打包，不公证（先看签名对不对）
@@ -55,6 +55,27 @@ done
 info=$(codesign -dv "$APP" 2>&1)
 grep -q "flags=.*runtime" <<<"$info" || { echo "没开 hardened runtime"; exit 1; }
 
+# 提交公证并等结果；不通过就打印 Apple 的日志后退出
+notarize() {
+  local file=$1 log=$2
+  xcrun notarytool submit "$file" --keychain-profile "$PROFILE" --wait --timeout 30m | tee "$log"
+  grep -q "status: Accepted" "$log" || {
+    local id=$(sed -nE 's/^ *id: ([0-9a-f-]+).*/\1/p' "$log" | head -1)
+    [[ -n "$id" ]] && xcrun notarytool log "$id" --keychain-profile "$PROFILE"
+    exit 1
+  }
+}
+
+if (( NOTARIZE )); then
+  # App 先单独公证并钉票：拖出 DMG 后自带票，第一次打开不用联网核对
+  echo "▸ 公证 App（通常几分钟）"
+  ditto -c -k --keepParent "$APP" "$OUT/OpenBean-app.zip"
+  notarize "$OUT/OpenBean-app.zip" "$OUT/notary-app.log"
+  rm "$OUT/OpenBean-app.zip"
+  xcrun stapler staple "$APP"
+  xcrun stapler validate "$APP"
+fi
+
 echo "▸ 打 DMG"
 STAGE=$(mktemp -d)
 ditto "$APP" "$STAGE/OpenBean.app"
@@ -64,17 +85,13 @@ rm -rf "$STAGE"
 codesign --sign "$SIGN_ID" --timestamp "$DMG"
 
 if (( NOTARIZE )); then
-  echo "▸ 公证（通常几分钟）"
-  xcrun notarytool submit "$DMG" --keychain-profile "$PROFILE" --wait --timeout 30m | tee "$OUT/notary.log"
-  grep -q "status: Accepted" "$OUT/notary.log" || {
-    id=$(sed -nE 's/^ *id: ([0-9a-f-]+).*/\1/p' "$OUT/notary.log" | head -1)
-    [[ -n "$id" ]] && xcrun notarytool log "$id" --keychain-profile "$PROFILE"
-    exit 1
-  }
+  echo "▸ 公证 DMG"
+  notarize "$DMG" "$OUT/notary-dmg.log"
   xcrun stapler staple "$DMG"
   xcrun stapler validate "$DMG"
   echo "▸ Gatekeeper"
   spctl --assess --type open --context context:primary-signature --verbose=2 "$DMG"
+  spctl --assess --type execute --verbose=2 "$APP"
 fi
 
 (cd "$OUT" && shasum -a 256 "${DMG:t}" | tee "${DMG:t}.sha256")
