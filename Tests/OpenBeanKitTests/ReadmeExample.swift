@@ -13,4 +13,11 @@ func readmeExample() async throws {
     print(try await session.deviceInfo()!)
     try await session.handshake()
     for file in try await session.listFiles() { print(file.id, file.durationSeconds) }
+
+    // React to the recorder's button and stream live audio
+    session.observeEvents { event in
+        if case let .recordingStarted(fileId) = event {
+            _ = try? session.startRealtime(fileId: fileId) { seq, opusFrame in /* 20 ms of Opus */ }
+        }
+    }
 }
