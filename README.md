@@ -8,7 +8,7 @@ macOS app: press the button on the recorder, speak, and the text appears at your
 searchable transcripts — all transcribed on your Mac, offline.
 
 > Status: **early**. Tested on macOS 26/27, Apple silicon, recorder firmware 04.82. English and Simplified Chinese UI.
-> No signed release yet — build it yourself (below). See [Roadmap](#roadmap).
+> Signed, notarized builds are on the [Releases](https://github.com/imraywang/openbean/releases/latest) page. See [Roadmap](#roadmap).
 
 [中文说明](#中文说明)
 
@@ -104,8 +104,9 @@ OpenBean lives in the menu bar. *Open OpenBean* (⌘O) shows the main window. Th
 - **Recorder** — battery, storage, firmware; *Start recording* records on the recorder without voice typing
   (meetings, notes).
 
-**Settings** (⌘,) — what the recorder's button does (voice typing or record only), keyboard shortcut (default
-⌥ Space), pause thresholds, LLM clean-up, voice typing history, models.
+**Settings** (⌘,) is the last item in the sidebar, in four groups — Voice typing, Clean-up, Library, Models: what
+the recorder's button does (voice typing or record only), keyboard shortcut (default ⌥ Space), pause thresholds,
+the clean-up service, voice typing history, models.
 
 Voice typing:
 
@@ -199,12 +200,15 @@ The wire protocol is documented in [docs/PROTOCOL.md](docs/PROTOCOL.md) so it ca
 
 1. ✅ **Device layer** — protocol document good enough to reimplement from scratch.
 2. ✅ **OpenBean app** — voice typing, recording library with offline transcripts, setup assistant (first version).
-3. **Local API** — a background service on `localhost` that publishes device state, live PCM audio, transcripts and
+3. ✅ **Signed release** — a notarised DMG on the [Releases](https://github.com/imraywang/openbean/releases) page,
+   so people don't have to build it.
+4. **Local API** — a background service on `localhost` that publishes device state, live PCM audio, transcripts and
    recordings, so other tools (note apps, Home Assistant, agents via MCP) can use the recorder without touching Bluetooth.
-4. **Signed release** — notarised download so people don't have to build it.
+5. **Optional cloud speech recognition** — for transcribing recordings in the library first; voice typing stays
+   on-device. Off by default, like cloud clean-up.
 
 Known gaps: the first ~1 s after pressing the button is lost; words recognised very wrongly cannot be rescued by the
-clean-up step (recogniser-level hotwords would help); no signed/notarised release yet; code comments are in Chinese.
+clean-up step (recogniser-level hotwords would help); code comments are in Chinese.
 
 ## Third-party components
 
@@ -259,7 +263,7 @@ bin/build-app && open .build/OpenBean.app
 **概览**（设备电量、存储、未同步条数，本周 / 本月 / 全部的录音与语音输入统计，最近 14 天，最近录音）、
 **录音库**（列表 + 详情；蓝牙同步、长录音可走 Wi‑Fi 快速下载、自动转写、点句播放、搜索、导出 Markdown）、
 **语音输入**（每次说过的内容、时间、输入到哪个 App，可拷贝、删除、清空）、**录音豆**（电量、存储、固件、只录音不听写）。
-**设置**是单独的窗口（⌘,）：按键用途、快捷键默认 ⌥ Space、停顿阈值、润色、语音输入记录、模型。
+**设置**在侧栏最下面（⌘,），分语音输入、润色、录音库、模型四组：按键用途、快捷键默认 ⌥ Space、停顿阈值、润色服务、语音输入记录、模型。
 
 语音输入记录只保存在这台 Mac 上（`~/Library/Application Support/openbean/dictation.json`），用于「语音输入」页和概览统计；
 可在设置里关闭（「在本机保存语音输入记录」），或在「语音输入」页清空。
@@ -275,6 +279,6 @@ bin/build-app && open .build/OpenBean.app
 
 openbean 不会做绑定/解绑、删除录音、恢复出厂和固件升级。
 
-下一步：本地服务 API（让笔记软件、智能家居、AI 助手直接使用录音豆）和签名公证的发布版。
+下一步：本地服务 API（让笔记软件、智能家居、AI 助手直接使用录音豆）；可选的云端语音识别（先做录音库转写，语音输入仍在本机）。
 
 openbean 是独立项目，与 Anker 无关。协议是为了让你使用自己的设备而整理的，固件升级随时可能让它失效。
