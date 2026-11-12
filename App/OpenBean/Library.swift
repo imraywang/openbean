@@ -71,6 +71,10 @@ final class LibraryStore {
     private let settings: Settings
     private let work = DispatchQueue(label: "openbean.library", qos: .userInitiated)
     private var resumeAfterDictation = false
+    /// syncAll 正在跑（防止手动和自动同步叠在一起）
+    private(set) var syncRunning = false
+    /// 每次成功读到设备上的文件列表后调用（自动同步用）
+    @ObservationIgnored var onListRefreshed: () -> Void = {}
 
     private var indexURL: URL { AppPaths.library.appendingPathComponent("index.json") }
     func folder(_ id: UInt32) -> URL {
@@ -213,6 +217,7 @@ final class LibraryStore {
             let files = try await s.listFiles()
             merge(files)
             sync = .idle
+            onListRefreshed()
         } catch {
             sync = .failed("\(error)")
         }
@@ -241,11 +246,11 @@ final class LibraryStore {
 
     /// 下载所有还没下载的录音（蓝牙）。听写开始时会让出连接，结束后自动继续。
     func syncAll(ids: [UInt32]? = nil) async {
-        guard case .idle = device.activity else { return }
+        guard case .idle = device.activity, !syncRunning else { return }
+        syncRunning = true
+        defer { syncRunning = false }
         await refreshDeviceList()
-        let pending = recordings.filter { r in
-            r.onDevice && !r.downloaded && r.durationMs > 0 && (ids?.contains(r.id) ?? !r.isDictation)
-        }.sorted { $0.durationMs < $1.durationMs }
+        let pending = pendingDownloads(ids: ids)
         guard !pending.isEmpty else { sync = .idle; return }
         guard device.beginSync(), let s = device.session else { return }
         defer { device.endSync() }
@@ -281,6 +286,13 @@ final class LibraryStore {
         sync = .idle
     }
 
+    /// 录音豆上还没下载的录音（短的先下）
+    func pendingDownloads(ids: [UInt32]? = nil) -> [Recording] {
+        recordings.filter { r in
+            r.onDevice && !r.downloaded && r.durationMs > 0 && (ids?.contains(r.id) ?? !r.isDictation)
+        }.sorted { $0.durationMs < $1.durationMs }
+    }
+
     private func pauseForDictation() {
         sync = .paused
         resumeAfterDictation = true
@@ -301,6 +313,65 @@ final class LibraryStore {
         let ogg = OggOpus.mux(frames: OggOpus.frames(from: opus))
         try Data(ogg).write(to: audioURL(id), options: .atomic)
         update(id) { $0.downloaded = true }
+    }
+
+    // MARK: 删除录音豆上的录音
+
+    /// 正在从录音豆删除的录音
+    private(set) var deletingFromRecorder: UInt32?
+
+    /// 右键菜单里要不要出现「从录音豆删除」：只是粗判，真正的检查在 deleteFromRecorder 里
+    func mayDeleteFromRecorder(_ r: Recording) -> Bool {
+        r.onDevice && r.downloaded && FileManager.default.fileExists(atPath: audioURL(r.id).path)
+    }
+
+    /// 连接空闲（没在同步、听写、删除）
+    var recorderIdle: Bool {
+        device.isReady && device.activity == .idle && !syncRunning && deletingFromRecorder == nil
+    }
+
+    /// 从录音豆删除（本机副本保留）。逐条删，遇到第一个错误就停；全部成功返回 nil，否则返回出错说明。
+    func deleteFromRecorder(_ ids: [UInt32]) async -> String? {
+        for id in ids {
+            do { try await deleteOneFromRecorder(id) } catch { return "\(error)" }
+        }
+        return nil
+    }
+
+    private func deleteOneFromRecorder(_ id: UInt32) async throws {
+        guard let r = recordings.first(where: { $0.id == id }) else { throw DeleteError.refused(.notOnRecorder) }
+        // 把本机音频完整解码一遍核对时长（长录音要几秒；不占 work 队列，那里可能在转写）
+        let url = audioURL(id)
+        let local: Double? = await withCheckedContinuation { c in
+            DispatchQueue.global(qos: .userInitiated).async { c.resume(returning: LocalAudio.decodedSeconds(url)) }
+        }
+        // 先用本机已知的状态粗查一遍；录音状态和时长到了设备上还会用最新的再查
+        if let refusal = DeletePolicy.check(onRecorder: r.onDevice, downloaded: r.downloaded, localSeconds: local,
+                                            expectedSeconds: r.duration, recorderRecording: device.info?.recording,
+                                            busy: !recorderIdle) {
+            throw DeleteError.refused(refusal)
+        }
+        // 删除期间占住连接，同步和自动同步不会插进来
+        guard device.beginSync(), let s = device.session else { throw DeleteError.refused(.busy) }
+        defer { device.endSync() }
+        deletingFromRecorder = id
+        defer { deletingFromRecorder = nil }
+        Log.write("从录音豆删除 \(id)（本机 \(String(format: "%.2f", local ?? 0)) 秒）")
+        do {
+            let after = try await s.deleteFile(id: id) { f in
+                if let refusal = DeletePolicy.check(onRecorder: true, downloaded: true, localSeconds: local,
+                                                    expectedSeconds: f.durationSeconds, recorderRecording: false, busy: false) {
+                    throw DeleteError.refused(refusal)
+                }
+            }
+            merge(after)
+            Log.write("已从录音豆删除 \(id)，设备上还有 \(after.count) 条")
+        } catch {
+            Log.write("从录音豆删除 \(id) 失败：\(error)")
+            // 失败时设备上的状态不一定清楚（例如回包超时），重新读一遍列表
+            if let files = try? await s.listFiles() { merge(files) }
+            throw error
+        }
     }
 
     // MARK: Wi‑Fi 快速同步

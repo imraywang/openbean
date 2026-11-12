@@ -302,16 +302,6 @@
         }
       }
     },
-    "Any OpenAI-compatible server works: llama.cpp (llama-server), Ollama, LM Studio. It removes filler words, fixes likely homophones using your word list and keeps your wording.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "支持任意 OpenAI 兼容服务：llama.cpp（llama-server）、Ollama、LM Studio。会去掉口头禅、按个人词表纠正同音字，并保留你的说法。"
-          }
-        }
-      }
-    },
     "Any OpenAI-compatible service works: llama.cpp (llama-server), Ollama or LM Studio on this Mac, or cloud services such as DeepSeek, Qwen, Kimi and OpenAI. The API key is kept in your keychain.": {
       "localizations": {
         "zh-Hans": {
@@ -442,16 +432,6 @@
         }
       }
     },
-    "Clean up each sentence with a local LLM": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "用本地大模型润色每一句"
-          }
-        }
-      }
-    },
     "Clean up each sentence with an LLM": {
       "localizations": {
         "zh-Hans": {
@@ -468,16 +448,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "用大模型润色"
-          }
-        }
-      }
-    },
-    "Clean up with local LLM": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "本地大模型润色"
           }
         }
       }
@@ -642,6 +612,16 @@
         }
       }
     },
+    "Couldn't delete from the recorder": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没能从录音豆删除"
+          }
+        }
+      }
+    },
     "Day": {
       "localizations": {
         "zh-Hans": {
@@ -662,12 +642,42 @@
         }
       }
     },
+    "Delete from recorder": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "从录音豆删除"
+          }
+        }
+      }
+    },
+    "Delete from recorder…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "从录音豆删除…"
+          }
+        }
+      }
+    },
     "Delete local copy": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "删除本机副本"
+          }
+        }
+      }
+    },
+    "Delete this recording from the recorder?": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "从录音豆删除这条录音？"
           }
         }
       }
@@ -1242,6 +1252,16 @@
         }
       }
     },
+    "OK": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "好"
+          }
+        }
+      }
+    },
     "On the recorder": {
       "localizations": {
         "zh-Hans": {
@@ -1342,12 +1362,12 @@
         }
       }
     },
-    "OpenBean never pairs, unbinds, resets, deletes recordings on or updates the recorder.": {
+    "OpenBean never pairs, unbinds, resets or updates the recorder. It deletes a recording from the recorder only when you ask, and only once that recording is safely on this Mac.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "OpenBean 不会对录音豆做配对、解绑、恢复出厂、删除录音或固件升级。"
+            "value": "OpenBean 不会对录音豆做配对、解绑、恢复出厂或固件升级；只在你要求、且录音已经完整保存在这台 Mac 上时，才删除录音豆上的录音。"
           }
         }
       }
@@ -1362,22 +1382,22 @@
         }
       }
     },
+    "Over Bluetooth, when the recorder connects or goes back in its case": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "录音豆连上或放回充电盒时，经蓝牙下载"
+          }
+        }
+      }
+    },
     "Overview": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "概览"
-          }
-        }
-      }
-    },
-    "Pauses": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "停顿"
           }
         }
       }
@@ -1622,16 +1642,6 @@
         }
       }
     },
-    "Search": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "搜索"
-          }
-        }
-      }
-    },
     "Search titles and transcripts": {
       "localizations": {
         "zh-Hans": {
@@ -1772,16 +1782,6 @@
         }
       }
     },
-    "Short pauses finalise a phrase; slightly longer ones become a comma, longer ones a full stop. A too-short phrase pause chops sentences and hurts accuracy. Restart OpenBean after changing it.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "短停顿定稿一句；稍长的停顿补逗号，更长的补句号。定稿停顿太短会把一句话切碎、错字变多。修改后需重启 OpenBean。"
-          }
-        }
-      }
-    },
     "Shortcut: %@": {
       "localizations": {
         "zh-Hans": {
@@ -1808,16 +1808,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "在访达中显示"
-          }
-        }
-      }
-    },
-    "Show library folder": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "打开录音库文件夹"
           }
         }
       }
@@ -2002,6 +1992,16 @@
         }
       }
     },
+    "Sync new recordings automatically": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自动同步新录音"
+          }
+        }
+      }
+    },
     "Sync paused for dictation": {
       "localizations": {
         "zh-Hans": {
@@ -2068,6 +2068,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "每句话的文字会发送到 %@；录音和语音识别仍在这台 Mac 上。"
+          }
+        }
+      }
+    },
+    "This cannot be undone. The copy on this Mac is kept.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除后不能恢复。这台 Mac 上的副本会保留。"
           }
         }
       }

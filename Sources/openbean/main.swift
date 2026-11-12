@@ -18,12 +18,17 @@ let usage = """
                           → 关热点 → Mac 重连原来的网络。期间 Mac 断网
   watch [秒数]            只连接和监听，不发控制命令，打印设备主动发来的所有帧（默认 90 秒）
   live [秒数]             让录音豆开始录音，实时拉流若干秒（默认 15），然后暂停录音
+  delete <id> --yes [--local 路径]
+                          ⚠️ 删除录音豆上的一个录音（1A/10，未经真机验证，删了不能恢复）。
+                          只有本机副本存在、且解码时长和设备上的一致时才删；默认核对 App 录音库里的
+                          Library/<id>/audio.ogg，也可以用 --local 指定（例如 pull 出来的 .ogg）。
+                          录音豆正在录音时不删；删完回读列表确认
 
 选项：
   --id <UUID>             指定 CoreBluetooth 设备标识（默认用上次连接的那台，或扫描信号最强的）
   -v                      打印每条收发的帧
 
-不会发送：绑定/解绑、恢复出厂、删除文件、OTA。
+不会发送：绑定/解绑、恢复出厂、OTA。删除文件只有 delete 子命令会发，且必须带 --yes。
 """
 
 var args = Array(CommandLine.arguments.dropFirst())
@@ -46,6 +51,13 @@ let maxSeconds: Double? = {
 }()
 let showAll = args.contains("--all")
 args.removeAll { $0 == "--all" }
+let localPath: String? = {
+    guard let i = args.firstIndex(of: "--local"), i + 1 < args.count else { return nil }
+    defer { args.removeSubrange(i...(i + 1)) }
+    return args[i + 1]
+}()
+let confirmed = args.contains("--yes")
+args.removeAll { $0 == "--yes" }
 guard let command = args.first else { print(usage); exit(0) }
 
 let outDir = URL(fileURLWithPath: outPath ?? FileManager.default.currentDirectoryPath)
@@ -349,6 +361,30 @@ do {
             say(String(format: "  %4.0fs  收到 %6.1f KB ≈ %4.1f 秒音频", elapsed, Double(got) / 1024, Double(got) / 160 * 0.02))
         }
         save(t, tag: "-live")
+
+    case "delete":
+        guard let arg = args.dropFirst().first, let id = UInt32(arg) else { throw LinkError.missing("参数：要删除的录音 id（数字）") }
+        let local = localPath.map { URL(fileURLWithPath: $0) }
+            ?? stateDir.appendingPathComponent("Library").appendingPathComponent(String(id)).appendingPathComponent("audio.ogg")
+        say("核对本机副本 \(local.path)…")
+        let localSeconds = LocalAudio.decodedSeconds(local)
+        say("  " + (localSeconds.map { "解码时长 \(fmtDur($0))（\(String(format: "%.2f", $0)) 秒）" } ?? "不存在或无法解码"))
+        guard localSeconds != nil else { throw DeleteError.refused(.localAudioMissing) }
+        guard confirmed else {
+            say("\n没有带 --yes，什么都没发。删除不能恢复；确认要删时再加 --yes。")
+            exit(1)
+        }
+        try await connectDevice()
+        say("删除 \(id)…")
+        let after = try await session().deleteFile(id: id) { file in
+            say("  设备上：\(fmtDate(file.startDate))，\(fmtDur(file.durationSeconds))（\(String(format: "%.2f", file.durationSeconds)) 秒）")
+            if let r = DeletePolicy.check(onRecorder: true, downloaded: true, localSeconds: localSeconds,
+                                          expectedSeconds: file.durationSeconds, recorderRecording: false, busy: false) {
+                throw DeleteError.refused(r)
+            }
+            say("  核对通过，发送 \(Cmd.deleteFile(id: id).hex)")
+        }
+        say("已删除 \(id)，回读列表确认：录音豆上还有 \(after.count) 条")
 
     default:
         print(usage)

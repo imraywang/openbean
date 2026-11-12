@@ -89,6 +89,8 @@ final class Settings {
     var sentencePause: Double { didSet { d.set(sentencePause, forKey: "sentencePause") } }
     var hotkey: Hotkey.Preset { didSet { d.set(hotkey.rawValue, forKey: "hotkey"); onHotkeyChange?() } }
     var autoTranscribe: Bool { didSet { d.set(autoTranscribe, forKey: "autoTranscribe") } }
+    /// 连上录音豆、或放回充电盒时自动经蓝牙下载新录音
+    var autoSync: Bool { didSet { d.set(autoSync, forKey: "autoSync") } }
     var onboardingDone: Bool { didSet { d.set(onboardingDone, forKey: "onboardingDone") } }
     /// 录音豆按键：true = 语音输入；false = 只录音（例如录会议）
     var buttonDictates: Bool { didSet { d.set(buttonDictates, forKey: "buttonDictates") } }
@@ -104,7 +106,7 @@ final class Settings {
                               "paragraphGap": 2.5, "sentencePause": 0.8,
                               "hotkey": Hotkey.Preset.optionSpace.rawValue, "autoTranscribe": true,
                               "onboardingDone": false, "buttonDictates": true, "readySound": true,
-                              "keepHistory": true])
+                              "keepHistory": true, "autoSync": true])
         typeIntoApp = d.bool(forKey: "typeIntoApp")
         polishEnabled = d.bool(forKey: "polishEnabled")
         polishEndpoint = d.string(forKey: "polishEndpoint") ?? ""
@@ -114,6 +116,7 @@ final class Settings {
         sentencePause = d.double(forKey: "sentencePause")
         hotkey = Hotkey.Preset(rawValue: d.string(forKey: "hotkey") ?? "") ?? .optionSpace
         autoTranscribe = d.bool(forKey: "autoTranscribe")
+        autoSync = d.bool(forKey: "autoSync")
         onboardingDone = d.bool(forKey: "onboardingDone")
         buttonDictates = d.bool(forKey: "buttonDictates")
         readySound = d.bool(forKey: "readySound")

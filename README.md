@@ -24,7 +24,7 @@ searchable transcripts — all transcribed on your Mac, offline.
 | Live audio | Decrypted audio in real time, 0.3–0.5 s end-to-end |
 | Button events | The recorder tells the host when its button starts and stops a recording |
 
-openbean never binds/unbinds the device, deletes recordings, factory-resets or updates firmware.
+openbean never binds/unbinds the device, factory-resets it or updates firmware. It deletes a recording from the recorder only when you ask, and only once the recording is safely on your Mac.
 
 ## The OpenBean app
 
@@ -95,10 +95,15 @@ OpenBean lives in the menu bar. *Open OpenBean* (⌘O) shows the main window. Th
 - **Overview** — the recorder (battery, storage, recordings not yet synced), totals for this week / month / all
   time (recordings, time recorded, characters typed by voice), the last 14 days and your recent recordings.
 - **Library** — recording list and the selected recording side by side. *Sync* downloads new recordings over
-  Bluetooth (shortest first; it pauses while you dictate and resumes afterwards). Long recordings can use
+  Bluetooth (shortest first; it pauses while you dictate and resumes afterwards). With *Sync new recordings
+  automatically* (Settings → Library, on by default) this happens by itself when the recorder connects or goes back
+  into its case — never while you are recording or dictating, and never over Wi‑Fi. Long recordings can use
   *Download over Wi‑Fi*, ~100× faster but your Mac is offline for about a minute. Downloads are transcribed
   automatically; click a sentence to play from there; search titles and transcripts; export Markdown or audio.
   Clips created by voice typing are hidden by default.
+  To free space on the recorder, right-click a recording → *Delete from recorder…*. This only works once the
+  recording is on your Mac and its audio checks out (it plays to the same length as on the recorder); the copy on
+  your Mac is kept. Deletion cannot be undone and has not yet been verified on hardware.
 - **Voice typing** — everything you dictated, with time, target app and length. Copy or delete entries, or clear
   the history.
 - **Recorder** — battery, storage, firmware; *Start recording* records on the recorder without voice typing
@@ -163,7 +168,12 @@ bin/openbean list          # device info + recordings
 bin/openbean pull latest   # download, decrypt and save the newest recording as .ogg
 bin/openbean live 15       # record 15 s and stream it live
 bin/openbean watch 60      # print events the device sends, e.g. when you press its button
+bin/openbean delete <id> --yes   # delete one recording from the recorder (untested; see below)
 ```
+
+`delete` refuses unless the recording's audio is on this Mac (`Library/<id>/audio.ogg` of the app, or `--local <file.ogg>`)
+and decodes to the length the recorder lists, and it re-reads the list afterwards to confirm. Without `--yes` it only
+checks the local copy and sends nothing.
 
 `bin/openbean` wraps the CLI in a tiny `.app`: macOS only grants Bluetooth access to apps.
 `bin/openbean wifi <id>` uses the much faster Wi‑Fi path; it temporarily joins the recorder's own access point,
@@ -265,6 +275,12 @@ bin/build-app && open .build/OpenBean.app
 **语音输入**（每次说过的内容、时间、输入到哪个 App，可拷贝、删除、清空）、**录音豆**（电量、存储、固件、只录音不听写）。
 **设置**在侧栏最下面（⌘,），分语音输入、润色、录音库、模型四组：按键用途、快捷键默认 ⌥ Space、停顿阈值、润色服务、语音输入记录、模型。
 
+自动同步：设置 → 录音库 →「自动同步新录音」（默认打开）。录音豆连上、或放回充电盒时自动经蓝牙下载新录音；
+正在录音或语音输入时不会开始，也从不自动走 Wi‑Fi。失败后会隔一段时间（1 分钟起、最多 30 分钟）再试。
+
+从录音豆删除：在录音库里右键一条录音 →「从录音豆删除…」，用来腾出录音豆的空间。只有已经下载到本机、且本机音频解码出来的时长
+和录音豆上一致的录音才能删；本机副本保留。删除不能恢复，这条命令还没在真机上验证过。
+
 语音输入记录只保存在这台 Mac 上（`~/Library/Application Support/openbean/dictation.json`），用于「语音输入」页和概览统计；
 可在设置里关闭（「在本机保存语音输入记录」），或在「语音输入」页清空。
 
@@ -274,10 +290,11 @@ bin/build-app && open .build/OpenBean.app
 
 ### 其他
 
-命令行工具 `bin/openbean` 可以扫描、读设备信息、下载并解密录音（蓝牙约 2 倍实时，Wi‑Fi 约 200 倍实时）、实时拉流、监听按键事件。
+命令行工具 `bin/openbean` 可以扫描、读设备信息、下载并解密录音（蓝牙约 2 倍实时，Wi‑Fi 约 200 倍实时）、实时拉流、监听按键事件；
+`delete <id> --yes` 删除录音豆上的一条录音（同样要先有完整的本机副本，未经真机验证）。
 协议文档见 [docs/PROTOCOL.md](docs/PROTOCOL.md)。
 
-openbean 不会做绑定/解绑、删除录音、恢复出厂和固件升级。
+openbean 不会做绑定/解绑、恢复出厂和固件升级；只在你明确要求、且录音已经完整保存在本机时才删除录音豆上的录音。
 
 下一步：本地服务 API（让笔记软件、智能家居、AI 助手直接使用录音豆）；可选的云端语音识别（先做录音库转写，语音输入仍在本机）。
 

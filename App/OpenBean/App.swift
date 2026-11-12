@@ -15,11 +15,16 @@ final class AppModel {
     lazy var dictation = Dictation(device: device, settings: settings)
     lazy var library = LibraryStore(device: device, settings: settings)
     lazy var hud = HUDController(dictation: dictation)
+    lazy var autoSync = AutoSync(device: device, library: library, settings: settings)
 
     func start() {
         models.check()
         models.onReady = { [weak self] in self?.dictation.loadRecognizer() }
-        device.onEvent = { [weak self] e in self?.dictation.handle(e) }
+        device.onEvent = { [weak self] e in
+            self?.dictation.handle(e)
+            self?.autoSync.handle(e)
+        }
+        library.onListRefreshed = { [weak self] in self?.autoSync.listRefreshed() }
         device.onConnected = { [weak self] in Task { await self?.library.refreshDeviceList() } }
         dictation.onStarted = { [weak self] id in self?.library.markDictation(id) }
         dictation.onFinished = { [weak self] in self?.library.resumeIfNeeded() }
