@@ -31,6 +31,12 @@ let package = Package(
                               "-Xlinker", "__info_plist", "-Xlinker", "Support/Info.plist"]),
             ]
         ),
+        // 批量离线识别（评测用）：sv-batch [选项] <模型目录> <文件列表> <输出.jsonl>，见 Sources/sv-batch/main.swift
+        .executableTarget(
+            name: "sv-batch",
+            dependencies: ["OpenBeanVoice"],
+            linkerSettings: [.unsafeFlags(["-Xlinker", "-rpath", "-Xlinker", "\(Context.packageDirectory)/Vendor/sherpa-onnx/lib"])]
+        ),
         .testTarget(name: "OpenBeanKitTests", dependencies: ["OpenBeanKit"]),
         .testTarget(
             name: "OpenBeanVoiceTests",

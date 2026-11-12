@@ -86,6 +86,8 @@ final class Dictation {
         svQueue.async { [weak self] in
             do {
                 let r = try SentenceRecognizer(modelsDir: models, minSilence: pause)
+                // 小声说话时 VAD 会当成静音：给切句的音频加一个边听边估的增益（音量正常时为 0，不影响识别）
+                r.adaptiveGain = AdaptiveGain()
                 DispatchQueue.main.async {
                     self?.recognizer = r
                     self?.recognizerReady = true
@@ -313,9 +315,14 @@ final class Dictation {
         await transcriber?.finish()
         transcriber = nil
         let r = recognizer
-        let rest: [SentenceRecognizer.Sentence] = await withCheckedContinuation { c in
-            svQueue.async { c.resume(returning: r?.flush() ?? []) }
+        let (rest, fallback, gain): ([SentenceRecognizer.Sentence], Bool, Float) = await withCheckedContinuation { c in
+            svQueue.async {
+                let s = r?.flush() ?? []
+                c.resume(returning: (s, r?.usedFallback ?? false, r?.adaptiveGain?.gainDb ?? 0))
+            }
         }
+        if fallback { Log.write("这次没切出句子，整段直接识别") }
+        if gain > 0 { Log.write(String(format: "切句增益（结束时）%.1f dB", gain)) }
         sentences(rest)
         await chain?.value
         // 补上最后一句的句末标点

@@ -472,38 +472,25 @@ final class LibraryStore {
     }
 }
 
-/// 离线转写一个音频文件：解码 → 16 kHz → VAD 切句 → SenseVoice
+/// 离线转写一个音频文件：解码 → 16 kHz → 测音量定增益 → VAD 切句 → SenseVoice
 enum FileTranscriber {
     static func transcribe(url: URL, models: URL, glossary: GlossaryCorrector,
                            progress: (Double) -> Void) throws -> [TranscriptSegment] {
-        let file = try AVAudioFile(forReading: url)
-        let target = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: 16000, channels: 1, interleaved: false)!
-        guard let conv = AVAudioConverter(from: file.processingFormat, to: target) else { throw VoiceError.initFailed("converter") }
         let recognizer = try SentenceRecognizer(modelsDir: models, minSilence: 0.6)
+        // 整个文件都在手里：先走一遍测音量，小声的录音给 VAD 一个固定增益（不然整段会被当成静音）
+        let level = try AudioFile16k.stats(url)
+        recognizer.vadGainDb = level.gain
+        if level.gain > 0 {
+            Log.write(String(format: "转写音量：说话 %.1f dBFS，底噪 %.1f dBFS，切句前放大 %.1f dB",
+                             level.speech, level.noise, level.gain))
+        }
         var out: [TranscriptSegment] = []
-        let chunk: AVAudioFrameCount = 48000
-        let total = max(Double(file.length), 1)
-        var done = false
-        while !done, file.framePosition < file.length {
-            let inBuf = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: chunk)!
-            // Ogg Opus 的 length 是估算值，读到末尾时 AVAudioFile 会抛 eofErr（-39），当作读完
-            do {
-                try file.read(into: inBuf, frameCount: chunk)
-            } catch let e as NSError where e.domain == NSOSStatusErrorDomain && e.code == -39 {
-                done = true
-            }
-            if inBuf.frameLength == 0 { break }
-            let outBuf = AVAudioPCMBuffer(pcmFormat: target, frameCapacity: chunk / 3 + 64)!
-            var fed = false
-            conv.convert(to: outBuf, error: nil) { _, st in
-                if fed { st.pointee = .noDataNow; return nil }
-                fed = true; st.pointee = .haveData; return inBuf
-            }
-            let samples = Array(UnsafeBufferPointer(start: outBuf.floatChannelData![0], count: Int(outBuf.frameLength)))
+        try AudioFile16k.read(url) { samples, p in
             out += recognizer.accept(samples).map { seg($0, glossary) }
-            progress(Double(file.framePosition) / total)
+            progress(p)
         }
         out += recognizer.flush().map { seg($0, glossary) }
+        if recognizer.usedFallback { Log.write("转写没切出句子，整段直接识别") }
         return out.filter { !$0.text.isEmpty }
     }
 
