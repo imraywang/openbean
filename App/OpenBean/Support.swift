@@ -5,6 +5,7 @@ import ApplicationServices
 import Carbon.HIToolbox
 import Foundation
 import Observation
+import OpenBeanVoice
 import Security
 
 enum AppPaths {
@@ -22,6 +23,19 @@ enum AppPaths {
     }
     static var glossary: URL { support.appendingPathComponent("glossary.txt") }
     static var log: URL { support.appendingPathComponent("openbean.log") }
+    /// 笔记模板（用户可改）；文件不存在或为空时用默认模板
+    static var noteTemplate: URL { support.appendingPathComponent("note-template.md") }
+
+    static func readNoteTemplate() -> String {
+        let s = (try? String(contentsOf: noteTemplate, encoding: .utf8)) ?? ""
+        return s.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? NoteTemplate.defaultTemplate : s
+    }
+
+    /// 「编辑笔记模板」：第一次打开时写一份带说明的默认模板
+    static func ensureNoteTemplate() {
+        guard !FileManager.default.fileExists(atPath: noteTemplate.path) else { return }
+        try? (NoteTemplate.help + NoteTemplate.defaultTemplate).write(to: noteTemplate, atomically: true, encoding: .utf8)
+    }
 
     static func readGlossary() -> [String] {
         if !FileManager.default.fileExists(atPath: glossary.path) {
@@ -96,6 +110,12 @@ final class Settings {
     var readySound: Bool { didSet { d.set(readySound, forKey: "readySound") } }
     /// 在本机保存语音输入记录（概览里的统计也靠它）
     var keepHistory: Bool { didSet { d.set(keepHistory, forKey: "keepHistory") } }
+    /// 转写完用大模型（润色那个服务）写摘要
+    var summarizeRecordings: Bool { didSet { d.set(summarizeRecordings, forKey: "summarizeRecordings") } }
+    /// 每条录音在下面这个文件夹里写一份 Markdown 笔记
+    var notesEnabled: Bool { didSet { d.set(notesEnabled, forKey: "notesEnabled") } }
+    /// 笔记文件夹（如 Obsidian 库里的某个文件夹）；空 = 没选
+    var notesFolder: String { didSet { d.set(notesFolder, forKey: "notesFolder") } }
     @ObservationIgnored var onHotkeyChange: (() -> Void)?
 
     init() {
@@ -104,7 +124,8 @@ final class Settings {
                               "paragraphGap": 2.5, "sentencePause": 0.8,
                               "hotkey": Hotkey.Preset.optionSpace.rawValue, "autoTranscribe": true,
                               "onboardingDone": false, "buttonDictates": true, "readySound": true,
-                              "keepHistory": true])
+                              "keepHistory": true, "summarizeRecordings": false, "notesEnabled": false,
+                              "notesFolder": ""])
         typeIntoApp = d.bool(forKey: "typeIntoApp")
         polishEnabled = d.bool(forKey: "polishEnabled")
         polishEndpoint = d.string(forKey: "polishEndpoint") ?? ""
@@ -118,6 +139,9 @@ final class Settings {
         buttonDictates = d.bool(forKey: "buttonDictates")
         readySound = d.bool(forKey: "readySound")
         keepHistory = d.bool(forKey: "keepHistory")
+        summarizeRecordings = d.bool(forKey: "summarizeRecordings")
+        notesEnabled = d.bool(forKey: "notesEnabled")
+        notesFolder = d.string(forKey: "notesFolder") ?? ""
     }
 }
 

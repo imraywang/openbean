@@ -98,7 +98,8 @@ OpenBean lives in the menu bar. *Open OpenBean* (⌘O) shows the main window. Th
   Bluetooth (shortest first; it pauses while you dictate and resumes afterwards). Long recordings can use
   *Download over Wi‑Fi*, ~100× faster but your Mac is offline for about a minute. Downloads are transcribed
   automatically; click a sentence to play from there; search titles and transcripts; export Markdown or audio.
-  Clips created by voice typing are hidden by default.
+  Clips created by voice typing are hidden by default. *Summarise* (optional, see below) puts a title, summary,
+  key points and action items above the transcript.
 - **Voice typing** — everything you dictated, with time, target app and length. Copy or delete entries, or clear
   the history.
 - **Recorder** — battery, storage, firmware; *Start recording* records on the recorder without voice typing
@@ -106,7 +107,28 @@ OpenBean lives in the menu bar. *Open OpenBean* (⌘O) shows the main window. Th
 
 **Settings** (⌘,) is the last item in the sidebar, in four groups — Voice typing, Clean-up, Library, Models: what
 the recorder's button does (voice typing or record only), keyboard shortcut (default ⌥ Space), pause thresholds,
-the clean-up service, voice typing history, models.
+the clean-up service, voice typing history, summaries and notes, models.
+
+**Summaries and notes** (Settings → Library, both off by default):
+
+- *Summarise recordings after transcription* — after a recording is transcribed, the LLM service from Clean-up
+  writes a title (used when you haven't named the recording), a 2–4 sentence summary, key points and action items, in
+  the language of the recording. If the service isn't running it is skipped quietly (see the log). Long recordings
+  are summarised in parts that fit a 4k context, then merged. Voice typing clips are never summarised. *Summarise* /
+  *Summarise again* in a recording's toolbar does it by hand.
+- *Save a note for each recording to a folder* — pick a folder (for example inside an Obsidian vault) and OpenBean
+  writes `<yyyy-MM-dd>-<title>.md` there after each transcription (and summary): YAML frontmatter (`title`,
+  `created_at`, `duration`, `source: openbean`, `recording_id`, `tags: [recording]`), the summary, key points, action
+  items, an `openbean://open/<id>` link and the transcript with `[mm:ss]` timestamps. Audio is not copied. If the name
+  is taken the start time is added (`-HHmm`). Summarising again rewrites the same file — unless you have edited it
+  since: then OpenBean leaves your edit alone and writes a new file next to it (*Export → Save note to folder* asks
+  instead: replace or save as new). *Save notes for existing recordings* back-fills notes for transcribed recordings
+  without re-summarising ones that already have a summary.
+- *Edit note template…* opens `~/Library/Application Support/openbean/note-template.md` (delete it to go back to the
+  default). Placeholders: `{{title}}`, `{{title_yaml}}` (quoted for YAML), `{{date}}`, `{{time}}`, `{{created_at}}`,
+  `{{duration}}`, `{{recording_id}}`, `{{summary}}`, `{{key_points}}`, `{{action_items}}`, `{{link}}`,
+  `{{transcript}}`; `{{#name}}…{{/name}}` keeps the text in between only when `name` isn't empty. Unknown
+  placeholders are left as they are.
 
 Voice typing:
 
@@ -141,6 +163,11 @@ LM Studio work too). Smaller models such as Qwen3-4B are faster to download but 
 A cloud service works the same way: put its base URL (with or without `/v1`, e.g. `https://api.deepseek.com`), its
 model name (e.g. `deepseek-chat`) and an API key in Settings → Clean-up. The key is kept in your keychain. The text of
 each sentence is then sent to that service; audio and speech recognition still stay on your Mac.
+
+The same service writes recording summaries when *Summarise recordings after transcription* is on (Settings →
+Library). Summaries send the whole transcript, in chunks of about 1,800 tokens, with a longer timeout (5 minutes per
+request for a local server) and run in the background; a 4k context (`-c 4096`) is enough. With a cloud service the
+transcript text leaves your Mac.
 
 **Personal word list:** Settings → *Edit personal word list…* opens `~/Library/Application Support/openbean/glossary.txt`.
 One term per line (names, product names, jargon). The clean-up step prefers these when a word sounds similar.
@@ -267,6 +294,19 @@ bin/build-app && open .build/OpenBean.app
 
 语音输入记录只保存在这台 Mac 上（`~/Library/Application Support/openbean/dictation.json`），用于「语音输入」页和概览统计；
 可在设置里关闭（「在本机保存语音输入记录」），或在「语音输入」页清空。
+
+**摘要和笔记**（设置 → 录音库，默认都关）：
+
+- **转写后自动生成摘要**：用「润色」里设置的大模型服务，按录音的语言写标题（录音没起名时用它）、2–4 句摘要、要点和待办。
+  服务没开就静默跳过（写日志）。长录音按 4k 上下文分块摘要再合并。语音输入片段不做摘要。录音详情工具栏的「摘要 / 重新摘要」可手动触发。
+  用云端服务时整篇转写文字会发给该服务。
+- **为每条录音在文件夹里保存一份笔记**：选一个文件夹（如 Obsidian 知识库里的），转写（和摘要）完成后写入 `<yyyy-MM-dd>-<标题>.md`：
+  YAML frontmatter（`title`、`created_at`、`duration`、`source: openbean`、`recording_id`、`tags: [recording]`）、摘要、要点、待办、
+  `openbean://open/<id>` 链接和带 `[mm:ss]` 时间戳的转写，不拷贝音频。重名时加上开始时间（`-HHmm`）。重新摘要会覆盖同一个文件；
+  但如果你改过这份笔记，OpenBean 不动它，另写一份新文件（「导出 → 保存笔记到文件夹」会先问：替换还是另存）。
+  「为已有录音补写笔记」给已转写的录音补写笔记，已有摘要的不重新摘要。
+- **编辑笔记模板…** 打开 `~/Library/Application Support/openbean/note-template.md`（删掉即恢复默认）。占位符见上方英文说明，
+  `{{#name}}…{{/name}}` 只在该值非空时保留中间内容，不认识的占位符原样保留。
 
 语音输入：菜单栏的豆子图标不带斜杠表示已连接（正在听时变实心，同步时带小箭头）→ 光标放好 → 按录音豆按键（或快捷键），
 等底部悬浮条从「准备中…」变成跳动的麦克风再说话
