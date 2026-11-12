@@ -59,3 +59,7 @@ targets:
         LSApplicationCategoryType: public.app-category.productivity
         NSBluetoothAlwaysUsageDescription: OpenBean connects to your soundcore Work recorder to use it as a microphone and to sync recordings.
         NSSpeechRecognitionUsageDescription: OpenBean transcribes your speech on this Mac, offline.
+        # openbean://dictate/toggle|start|stop、openbean://sync、openbean://open（快捷指令、Raycast 可用）
+        CFBundleURLTypes:
+          - CFBundleURLName: dev.openbean.app
+            CFBundleURLSchemes: [openbean]

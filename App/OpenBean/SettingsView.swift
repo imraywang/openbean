@@ -18,6 +18,7 @@ struct SettingsView: View {
                 Picker("Keyboard shortcut", selection: $settings.hotkey) {
                     ForEach(Hotkey.Preset.allCases) { Text($0.label).tag($0) }
                 }
+                Toggle("Play a sound when it's ready to listen", isOn: $settings.readySound)
                 Toggle("Type into the active app", isOn: $settings.typeIntoApp)
                 if settings.typeIntoApp && !trusted {
                     HStack {

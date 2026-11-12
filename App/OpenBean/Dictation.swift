@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import AppKit
 import AVFoundation
 import Foundation
 import Observation
@@ -16,6 +17,16 @@ final class Dictation {
     private(set) var volatileText = ""
     private(set) var lastError: String?
     private(set) var recognizerReady = false
+    /// 实时音量 0…1（悬浮条的声波用）
+    private(set) var level: Float = 0
+    /// 开始听的时刻（计时用）
+    private(set) var listeningSince: Date?
+    /// 本次已打进光标处的字数
+    private(set) var typedCount = 0
+    /// 正在润色的句数
+    private(set) var polishing = 0
+    /// 本次结束时的结果：打进了 App，还是拷贝到了剪贴板
+    private(set) var deliveredByClipboard = false
 
     private let device: DeviceController
     private let settings: Settings
@@ -127,6 +138,7 @@ final class Dictation {
         }
         phase = .starting
         finalText = ""; volatileText = ""; lastError = nil
+        level = 0; noiseFloor = -60; listeningSince = nil; typedCount = 0; polishing = 0; deliveredByClipboard = false
         text = TwoPassText(); segments = []; lastEnd = nil; chain = nil; early = []
         typing = settings.typeIntoApp && Typist.trusted
         if settings.typeIntoApp, !Typist.trusted { Log.write("没有辅助功能权限，只显示不打字") }
@@ -158,14 +170,33 @@ final class Dictation {
             transcriber = t
             for b in early { t.append(b) }
             early = []
-            if phase == .starting { phase = .listening }
+            if phase == .starting {
+                phase = .listening
+                listeningSince = Date()
+                if settings.readySound { NSSound(named: "Tink")?.play() }
+            }
         } catch {
             lastError = "识别器：\(error)"
         }
     }
 
     private func feed(_ pcm: AVAudioPCMBuffer) {
+        updateLevel(pcm)
         if let t = transcriber { t.append(pcm) } else if phase == .starting { early.append(pcm) }
+    }
+
+    /// 底噪估计（分贝）：静音时跟随，说话时缓慢上升
+    private var noiseFloor: Float = -60
+
+    /// 音量：RMS 换成分贝，减去自动估计的底噪，只有明显高于底噪的声音才让声波起伏；上升快、回落慢
+    private func updateLevel(_ pcm: AVAudioPCMBuffer) {
+        guard let p = pcm.floatChannelData, pcm.frameLength > 0 else { return }
+        var sum: Float = 0
+        for i in 0..<Int(pcm.frameLength) { sum += p[0][i] * p[0][i] }
+        let db = 10 * log10(max(sum / Float(pcm.frameLength), 1e-9))
+        noiseFloor = db < noiseFloor ? db : noiseFloor + 0.05   // 每帧 20 ms，约 2.5 dB/秒
+        let target = pow(min(max((db - noiseFloor - 4) / 28, 0), 1), 0.7)
+        level = target > level ? target : level * 0.8 + target * 0.2
     }
 
     // MARK: 两遍识别
@@ -189,7 +220,7 @@ final class Dictation {
         for s in list {
             let raw = text.commit(text: s.text, end: s.end + 0.1)
             volatileText = text.pendingText
-            guard !raw.isEmpty else { continue }
+            guard raw.contains(where: { $0.isLetter || $0.isNumber }) else { continue }
             let gap = lastEnd.map { s.start - $0 }
             let newPara = gap.map { $0 >= settings.paragraphGap } ?? false
             lastEnd = s.end
@@ -202,7 +233,9 @@ final class Dictation {
                 await prev?.value
                 var final = raw
                 if let polisher {
+                    self?.polishing += 1
                     let r = await polisher.polish(raw)
+                    self?.polishing -= 1
                     final = r.text
                     Log.write(String(format: "润色 %.0f ms%@ %@", r.ms, r.fellBack ? "（退回原文）" : "", r.text))
                 }
@@ -217,6 +250,7 @@ final class Dictation {
                     }
                     if newPara { Typist.newline() }
                     Typist.type(final)
+                    self.typedCount += final.count
                 }
             }
         }
@@ -257,10 +291,17 @@ final class Dictation {
             let tail = Self.joiner(prev: last.polished ?? last.raw, gap: nil, commaGap: commaGap)
             if !tail.isEmpty {
                 finalText += tail
-                if typing { Typist.type(tail) }
+                if typing { Typist.type(tail); typedCount += 1 }
             }
         }
         volatileText = ""
+        level = 0
+        // 没有打进 App（关了打字或没权限）时，把全文放进剪贴板，免得白说
+        if !typing, !finalText.isEmpty {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(finalText, forType: .string)
+            deliveredByClipboard = true
+        }
         Log.write("结束听写：\(finalText)")
         device.endDictation()
         phase = .idle
