@@ -1,0 +1,25 @@
+#!/bin/zsh
+# macOS 只认 .app 自己的蓝牙权限：直接从终端跑命令行程序，系统会按终端去查权限并终止进程。
+# 所以先把它包成一个最小的 .app，再用 open 启动，输出转回当前终端。
+set -e
+ROOT="${0:A:h}/.."
+(cd "$ROOT" && swift build -q -c release)
+APP="$ROOT/.build/openbean.app"
+mkdir -p "$APP/Contents/MacOS"
+cp "$ROOT/.build/release/openbean" "$APP/Contents/MacOS/openbean"
+cp "$ROOT/Support/Info.plist" "$APP/Contents/Info.plist"
+codesign -s - -f "$APP" >/dev/null 2>&1
+LOG=$(mktemp -t openbean)
+open -W -n --stdout "$LOG" --stderr "$LOG" "$APP" --args "$@" --out "$PWD" &
+OPEN_PID=$!
+tail -f "$LOG" & TAIL_PID=$!
+wait $OPEN_PID
+sleep 0.3
+kill $TAIL_PID 2>/dev/null
+# wifi 的兜底：进程异常退出时 Mac 可能还挂在设备热点上
+if [[ "$1" == wifi ]] && ! grep -q "已重连" "$LOG"; then
+  IFC=$(networksetup -listallhardwareports | awk '/Wi-Fi/{getline; print $2}')
+  echo "兜底：没看到重连成功，关开一次 Wi‑Fi"
+  networksetup -setairportpower "$IFC" off; sleep 2; networksetup -setairportpower "$IFC" on
+fi
+rm -f "$LOG"
