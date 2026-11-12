@@ -23,7 +23,7 @@ No OS-level pairing is needed. The host connects directly over GATT.
 
 The recorder advertises as `soundcore Work` with the 16-bit-style service UUID **`020CF5DA-0000-1000-8000-00805F9B34FB`**.
 
-Manufacturer data (company ID included) observed: `7C E9 13 95 D7 CD 91 00`
+Manufacturer data (company ID included), e.g. `AA BB CC DD EE FF 91 00`
 
 | Bytes | Meaning |
 |---|---|

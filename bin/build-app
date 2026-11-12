@@ -1,20 +1,17 @@
 #!/bin/zsh
-# 打包菜单栏语音输入 App：.build/OpenBean.app（本机临时签名）
+# 编译 OpenBean.app（Xcode 工程由 App/project.yml 经 XcodeGen 生成），产物放到 .build/OpenBean.app
 set -e
-# 签名身份：有固定证书就用它（重新打包后系统权限不会失效），否则临时签名。
-# 本机证书可用 Scripts/make-signing-cert.sh 创建
-SIGN_ID="${OPENBEAN_SIGN_ID:-openbean local signing}"
-security find-identity -p codesigning 2>/dev/null | grep -q "\"$SIGN_ID\"" || SIGN_ID="-"
 ROOT="${0:A:h}/.."
 cd "$ROOT"
+command -v xcodegen >/dev/null || { echo "需要 XcodeGen：brew install xcodegen"; exit 1; }
 [[ -f Vendor/sherpa-onnx/lib/libsherpa-onnx-c-api.dylib ]] || Scripts/fetch-deps.sh
-swift build -q -c release --product OpenBeanApp
-APP=.build/OpenBean.app
-rm -rf "$APP"
-mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Frameworks"
-cp .build/release/OpenBeanApp "$APP/Contents/MacOS/OpenBean"
-cp Support/App-Info.plist "$APP/Contents/Info.plist"
-cp Vendor/sherpa-onnx/lib/libsherpa-onnx-c-api.dylib Vendor/sherpa-onnx/lib/libonnxruntime.dylib "$APP/Contents/Frameworks/"
-for f in "$APP"/Contents/Frameworks/*.dylib; do codesign -s "$SIGN_ID" -f "$f" >/dev/null 2>&1; done
-codesign -s "$SIGN_ID" -f "$APP" >/dev/null 2>&1
-echo "已打包：$ROOT/$APP"
+# 没有本机证书就临时签名（每次重新编译都要重新授权辅助功能）
+SIGN_ID="${OPENBEAN_SIGN_ID:-openbean local signing}"
+security find-identity -p codesigning 2>/dev/null | grep -q "\"$SIGN_ID\"" || SIGN_ID="-"
+(cd App && xcodegen generate -q)
+xcodebuild -project App/OpenBean.xcodeproj -scheme OpenBean -configuration Release \
+  -derivedDataPath App/build CODE_SIGN_IDENTITY="$SIGN_ID" -quiet build
+rm -rf .build/OpenBean.app
+mkdir -p .build
+cp -R App/build/Build/Products/Release/OpenBean.app .build/OpenBean.app
+echo "已编译：$ROOT/.build/OpenBean.app"

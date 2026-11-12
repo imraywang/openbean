@@ -3,11 +3,12 @@
 **Use your soundcore Work (D3200) recorder on your own computer — locally, without the vendor app or any cloud.**
 
 openbean is an open-source local driver for the soundcore Work clip-on recorder. It talks to the device over Bluetooth LE
-and Wi‑Fi, decrypts its recordings and streams live audio to your Mac. On top of that it ships a **voice typing app**:
-press the button on the recorder, speak, and the text appears at your cursor — transcribed on your Mac, offline.
+and Wi‑Fi, decrypts its recordings and streams live audio to your Mac. On top of that it ships **OpenBean**, a native
+macOS app: press the button on the recorder, speak, and the text appears at your cursor; sync recordings and get
+searchable transcripts — all transcribed on your Mac, offline.
 
-> Status: **early**. Tested on macOS 26/27, Apple silicon, recorder firmware 04.82. The app UI is in Chinese for now.
-> See [Roadmap](#roadmap).
+> Status: **early**. Tested on macOS 26/27, Apple silicon, recorder firmware 04.82. English and Simplified Chinese UI.
+> No signed release yet — build it yourself (below). See [Roadmap](#roadmap).
 
 [中文说明](#中文说明)
 
@@ -15,7 +16,8 @@ press the button on the recorder, speak, and the text appears at your cursor —
 
 | | |
 |---|---|
-| **Voice typing** | Menu bar app. The recorder's button starts and stops dictation; text is typed into any app |
+| **Voice typing** | The recorder's button (or a keyboard shortcut) starts and stops dictation; text is typed into any app |
+| **Library** | Sync recordings, play them, offline transcripts with click-to-seek, search, export Markdown |
 | Discover and connect | No pairing in system settings needed; reconnects automatically |
 | Device info | Battery, storage, firmware, recording state |
 | Recordings | List; download over BLE (~2× real time) or Wi‑Fi (~200× real time); decrypt; save as Ogg Opus |
@@ -24,7 +26,7 @@ press the button on the recorder, speak, and the text appears at your cursor —
 
 openbean never binds/unbinds the device, deletes recordings, factory-resets or updates firmware.
 
-## Voice typing app
+## The OpenBean app
 
 ### How it works
 
@@ -52,7 +54,7 @@ LLM clean-up adds 0.1–0.5 s with Qwen3-30B-A3B on an M5 Max.
 ### Requirements
 
 - macOS 26 or later (Apple's on-device speech API), Apple silicon
-- Xcode command line tools (Swift 6)
+- Xcode 26 or later and [XcodeGen](https://github.com/yonaskolb/XcodeGen) (`brew install xcodegen`)
 - ~250 MB for the speech models; optionally ~18 GB for a local LLM
 
 ### Build and run
@@ -60,13 +62,15 @@ LLM clean-up adds 0.1–0.5 s with Qwen3-30B-A3B on an M5 Max.
 ```bash
 Scripts/fetch-deps.sh          # sherpa-onnx library + SenseVoice and VAD models (once)
 Scripts/make-signing-cert.sh   # optional but recommended, see below
-bin/build-app                  # → .build/OpenBean.app
+bin/build-app                  # XcodeGen + xcodebuild → .build/OpenBean.app
 open .build/OpenBean.app
 ```
 
-On first launch macOS asks for **Bluetooth**. To type into other apps, openbean also needs
-**System Settings → Privacy & Security → Accessibility** (shown as *Device Control and Data Access* on some
-versions). Add `.build/OpenBean.app` there and turn it on.
+A setup assistant walks you through connecting the recorder, downloading the speech models (~240 MB) and the
+permissions. macOS asks for **Bluetooth**; to type into other apps OpenBean also needs
+**System Settings → Privacy & Security → Accessibility** (shown as *Device Control and Data Access* on some versions).
+
+To work on the app in Xcode: `cd App && xcodegen generate && open OpenBean.xcodeproj`.
 
 **Why the signing certificate:** macOS remembers permissions per code signature. With ad-hoc signing every rebuild
 looks like a new app and you have to grant Accessibility again. `make-signing-cert.sh` creates a self-signed
@@ -75,13 +79,26 @@ survive rebuilds. It is for local development only.
 
 ### Use
 
+OpenBean lives in the menu bar. *Open OpenBean* (⌘O) shows the main window with three pages:
+
+- **Library** — *Sync* downloads new recordings over Bluetooth (shortest first; it pauses while you dictate and
+  resumes afterwards). Long recordings can use *Download over Wi‑Fi*, ~100× faster but your Mac is offline for about
+  a minute. Downloads are transcribed automatically; click a sentence to play from there; search titles and
+  transcripts; export Markdown or audio. Clips created by voice typing are hidden by default.
+- **Recorder** — battery, storage, firmware; *Start recording* records on the recorder without voice typing
+  (meetings, notes).
+- **Settings** — what the recorder's button does (voice typing or record only), keyboard shortcut (default ⌥ Space),
+  pause thresholds, LLM clean-up, models.
+
+Voice typing:
+
 1. Wait until the menu bar icon shows a microphone without a slash — the recorder is connected.
 2. Put the cursor where you want to type.
-3. **Press the recorder's button**, wait for the bar at the bottom of the screen to say *正在听* (listening), and speak.
+3. **Press the recorder's button**, wait for the bar at the bottom of the screen to say it is listening, and speak.
    (The first ~1 s after pressing is not captured.)
-4. Press the button again to finish. You can also use *开始听写 / 停止听写* (start/stop dictation) in the menu.
+4. Press the button again to finish. The keyboard shortcut and *Start voice typing* in the menu do the same.
 
-Pauses decide punctuation and layout (all adjustable in *设置…*, Settings):
+Pauses decide punctuation and layout (all adjustable in Settings):
 
 | Pause between phrases | Result |
 |---|---|
@@ -98,13 +115,13 @@ Run any OpenAI-compatible server, for example llama.cpp:
 llama-server -hf unsloth/Qwen3-30B-A3B-Instruct-2507-GGUF:Q4_K_M --port 8092 -c 4096 -ngl 99
 ```
 
-Then turn on *本地大模型润色* (local LLM clean-up) in the menu. The address and model name are in *设置…* (Ollama and LM Studio
+Then turn on *Clean up with local LLM* in the menu. The address and model name are in Settings (Ollama and LM Studio
 work too). Smaller models such as Qwen3-4B are faster to download but worse at fixing homophones.
 
-**Personal word list:** menu → *编辑个人词表…* opens `~/Library/Application Support/openbean/glossary.txt`.
+**Personal word list:** Settings → *Edit personal word list…* opens `~/Library/Application Support/openbean/glossary.txt`.
 One term per line (names, product names, jargon). The clean-up step prefers these when a word sounds similar.
 
-**Logs:** menu → *打开日志*, or `~/Library/Application Support/openbean/openbean.log` — every finalised sentence,
+**Logs:** Settings → *Open log*, or `~/Library/Application Support/openbean/openbean.log` — every finalised sentence,
 clean-up result and timing, plus connection events.
 
 ## Command-line tool (macOS 14+)
@@ -151,13 +168,13 @@ The wire protocol is documented in [docs/PROTOCOL.md](docs/PROTOCOL.md) so it ca
 ## Roadmap
 
 1. ✅ **Device layer** — protocol document good enough to reimplement from scratch.
-2. ✅ **Voice typing** — menu bar app, button-triggered, fully local (first version).
+2. ✅ **OpenBean app** — voice typing, recording library with offline transcripts, setup assistant (first version).
 3. **Local API** — a background service on `localhost` that publishes device state, live PCM audio, transcripts and
    recordings, so other tools (note apps, Home Assistant, agents via MCP) can use the recorder without touching Bluetooth.
-4. **Recording sync** — offline recordings land in a folder automatically.
+4. **Signed release** — notarised download so people don't have to build it.
 
 Known gaps: the first ~1 s after pressing the button is lost; words recognised very wrongly cannot be rescued by the
-clean-up step (recogniser-level hotwords would help); no signed/notarised release yet; Chinese-first UI and comments.
+clean-up step (recogniser-level hotwords would help); no signed/notarised release yet; code comments are in Chinese.
 
 ## Third-party components
 
@@ -184,8 +201,8 @@ recordings. A firmware update may break it at any time.
 
 **让 soundcore Work（D3200）录音豆脱离官方 App 和云端，在你自己的电脑上本地使用。**
 
-openbean 是录音豆的开源本地驱动：通过蓝牙和 Wi‑Fi 连接设备、解密录音、把实时音频送到 Mac。自带一个**语音输入 App**：
-按录音豆的按键说话，文字实时打进当前光标处，全程在本机离线识别。
+openbean 是录音豆的开源本地驱动：通过蓝牙和 Wi‑Fi 连接设备、解密录音、把实时音频送到 Mac。自带原生 macOS App **OpenBean**：
+按录音豆的按键说话，文字实时打进当前光标处；同步录音、得到可搜索的文字稿。全程在本机离线识别，界面支持中英文。
 
 ### 语音输入
 
@@ -193,7 +210,7 @@ openbean 是录音豆的开源本地驱动：通过蓝牙和 Wi‑Fi 连接设�
 - **润色（可选）**：接任意 OpenAI 兼容的本地服务（如 llama.cpp 跑 Qwen3-30B-A3B），去口头禅、按个人词表纠正同音字，保留你的说法。
 - **按停顿排版**：停 0.8 秒定稿一句；稍长用逗号，更长用句号，超过 2.5 秒换段（用 Shift+回车，聊天软件里不会误发送）。均可在设置里调。
 
-**要求**：macOS 26 及以上，Apple 芯片。
+**要求**：macOS 26 及以上，Apple 芯片，Xcode 26+ 和 XcodeGen（`brew install xcodegen`）。目前没有签名发布版，需要自己编译。
 
 ```bash
 Scripts/fetch-deps.sh          # 下载 sherpa-onnx 和语音模型（一次）
@@ -201,12 +218,14 @@ Scripts/make-signing-cert.sh   # 建议：本机签名证书，重新打包后�
 bin/build-app && open .build/OpenBean.app
 ```
 
-首次启动允许蓝牙；要打字进其他 App，还要在「系统设置 → 隐私与安全性 → 辅助功能」（部分版本叫 Device Control and Data Access）
-里加入并打开 `.build/OpenBean.app`。
+首次启动有设置向导：连接录音豆、下载语音模型（约 240 MB）、授予权限。打字进其他 App 需要在「系统设置 → 隐私与安全性 → 辅助功能」
+（部分版本叫 Device Control and Data Access）里打开 OpenBean。
 
-使用：菜单栏麦克风图标不带斜杠表示已连接 → 光标放好 → 按录音豆按键，看到底部悬浮条显示「正在听」再说话（按下后约 1 秒内的声音收不到）→ 再按一下结束。
+主窗口（菜单栏 →「打开 OpenBean」）有三页：**录音库**（蓝牙同步、长录音可走 Wi‑Fi 快速下载、自动转写、点句播放、搜索、导出 Markdown）、
+**录音豆**（电量、存储、固件、只录音不听写）、**设置**（按键用途、快捷键默认 ⌥ Space、停顿阈值、润色、模型）。
 
-个人词表在菜单「编辑个人词表…」，日志在菜单「打开日志」。
+语音输入：菜单栏麦克风图标不带斜杠表示已连接 → 光标放好 → 按录音豆按键（或快捷键），看到底部悬浮条显示「正在听」再说话
+（按下后约 1 秒内的声音收不到）→ 再按一下结束。个人词表和日志在设置页。
 
 ### 其他
 
@@ -215,6 +234,6 @@ bin/build-app && open .build/OpenBean.app
 
 openbean 不会做绑定/解绑、删除录音、恢复出厂和固件升级。
 
-下一步：本地服务 API（让笔记软件、智能家居、AI 助手直接使用录音豆）和录音自动同步。
+下一步：本地服务 API（让笔记软件、智能家居、AI 助手直接使用录音豆）和签名公证的发布版。
 
 openbean 是独立项目，与 Anker 无关。协议是为了让你使用自己的设备而整理的，固件升级随时可能让它失效。
