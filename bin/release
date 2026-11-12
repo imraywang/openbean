@@ -11,6 +11,7 @@
 # Sparkle 的 EdDSA 私钥在登录钥匙串里（generate_keys 生成；钥匙串项的服务名 https://sparkle-project.org、账户 ed25519），
 # 公钥写在 App/project.yml 的 SUPublicEDKey。换电脑发布要先把私钥迁过去：
 #   generate_keys -x <文件> 导出、新电脑 generate_keys -f <文件> 导入，然后删掉那个文件。
+# sign_update 第一次读私钥时钥匙串会弹窗，点「始终允许」；不点它就一直卡在「Sparkle 签名」这一步。
 #
 # 公证凭据存在钥匙串里，第一次用前在终端执行一次（会提示输入 App 专用密码）：
 #   xcrun notarytool store-credentials openbean-notary --apple-id <你的 Apple ID> --team-id ZHPS34Z8M9
