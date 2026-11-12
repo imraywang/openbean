@@ -100,6 +100,9 @@ struct OpenBeanApp: App {
 }
 
 final class Delegate: NSObject, NSApplicationDelegate {
+    /// 这份真的跑起来了（不是发现已有一份而自行退出的那份）
+    private var started = false
+
     func applicationDidFinishLaunching(_ n: Notification) {
         // 只允许一份在跑：两份会同时抢录音豆的蓝牙连接，谁都连不上
         let me = ProcessInfo.processInfo.processIdentifier
@@ -112,6 +115,7 @@ final class Delegate: NSObject, NSApplicationDelegate {
             return
         }
         NSApp.setActivationPolicy(.accessory)
+        started = true
         MainActor.assumeIsolated { AppModel.shared.start() }
     }
 
@@ -120,6 +124,13 @@ final class Delegate: NSObject, NSApplicationDelegate {
         MainActor.assumeIsolated {
             for url in urls { AppModel.shared.handle(url) }
         }
+    }
+
+    /// 退出时记一笔：电量统计脚本据此把退出后的时间排除在外
+    func applicationWillTerminate(_ n: Notification) {
+        guard started else { return }
+        Log.write("battery event=quit")
+        Log.flush()
     }
 
     /// 关掉主窗口后继续在菜单栏运行

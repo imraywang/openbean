@@ -249,7 +249,7 @@ final class LibraryStore {
         guard !pending.isEmpty else { sync = .idle; return }
         guard device.beginSync(), let s = device.session else { return }
         defer { device.endSync() }
-        Log.write("同步 \(pending.count) 条录音")
+        Log.write("同步 \(pending.count) 条录音 recorder=\(DeviceController.field(device.battery))")
         for (n, r) in pending.enumerated() {
             if device.syncShouldYield { pauseForDictation(); return }
             sync = .downloading(id: r.id, done: n, total: pending.count, fraction: 0, kbps: 0)

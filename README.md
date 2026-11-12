@@ -155,6 +155,13 @@ Turn it off in Settings (*Keep voice typing history on this Mac*) or clear it on
 **Logs:** Settings → *Open log*, or `~/Library/Application Support/openbean/openbean.log` — every finalised sentence,
 clean-up result and timing, plus connection events.
 
+**Battery log:** the log also records the recorder's battery (`battery event=…` lines: connect / disconnect, every 10%
+bucket change of the recorder and the case, going into / out of the charging case, a heartbeat every 10 minutes while
+connected, and the length of every voice-typing and record-only session). `python3 -I Scripts/battery-report.py`
+turns them into time connected, time off the charger, voice-typing time, drain per hour of standby and per minute of
+voice typing, and projected battery life (`--since` / `--until` pick a day; app quits, disconnects, Mac sleep and
+charging are left out). The recorder only reports 10% steps, so wear it for a day before trusting the numbers.
+
 ## Command-line tool (macOS 14+)
 
 ```bash
@@ -271,6 +278,7 @@ bin/build-app && open .build/OpenBean.app
 语音输入：菜单栏的豆子图标不带斜杠表示已连接（正在听时变实心，同步时带小箭头）→ 光标放好 → 按录音豆按键（或快捷键），
 等底部悬浮条从「准备中…」变成跳动的麦克风再说话
 （按下后约 1 秒内的声音收不到）→ 再按一下结束。个人词表和日志在设置页。
+日志里还记了录音豆电量和每次语音输入的时长，戴一天后运行 `python3 -I Scripts/battery-report.py` 可以算出待机和语音输入的耗电与预计续航。
 
 ### 其他
 

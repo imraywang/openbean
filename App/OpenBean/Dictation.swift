@@ -103,6 +103,11 @@ final class Dictation {
     /// 一次输入结束（有文字时），用于语音输入记录
     var onEntry: (DictationEntry) -> Void = { _ in }
     private var targetApp: String?
+    /// 本次听写从哪一刻开始（电量日志算时长用）
+    private var startedAt: Date?
+    private var currentFile: UInt32 = 0
+    /// 正在进行的「只录音」：开始时刻和文件号
+    private var recordOnly: (since: Date, fileId: UInt32)?
 
     // MARK: 设备事件
 
@@ -114,10 +119,17 @@ final class Dictation {
             if ignoreNextStart || !settings.buttonDictates {
                 ignoreNextStart = false
                 Log.write("只录音，不听写 file=\(fileId)")
+                recordOnly = (Date(), fileId)
                 return
             }
             Task { await begin(fileId: fileId) }
         case .recordingStopped:
+            if let r = recordOnly, phase == .idle {
+                recordOnly = nil
+                let secs = Int(Date().timeIntervalSince(r.since).rounded())
+                Log.write("battery event=record seconds=\(secs) recorder=\(DeviceController.field(device.battery)) file=\(r.fileId)")
+                return
+            }
             Task { await end() }
         default:
             break
@@ -149,6 +161,8 @@ final class Dictation {
         let r = recognizer
         svQueue.async { r?.reset() }
         Log.write("开始听写 file=\(fileId)")
+        startedAt = Date()
+        currentFile = fileId
         onStarted(fileId)
         await device.beginDictation()
 
@@ -312,6 +326,11 @@ final class Dictation {
             deliveredByClipboard = true
         }
         Log.write("结束听写：\(finalText)")
+        if let t = startedAt {
+            let secs = Int(Date().timeIntervalSince(t).rounded())
+            Log.write("battery event=dictation seconds=\(secs) recorder=\(DeviceController.field(device.battery)) file=\(currentFile)")
+        }
+        startedAt = nil
         if !finalText.isEmpty, settings.keepHistory {
             let since = listeningSince ?? Date()
             onEntry(DictationEntry(date: since, duration: Date().timeIntervalSince(since), text: finalText,
