@@ -143,7 +143,12 @@ model name (e.g. `deepseek-chat`) and an API key in Settings → Clean-up. The k
 each sentence is then sent to that service; audio and speech recognition still stay on your Mac.
 
 **Personal word list:** Settings → *Edit personal word list…* opens `~/Library/Application Support/openbean/glossary.txt`.
-One term per line (names, product names, jargon). The clean-up step prefers these when a word sounds similar.
+One term per line (names, product names, jargon). Every finalised sentence — voice typing and library transcripts —
+is corrected against it without an LLM: Chinese characters that sound the same as a term (toneless pinyin, common
+polyphones) are replaced, and English terms get their exact casing and spacing back (`open bean` → `OpenBean`). The
+rules are conservative: single characters are never touched, two-character terms only replace one character and only
+where it isn't part of another word, and text that already matches stays as it is. Replacements are logged. The
+clean-up step, when on, also prefers these terms.
 
 **Automation:** `openbean://dictate/toggle` (also `dictate/start`, `dictate/stop`), `openbean://sync` and
 `openbean://open` (or `openbean://open/<recording id>`), `openbean://settings` (or `openbean://settings/<voice|polish|library|models>`) — for Shortcuts, Raycast or scripts (`open "openbean://dictate/toggle"`).
@@ -207,8 +212,8 @@ The wire protocol is documented in [docs/PROTOCOL.md](docs/PROTOCOL.md) so it ca
 5. **Optional cloud speech recognition** — for transcribing recordings in the library first; voice typing stays
    on-device. Off by default, like cloud clean-up.
 
-Known gaps: the first ~1 s after pressing the button is lost; words recognised very wrongly cannot be rescued by the
-clean-up step (recogniser-level hotwords would help); code comments are in Chinese.
+Known gaps: the first ~1 s after pressing the button is lost; the word list only fixes words that were recognised
+with the same sound; code comments are in Chinese.
 
 ## Third-party components
 
@@ -241,6 +246,7 @@ openbean 是录音豆的开源本地驱动：通过蓝牙和 Wi‑Fi 连接设�
 ### 语音输入
 
 - **识别**：Apple 设备端听写出灰字预览；每句停顿后由 SenseVoice-Small 定稿（每句约 0.1 秒，带标点）。
+- **个人词表**：每句定稿后先按个人词表纠正专有名词，不需要大模型：读音相同的错字换成词表里的词，英文恢复词表的大小写和空格（open bean → OpenBean）；单字不改，两字词只在不和别的字成词时才改。录音库转写也一样。
 - **润色（可选）**：接任意 OpenAI 兼容服务，本机的（如 llama.cpp 跑 Qwen3-30B-A3B）或云端的（DeepSeek、通义千问等，填 API Key，Key 存钥匙串），去口头禅、按个人词表纠正同音字，保留你的说法。用云端时每句话的文字会发给该服务，录音和语音识别仍在本机。
 - **按停顿排版**：停 0.8 秒定稿一句；稍长用逗号，更长用句号，超过 2.5 秒换段（用 Shift+回车，聊天软件里不会误发送）。均可在设置里调。
 

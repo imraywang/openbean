@@ -134,7 +134,7 @@
 "On the recorder": "设备上的录音",
 "On your recorder": "在录音豆上",
 "On your recorder — not downloaded": "在录音豆上",
-"One term per line: names, product names, jargon. Clean-up prefers these when a word sounds similar.": "每行一个词：人名、产品名、术语。润色遇到读音相近的词时优先用它们。",
+"One term per line: names, product names, jargon. OpenBean fixes same-sounding names and spelling to these without an LLM; clean-up prefers them too.": "每行一个词：人名、产品名、术语。不用大模型也会把读音相同的错字和英文写法改成这些词；润色时也优先用它们。",
 "Only needed for cloud services": "仅云端服务需要",
 "Only on recorder": "只在录音豆上",
 "Open OpenBean": "打开 OpenBean",
