@@ -4,3 +4,5 @@
 *.opus.raw
 *.wav
 Vendor/
+App/OpenBean.xcodeproj/
+App/build/

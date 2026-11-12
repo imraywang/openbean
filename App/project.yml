@@ -1,0 +1,61 @@
+# Xcode 工程由 XcodeGen 生成：cd App && xcodegen generate
+name: OpenBean
+options:
+  bundleIdPrefix: dev.openbean
+  deploymentTarget:
+    macOS: "26.0"
+  createIntermediateGroups: true
+  developmentLanguage: en
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "0.2.0"
+    CURRENT_PROJECT_VERSION: "1"
+    SWIFT_EMIT_LOC_STRINGS: true
+    LOCALIZATION_PREFERS_STRING_CATALOGS: true
+    # 本机自签名证书（Scripts/make-signing-cert.sh）：重新编译后系统权限不会失效
+    CODE_SIGN_STYLE: Manual
+    CODE_SIGN_IDENTITY: "openbean local signing"
+    DEVELOPMENT_TEAM: ""
+    ENABLE_HARDENED_RUNTIME: NO
+    ARCHS: arm64
+packages:
+  openbean:
+    path: ..
+targets:
+  OpenBean:
+    type: application
+    platform: macOS
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.openbean.app
+        PRODUCT_NAME: OpenBean
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/../Frameworks"
+        LIBRARY_SEARCH_PATHS: "$(inherited) $(SRCROOT)/../Vendor/sherpa-onnx/lib"
+    sources:
+      - path: OpenBean
+    dependencies:
+      - package: openbean
+        product: OpenBeanKit
+      - package: openbean
+        product: OpenBeanVoice
+      - framework: ../Vendor/sherpa-onnx/lib/libsherpa-onnx-c-api.dylib
+        embed: true
+        codeSign: true
+      - framework: ../Vendor/sherpa-onnx/lib/libonnxruntime.dylib
+        embed: true
+        codeSign: true
+    info:
+      path: OpenBean/Info.plist
+      properties:
+        CFBundleDisplayName: OpenBean
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        CFBundleDevelopmentRegion: en
+        CFBundleLocalizations: [en, zh-Hans]
+        LSMinimumSystemVersion: "26.0"
+        LSUIElement: true
+        LSApplicationCategoryType: public.app-category.productivity
+        NSBluetoothAlwaysUsageDescription: OpenBean connects to your soundcore Work recorder to use it as a microphone and to sync recordings.
+        NSSpeechRecognitionUsageDescription: OpenBean transcribes your speech on this Mac, offline.

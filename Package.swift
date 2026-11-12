@@ -8,7 +8,6 @@ let package = Package(
         .library(name: "OpenBeanKit", targets: ["OpenBeanKit"]),
         .library(name: "OpenBeanVoice", targets: ["OpenBeanVoice"]),
         .executable(name: "openbean", targets: ["openbean"]),
-        .executable(name: "OpenBeanApp", targets: ["OpenBeanApp"]),
     ],
     targets: [
         .target(name: "OpenBeanKit"),
@@ -18,7 +17,8 @@ let package = Package(
             name: "OpenBeanVoice",
             dependencies: ["OpenBeanKit", "CSherpaOnnx"],
             linkerSettings: [
-                .unsafeFlags(["-LVendor/sherpa-onnx/lib",
+                // 绝对路径：Xcode 工程（App/）编译这个包时工作目录不是包根目录
+                .unsafeFlags(["-L\(Context.packageDirectory)/Vendor/sherpa-onnx/lib",
                               "-Xlinker", "-rpath", "-Xlinker", "@executable_path/../Frameworks"]),
             ]
         ),
@@ -31,8 +31,6 @@ let package = Package(
                               "-Xlinker", "__info_plist", "-Xlinker", "Support/Info.plist"]),
             ]
         ),
-        // 菜单栏语音输入 App；用 bin/build-app 打包成 .build/OpenBean.app
-        .executableTarget(name: "OpenBeanApp", dependencies: ["OpenBeanKit", "OpenBeanVoice"]),
         .testTarget(name: "OpenBeanKitTests", dependencies: ["OpenBeanKit"]),
         .testTarget(
             name: "OpenBeanVoiceTests",
