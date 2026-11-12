@@ -122,7 +122,7 @@ work too). Smaller models such as Qwen3-4B are faster to download but worse at f
 One term per line (names, product names, jargon). The clean-up step prefers these when a word sounds similar.
 
 **Automation:** `openbean://dictate/toggle` (also `dictate/start`, `dictate/stop`), `openbean://sync` and
-`openbean://open` — for Shortcuts, Raycast or scripts (`open "openbean://dictate/toggle"`).
+`openbean://open` (or `openbean://open/<recording id>`) — for Shortcuts, Raycast or scripts (`open "openbean://dictate/toggle"`).
 
 **Logs:** Settings → *Open log*, or `~/Library/Application Support/openbean/openbean.log` — every finalised sentence,
 clean-up result and timing, plus connection events.

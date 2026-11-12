@@ -53,6 +53,10 @@ final class AppModel {
         case "open":
             NSApp.activate()
             openMain?()
+        case let p where p.hasPrefix("open/"):
+            if let id = UInt32(p.dropFirst(5)) { library.selection = id }
+            NSApp.activate()
+            openMain?()
         default:
             break
         }
@@ -122,24 +126,24 @@ final class Delegate: NSObject, NSApplicationDelegate {
 
 struct MainView: View {
     let model: AppModel
-    enum Page: Hashable { case library, device, settings }
-    @State private var page: Page = .library
+    @State private var query = ""
 
     var body: some View {
         NavigationSplitView {
-            List(selection: $page) {
-                Label("Library", systemImage: "music.note.list").tag(Page.library)
-                Label("Recorder", systemImage: "mic.circle").tag(Page.device)
-                Label("Settings", systemImage: "gearshape").tag(Page.settings)
-            }
-            .navigationSplitViewColumnWidth(min: 160, ideal: 180)
+            RecordingSidebar(library: model.library, device: model.device, dictation: model.dictation,
+                             selection: Binding(get: { model.library.selection }, set: { model.library.selection = $0 }),
+                             query: $query)
+                .navigationSplitViewColumnWidth(min: 260, ideal: 300, max: 420)
         } detail: {
-            switch page {
-            case .library: LibraryView(library: model.library, device: model.device)
-            case .device: DeviceView(device: model.device, dictation: model.dictation)
-            case .settings: SettingsView(settings: model.settings, models: model.models)
+            if let id = model.library.selection, let r = model.library.recordings.first(where: { $0.id == id }) {
+                RecordingDetail(recording: r, library: model.library, device: model.device).id(id)
+            } else {
+                LibraryHome(device: model.device, settings: model.settings)
             }
         }
+        .searchable(text: $query, placement: .sidebar, prompt: "Search")
+        .navigationTitle("")
+        .task { await model.library.refreshDeviceList() }
         .onAppear { NSApp.activate() }
     }
 }

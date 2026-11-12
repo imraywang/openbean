@@ -49,7 +49,23 @@ final class LibraryStore {
     private(set) var sync: SyncState = .idle
     private(set) var transcribing: [UInt32: Double] = [:]
     private var transcripts: [UInt32: [TranscriptSegment]] = [:]
-    var showDictation = false
+    enum Filter: String, CaseIterable, Identifiable {
+        case all, transcribed, onRecorder, dictation
+        var id: String { rawValue }
+        var label: String {
+            switch self {
+            case .all: return String(localized: "All recordings")
+            case .transcribed: return String(localized: "Transcribed")
+            case .onRecorder: return String(localized: "Only on recorder")
+            case .dictation: return String(localized: "Dictation clips")
+            }
+        }
+    }
+
+    var filter: Filter = .all
+    /// 主窗口里选中的录音（openbean://open/<id> 也会改它）
+    var selection: UInt32?
+    private var peaksCache: [UInt32: [Float]] = [:]
 
     private let device: DeviceController
     private let settings: Settings
@@ -71,7 +87,59 @@ final class LibraryStore {
         load()
     }
 
-    var visible: [Recording] { recordings.filter { showDictation || !$0.isDictation } }
+    var visible: [Recording] {
+        recordings.filter { r in
+            switch filter {
+            case .all: return !r.isDictation
+            case .transcribed: return r.transcribed && !r.isDictation
+            case .onRecorder: return !r.downloaded && !r.isDictation
+            case .dictation: return r.isDictation
+            }
+        }
+    }
+
+    /// 转写的第一句，列表里当摘要
+    func snippet(_ id: UInt32) -> String? {
+        guard recordings.first(where: { $0.id == id })?.transcribed == true else { return nil }
+        return transcript(id).first?.text
+    }
+
+    /// 波形：每条录音约 600 个峰值（0…1），算一次缓存成 peaks.json
+    func peaks(_ id: UInt32) -> [Float]? { peaksCache[id] }
+
+    func loadPeaks(_ id: UInt32) async {
+        guard peaksCache[id] == nil, FileManager.default.fileExists(atPath: audioURL(id).path) else { return }
+        let cache = folder(id).appendingPathComponent("peaks.json")
+        if let d = try? Data(contentsOf: cache), let p = try? JSONDecoder().decode([Float].self, from: d) {
+            peaksCache[id] = p; return
+        }
+        let url = audioURL(id)
+        let p: [Float] = await withCheckedContinuation { c in
+            work.async { c.resume(returning: (try? Self.computePeaks(url)) ?? []) }
+        }
+        peaksCache[id] = p
+        if let d = try? JSONEncoder().encode(p) { try? d.write(to: cache) }
+    }
+
+    nonisolated private static func computePeaks(_ url: URL, count: Int = 600) throws -> [Float] {
+        let f = try AVAudioFile(forReading: url)
+        let total = Int(f.length)
+        guard total > 0 else { return [] }
+        let per = max(total / count, 1)
+        var out: [Float] = []
+        let buf = AVAudioPCMBuffer(pcmFormat: f.processingFormat, frameCapacity: AVAudioFrameCount(per))!
+        while out.count < count {
+            try f.read(into: buf, frameCount: AVAudioFrameCount(per))
+            if buf.frameLength == 0 { break }
+            let ch = buf.floatChannelData![0]
+            var sum: Float = 0
+            for i in 0..<Int(buf.frameLength) { sum += ch[i] * ch[i] }
+            out.append(sqrt(sum / Float(buf.frameLength)))
+        }
+        // 归一化：以 98 分位为满幅，避免一两下爆音把整体压扁
+        let ref = out.sorted()[min(out.count - 1, Int(Double(out.count) * 0.98))]
+        return out.map { min($0 / max(ref, 1e-4), 1) }
+    }
 
     // MARK: 索引
 

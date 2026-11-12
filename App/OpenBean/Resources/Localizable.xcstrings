@@ -22,6 +22,16 @@
         }
       }
     },
+    "%@ / %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ / %@"
+          }
+        }
+      }
+    },
     "%@ of %@ used": {
       "localizations": {
         "zh-Hans": {
@@ -88,6 +98,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "设备信息"
+          }
+        }
+      }
+    },
+    "All recordings": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "全部录音"
           }
         }
       }
@@ -182,6 +202,16 @@
         }
       }
     },
+    "Checking the recorder…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在查看录音豆…"
+          }
+        }
+      }
+    },
     "Checking…": {
       "localizations": {
         "zh-Hans": {
@@ -262,6 +292,16 @@
         }
       }
     },
+    "Connected · %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已连接 · %@"
+          }
+        }
+      }
+    },
     "Connected · syncing": {
       "localizations": {
         "zh-Hans": {
@@ -278,16 +318,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "已连接 · 正在语音输入"
-          }
-        }
-      }
-    },
-    "Connecting to your recorder…": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "正在连接录音豆…"
           }
         }
       }
@@ -332,12 +362,22 @@
         }
       }
     },
-    "Dictation": {
+    "Dictation clip": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "听写"
+            "value": "听写片段"
+          }
+        }
+      }
+    },
+    "Dictation clips": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "听写片段"
           }
         }
       }
@@ -368,16 +408,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "下载失败：%@"
-          }
-        }
-      }
-    },
-    "Download new recordings over Bluetooth": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "通过蓝牙下载新录音"
           }
         }
       }
@@ -432,22 +462,22 @@
         }
       }
     },
-    "Downloading %lld of %lld over Bluetooth — %lld%%, %lld KB/s": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "蓝牙下载第 %1$lld/%2$lld 条 — %3$lld%%，%4$lld KB/s"
-          }
-        }
-      }
-    },
     "Downloading %lld of %lld over Wi‑Fi… %lld%%": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "Wi‑Fi 下载第 %1$lld/%2$lld 条… %3$lld%%"
+          }
+        }
+      }
+    },
+    "Downloading %lld of %lld…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在下载第 %1$lld/%2$lld 条…"
           }
         }
       }
@@ -488,6 +518,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "导出"
+          }
+        }
+      }
+    },
+    "Filter": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "筛选"
+          }
+        }
+      }
+    },
+    "Filter recordings": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "筛选录音"
           }
         }
       }
@@ -582,12 +632,12 @@
         }
       }
     },
-    "Listening — go ahead": {
+    "Listening": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "请说话"
+            "value": "正在听"
           }
         }
       }
@@ -642,12 +692,22 @@
         }
       }
     },
-    "No recordings yet": {
+    "No recordings": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "还没有录音"
+            "value": "没有录音"
+          }
+        }
+      }
+    },
+    "No speech": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有语音"
           }
         }
       }
@@ -668,6 +728,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "无"
+          }
+        }
+      }
+    },
+    "Not connected": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未连接"
           }
         }
       }
@@ -702,12 +772,22 @@
         }
       }
     },
-    "Not transcribed yet. Transcription runs on this Mac and takes about a minute per two hours of audio.": {
+    "Not transcribed": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "还没有转写。转写在本机进行，两小时录音大约需要一分钟。"
+            "value": "未转写"
+          }
+        }
+      }
+    },
+    "Not transcribed yet.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "还没有转写。"
           }
         }
       }
@@ -722,12 +802,32 @@
         }
       }
     },
-    "On recorder": {
+    "On your recorder": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "在录音豆上"
+          }
+        }
+      }
+    },
+    "On your recorder — not downloaded": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在录音豆上"
+          }
+        }
+      }
+    },
+    "Only on recorder": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只在录音豆上"
           }
         }
       }
@@ -802,6 +902,16 @@
         }
       }
     },
+    "Play / Pause (Space)": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "播放 / 暂停（空格）"
+          }
+        }
+      }
+    },
     "Play a sound when it's ready to listen": {
       "localizations": {
         "zh-Hans": {
@@ -822,16 +932,6 @@
         }
       }
     },
-    "Press Sync to download recordings from your recorder.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "点「同步」从录音豆下载录音。"
-          }
-        }
-      }
-    },
     "Press the recorder's button and speak; the text is typed where your cursor is.": {
       "localizations": {
         "zh-Hans": {
@@ -842,22 +942,22 @@
         }
       }
     },
+    "Press the recorder's button to type with your voice": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按录音豆按键，用说话代替打字"
+          }
+        }
+      }
+    },
     "Quit OpenBean": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "退出 OpenBean"
-          }
-        }
-      }
-    },
-    "Reading the list of recordings…": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "正在读取录音列表…"
           }
         }
       }
@@ -912,32 +1012,12 @@
         }
       }
     },
-    "Recorder not connected.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "录音豆未连接。"
-          }
-        }
-      }
-    },
     "Recording": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "录音"
-          }
-        }
-      }
-    },
-    "Recordings created by voice typing": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "语音输入产生的录音"
           }
         }
       }
@@ -972,12 +1052,12 @@
         }
       }
     },
-    "Search titles and transcripts": {
+    "Search": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "搜索标题和转写内容"
+            "value": "搜索"
           }
         }
       }
@@ -1062,16 +1142,6 @@
         }
       }
     },
-    "Settings": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "设置"
-          }
-        }
-      }
-    },
     "Settings…": {
       "localizations": {
         "zh-Hans": {
@@ -1092,12 +1162,22 @@
         }
       }
     },
-    "Show dictation clips": {
+    "Shortcut: %@": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "显示听写片段"
+            "value": "快捷键：%@"
+          }
+        }
+      }
+    },
+    "Show": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示"
           }
         }
       }
@@ -1252,6 +1332,36 @@
         }
       }
     },
+    "Sync %lld new": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "同步 %lld 条新录音"
+          }
+        }
+      }
+    },
+    "Sync brings recordings to this Mac and transcribes them": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "同步会把录音下载到这台 Mac 并自动转写"
+          }
+        }
+      }
+    },
+    "Sync downloads recordings from your recorder.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "点「同步」从录音豆下载录音。"
+          }
+        }
+      }
+    },
     "Sync failed: %@": {
       "localizations": {
         "zh-Hans": {
@@ -1262,12 +1372,12 @@
         }
       }
     },
-    "Sync paused for dictation; it resumes afterwards.": {
+    "Sync paused for dictation": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "同步已为语音输入暂停，结束后会自动继续。"
+            "value": "同步已为语音输入暂停"
           }
         }
       }
@@ -1292,6 +1402,16 @@
         }
       }
     },
+    "Syncing": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在同步"
+          }
+        }
+      }
+    },
     "Take the recorder out of its case. OpenBean finds it over Bluetooth — no pairing in System Settings needed. If macOS asks for Bluetooth access, allow it.": {
       "localizations": {
         "zh-Hans": {
@@ -1308,6 +1428,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "这条录音还在录音豆上。"
+          }
+        }
+      }
+    },
+    "This week": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本周"
           }
         }
       }
@@ -1332,6 +1462,16 @@
         }
       }
     },
+    "Today": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "今天"
+          }
+        }
+      }
+    },
     "Transcribe": {
       "localizations": {
         "zh-Hans": {
@@ -1352,6 +1492,16 @@
         }
       }
     },
+    "Transcribe now": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "现在转写"
+          }
+        }
+      }
+    },
     "Transcribe recordings after download": {
       "localizations": {
         "zh-Hans": {
@@ -1362,12 +1512,22 @@
         }
       }
     },
-    "Transcribing %lld%%": {
+    "Transcribed": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "转写中 %lld%%"
+            "value": "已转写"
+          }
+        }
+      }
+    },
+    "Transcribing on this Mac…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在本机转写…"
           }
         }
       }
@@ -1382,22 +1542,22 @@
         }
       }
     },
-    "Transcript": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已转写"
-          }
-        }
-      }
-    },
     "Transcript as Markdown…": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "转写文字（Markdown）…"
+          }
+        }
+      }
+    },
+    "Try another word.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "换个词试试。"
           }
         }
       }
@@ -1488,6 +1648,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "整理中…"
+          }
+        }
+      }
+    },
+    "Yesterday": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "昨天"
           }
         }
       }
