@@ -79,22 +79,31 @@ survive rebuilds. It is for local development only.
 
 ### Use
 
-OpenBean lives in the menu bar. *Open OpenBean* (⌘O) shows the main window with three pages:
+OpenBean lives in the menu bar. *Open OpenBean* (⌘O) shows the main window. The sidebar has four pages
+(⌘1–⌘4; ⌃⌘S hides the sidebar), and the recorder's status and sync progress sit at its bottom:
 
-- **Library** — *Sync* downloads new recordings over Bluetooth (shortest first; it pauses while you dictate and
-  resumes afterwards). Long recordings can use *Download over Wi‑Fi*, ~100× faster but your Mac is offline for about
-  a minute. Downloads are transcribed automatically; click a sentence to play from there; search titles and
-  transcripts; export Markdown or audio. Clips created by voice typing are hidden by default.
+- **Overview** — the recorder (battery, storage, recordings not yet synced), totals for this week / month / all
+  time (recordings, time recorded, characters typed by voice), the last 14 days and your recent recordings.
+- **Library** — recording list and the selected recording side by side. *Sync* downloads new recordings over
+  Bluetooth (shortest first; it pauses while you dictate and resumes afterwards). Long recordings can use
+  *Download over Wi‑Fi*, ~100× faster but your Mac is offline for about a minute. Downloads are transcribed
+  automatically; click a sentence to play from there; search titles and transcripts; export Markdown or audio.
+  Clips created by voice typing are hidden by default.
+- **Voice typing** — everything you dictated, with time, target app and length. Copy or delete entries, or clear
+  the history.
 - **Recorder** — battery, storage, firmware; *Start recording* records on the recorder without voice typing
   (meetings, notes).
-- **Settings** — what the recorder's button does (voice typing or record only), keyboard shortcut (default ⌥ Space),
-  pause thresholds, LLM clean-up, models.
+
+**Settings** (⌘,) — what the recorder's button does (voice typing or record only), keyboard shortcut (default
+⌥ Space), pause thresholds, LLM clean-up, voice typing history, models.
 
 Voice typing:
 
-1. Wait until the menu bar icon shows a microphone without a slash — the recorder is connected.
+1. Wait until the bean icon in the menu bar has no slash — the recorder is connected. (The bean turns solid while
+   it listens and shows a small arrow while syncing.)
 2. Put the cursor where you want to type.
-3. **Press the recorder's button**, wait for the bar at the bottom of the screen to say it is listening, and speak.
+3. **Press the recorder's button**, wait until the bar at the bottom of the screen changes from "Getting ready…" to
+   a pulsing microphone, and speak.
    (The first ~1 s after pressing is not captured.)
 4. Press the button again to finish. The keyboard shortcut and *Start voice typing* in the menu do the same.
 
@@ -123,6 +132,10 @@ One term per line (names, product names, jargon). The clean-up step prefers thes
 
 **Automation:** `openbean://dictate/toggle` (also `dictate/start`, `dictate/stop`), `openbean://sync` and
 `openbean://open` (or `openbean://open/<recording id>`) — for Shortcuts, Raycast or scripts (`open "openbean://dictate/toggle"`).
+
+**Voice typing history:** what you dictate is kept only on this Mac, in
+`~/Library/Application Support/openbean/dictation.json`, for the *Voice typing* page and the Overview totals.
+Turn it off in Settings (*Keep voice typing history on this Mac*) or clear it on the *Voice typing* page.
 
 **Logs:** Settings → *Open log*, or `~/Library/Application Support/openbean/openbean.log` — every finalised sentence,
 clean-up result and timing, plus connection events.
@@ -224,10 +237,17 @@ bin/build-app && open .build/OpenBean.app
 首次启动有设置向导：连接录音豆、下载语音模型（约 240 MB）、授予权限。打字进其他 App 需要在「系统设置 → 隐私与安全性 → 辅助功能」
 （部分版本叫 Device Control and Data Access）里打开 OpenBean。
 
-主窗口（菜单栏 →「打开 OpenBean」）有三页：**录音库**（蓝牙同步、长录音可走 Wi‑Fi 快速下载、自动转写、点句播放、搜索、导出 Markdown）、
-**录音豆**（电量、存储、固件、只录音不听写）、**设置**（按键用途、快捷键默认 ⌥ Space、停顿阈值、润色、模型）。
+主窗口（菜单栏 →「打开 OpenBean」）左侧是导航（⌘1–⌘4 切换，⌃⌘S 收起），底部显示录音豆状态和同步进度：
+**概览**（设备电量、存储、未同步条数，本周 / 本月 / 全部的录音与语音输入统计，最近 14 天，最近录音）、
+**录音库**（列表 + 详情；蓝牙同步、长录音可走 Wi‑Fi 快速下载、自动转写、点句播放、搜索、导出 Markdown）、
+**语音输入**（每次说过的内容、时间、输入到哪个 App，可拷贝、删除、清空）、**录音豆**（电量、存储、固件、只录音不听写）。
+**设置**是单独的窗口（⌘,）：按键用途、快捷键默认 ⌥ Space、停顿阈值、润色、语音输入记录、模型。
 
-语音输入：菜单栏麦克风图标不带斜杠表示已连接 → 光标放好 → 按录音豆按键（或快捷键），看到底部悬浮条显示「正在听」再说话
+语音输入记录只保存在这台 Mac 上（`~/Library/Application Support/openbean/dictation.json`），用于「语音输入」页和概览统计；
+可在设置里关闭（「在本机保存语音输入记录」），或在「语音输入」页清空。
+
+语音输入：菜单栏的豆子图标不带斜杠表示已连接（正在听时变实心，同步时带小箭头）→ 光标放好 → 按录音豆按键（或快捷键），
+等底部悬浮条从「准备中…」变成跳动的麦克风再说话
 （按下后约 1 秒内的声音收不到）→ 再按一下结束。个人词表和日志在设置页。
 
 ### 其他
