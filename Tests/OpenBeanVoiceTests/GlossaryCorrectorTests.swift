@@ -145,6 +145,66 @@ final class GlossaryCorrectorTests: XCTestCase {
         }
     }
 
+    // MARK: 误听别名
+
+    func testEntryParsing() {
+        typealias E = GlossaryCorrector.Entry
+        XCTAssertEqual(E.parse("  OpenBean "), E(term: "OpenBean"))
+        XCTAssertNil(E.parse("# 注释 = 不算"))
+        XCTAssertNil(E.parse("   "))
+        XCTAssertEqual(E.parse("Claude Code = cloud code, 克劳德 code"), E(term: "Claude Code", aliases: ["cloud code", "克劳德 code"]))
+        XCTAssertEqual(E.parse("session＝筛选，s 选、 "), E(term: "session", aliases: ["筛选", "s 选"]))
+        XCTAssertEqual(E.parse("Stripe ="), E(term: "Stripe"))
+        XCTAssertNil(E.parse("= cloud"))
+        XCTAssertEqual(GlossaryCorrector.canonicalTerms(["Claude Code = cloud code", "# x", "录音豆", "Claude Code = 克劳德 code"]),
+                       ["Claude Code", "录音豆"])
+    }
+
+    func testLatinAliases() {
+        let terms = ["Claude Code = cloud code, 克劳德 code", "Codex = codeex, code x", "commit = comit", "Claude = cloud"]
+        XCTAssertEqual(fix(terms, "我用 cloud code 写的"), "我用 Claude Code 写的")
+        XCTAssertEqual(fix(terms, "我用cloudcode写的"), "我用Claude Code写的")
+        XCTAssertEqual(fix(terms, "Cloud-Code 很好用"), "Claude Code 很好用")
+        // 最长的优先：cloud code 整体换成 Claude Code，而不是只换 cloud
+        XCTAssertEqual(fix(terms, "CLOUD CODE"), "Claude Code")
+        XCTAssertEqual(fix(terms, "问一下 cloud"), "问一下 Claude")
+        XCTAssertEqual(fix(terms, "codeex 和 code x 都是"), "Codex 和 Codex 都是")
+        XCTAssertEqual(fix(terms, "先 comit 一下"), "先 commit 一下")
+        // 单词边界：别名是别的词的一部分时不换
+        XCTAssertEqual(fix(terms, "icloud 和 cloudflare"), "icloud 和 cloudflare")
+        XCTAssertEqual(fix(terms, "comits"), "comits")
+        // 已经正确的不动
+        XCTAssertEqual(fix(terms, "Claude Code 和 Codex"), "Claude Code 和 Codex")
+        let r = GlossaryCorrector(terms: terms).correct("cloud code 里先 comit")
+        XCTAssertEqual(r.replacements, [.init(original: "cloud code", replacement: "Claude Code"),
+                                        .init(original: "comit", replacement: "commit")])
+    }
+
+    func testChineseAndMixedAliases() {
+        let terms = ["Claude Code = 克劳德 code", "session = 筛选, s 选", "Solana = s 拉娜"]
+        XCTAssertEqual(fix(terms, "打开克劳德 code"), "打开Claude Code")
+        XCTAssertEqual(fix(terms, "打开克劳德Code"), "打开Claude Code")
+        XCTAssertEqual(fix(terms, "这个筛选结束了"), "这个session结束了")
+        XCTAssertEqual(fix(terms, "这个S选结束了"), "这个session结束了")
+        XCTAssertEqual(fix(terms, "s拉娜上的币"), "Solana上的币")
+        // 汉字一字不差才算：同音字不行
+        XCTAssertEqual(fix(terms, "这个删选结束了"), "这个删选结束了")
+        XCTAssertEqual(fix(terms, "打开克老德 code"), "打开克老德 code")
+        // 英文部分仍按单词边界
+        XCTAssertEqual(fix(terms, "this选"), "this选")
+    }
+
+    func testAliasesKeepCanonicalBehaviour() {
+        // 带别名的词条本身照样做同音、大小写纠正
+        let terms = ["录音豆 = 路印豆", "OpenBean = 欧喷宾"]
+        XCTAssertEqual(fix(terms, "录音逗和路印豆"), "录音豆和录音豆")
+        XCTAssertEqual(fix(terms, "open bean 也叫欧喷宾"), "OpenBean 也叫OpenBean")
+        // 太短或纯符号的别名忽略
+        XCTAssertEqual(fix(["Claude = c, ++"], "c 和 ++"), "c 和 ++")
+        // 别名区域和已经正确的词条重叠时不换（「Claude Code」里的 code 不会被 code → Codex 改掉）
+        XCTAssertEqual(fix(["Claude Code", "Codex = code"], "Claude Code 的 code"), "Claude Code 的 Codex")
+    }
+
     func testOverheadIsSmall() {
         let terms = (0..<200).map { "术语\($0)" } + ["录音豆", "大模型", "OpenBean", "Claude Code", "张伟"]
         let c = GlossaryCorrector(terms: terms)

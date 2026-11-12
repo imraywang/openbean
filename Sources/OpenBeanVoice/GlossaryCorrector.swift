@@ -15,6 +15,13 @@ import NaturalLanguage
 ///   - 近音（n/l、前后鼻音、平翘舌）只对 3 个字以上的词开，一次最多一个字近音，其余字必须原样相同。
 /// - 英文或中英混合：只改大小写和空格、连字符（open bean / openbean / Open-Bean → 词表写法），只在单词边界上匹配。
 /// - 文本里已经和词表一字不差的地方不动；重叠时取更长的词；标点从不改动。
+///
+/// 用户声明的误听（别名）：词表一行写 `Claude Code = cloud code, 克劳德 code`，意思是识别出右边任何一个，都写成左边。
+/// 用来补同音规则管不到的错（中文里夹的英文词常被认成别的词：Claude → cloud、session → 筛选）。
+/// - 右边用英文逗号、中文逗号或顿号分隔；没有等号的行照旧是一个词条；
+/// - 纯英文别名：和英文词条一样不分大小写、只在单词边界上匹配、空格和连字符可有可无（cloud code / cloudcode / Cloud-Code）；
+/// - 含汉字的别名：汉字必须一字不差（不按拼音），夹的英文部分同上；
+/// - 别名至少两个字符；别名和其它词条一起比长短，已经正确的地方同样不动。
 public struct GlossaryCorrector: Sendable {
     public struct Replacement: Equatable, Sendable {
         public let original: String
@@ -35,28 +42,74 @@ public struct GlossaryCorrector: Sendable {
     }
 
     struct Term: Sendable {
+        /// 替换成什么（词表写法；别名的话是等号左边）
         let text: String
+        /// 按什么匹配的原文（词条本身或别名）
         let chars: [Character]
         let elements: [Element]
         let hanCount: Int
+        /// 是别名：汉字逐字相同才算，匹配到就换（不走同音的保守规则，也不当成「已经正确」）
+        let isAlias: Bool
+    }
+
+    /// 词表的一行：词条，加上可选的误听别名
+    public struct Entry: Equatable, Sendable {
+        public let term: String
+        public let aliases: [String]
+        public init(term: String, aliases: [String] = []) {
+            self.term = term
+            self.aliases = aliases
+        }
+
+        /// 解析一行：空行、# 注释返回 nil；`词条 = 别名1, 别名2`（等号也可以是全角＝）
+        public static func parse(_ line: String) -> Entry? {
+            let t = line.trimmingCharacters(in: .whitespaces)
+            guard !t.isEmpty, !t.hasPrefix("#") else { return nil }
+            guard let eq = t.firstIndex(where: { $0 == "=" || $0 == "＝" }) else { return Entry(term: t) }
+            let term = t[..<eq].trimmingCharacters(in: .whitespaces)
+            guard !term.isEmpty else { return nil }
+            let aliases = t[t.index(after: eq)...]
+                .split(whereSeparator: { $0 == "," || $0 == "，" || $0 == "、" })
+                .map { $0.trimmingCharacters(in: .whitespaces) }
+                .filter { !$0.isEmpty }
+            return Entry(term: term, aliases: aliases)
+        }
+    }
+
+    /// 词表各行里的词条本身（不含别名）：交给大模型润色的就是这些
+    public static func canonicalTerms(_ lines: [String]) -> [String] {
+        var seen = Set<String>()
+        return lines.compactMap { Entry.parse($0)?.term }.filter { seen.insert($0).inserted }
     }
 
     private let terms: [Term]
 
+    /// - Parameter raw: 词表的每一行（可带 `= 别名`）
     public init(terms raw: [String]) {
         var seen = Set<String>()
         var list: [Term] = []
-        for r in raw {
-            let t = r.trimmingCharacters(in: .whitespaces)
-            guard !t.isEmpty, !t.hasPrefix("#"), seen.insert(t).inserted else { continue }
-            let elements = Self.compile(t)
-            guard !elements.isEmpty else { continue }
-            let hanCount = elements.filter { if case .han = $0 { return true }; return false }.count
-            let hasWord = elements.contains { if case .word = $0 { return true }; return false }
-            // 纯汉字的单字词不纠正；没有汉字也没有字母的词条（纯符号）跳过
-            if hanCount == 1, !hasWord { continue }
-            if hanCount == 0, !hasWord { continue }
-            list.append(Term(text: t, chars: Array(t), elements: elements, hanCount: hanCount))
+        for entry in raw.compactMap(Entry.parse) {
+            let t = entry.term
+            if seen.insert(t).inserted {
+                let elements = Self.compile(t)
+                let hanCount = elements.filter { if case .han = $0 { return true }; return false }.count
+                let hasWord = elements.contains { if case .word = $0 { return true }; return false }
+                // 纯汉字的单字词不纠正；没有汉字也没有字母的词条（纯符号）跳过
+                if !elements.isEmpty, !(hanCount == 1 && !hasWord), !(hanCount == 0 && !hasWord) {
+                    list.append(Term(text: t, chars: Array(t), elements: elements, hanCount: hanCount, isAlias: false))
+                }
+            }
+            for a in entry.aliases where seen.insert("\(t)\u{0}\(a)").inserted {
+                // 别名至少两个非空白字符；和词条一样（只差大小写、空格）的别名没有意义
+                guard a.filter({ !$0.isWhitespace }).count >= 2 else { continue }
+                let elements = Self.compile(a)
+                let hasLetter = elements.contains {
+                    switch $0 { case .han, .word: return true; case .literal: return false }
+                }
+                guard hasLetter else { continue }
+                let hanCount = elements.filter { if case .han = $0 { return true }; return false }.count
+                list.append(Term(text: t, chars: Array(a), elements: elements, hanCount: hanCount, isAlias: true))
+            }
         }
         terms = list
     }
@@ -76,7 +129,10 @@ public struct GlossaryCorrector: Sendable {
             var i = 0
             while i < chars.count {
                 if let end = match(term, at: i, ctx: &ctx) {
-                    if Array(chars[i..<end]) == term.chars {
+                    if term.isAlias {
+                        // 别名：匹配上就是候选；文本恰好已经是词表写法的话不用换
+                        if String(chars[i..<end]) != term.text { candidates.append((i..<end, term)) }
+                    } else if Array(chars[i..<end]) == term.chars {
                         protected.append(i..<end)
                     } else if accept(term, range: i..<end, ctx: &ctx) {
                         candidates.append((i..<end, term))
@@ -169,8 +225,14 @@ public struct GlossaryCorrector: Sendable {
             }
             guard i < chars.count else { return nil }
             switch e {
-            case let .han(_, sound):
+            case let .han(c, sound):
                 guard Pinyin.isHan(chars[i]) else { return nil }
+                // 别名里的汉字必须一字不差
+                if term.isAlias {
+                    guard chars[i] == c else { return nil }
+                    i += 1
+                    continue
+                }
                 let r = ctx.sound(i)
                 guard !r.exact.isDisjoint(with: sound.exact) || !r.fuzzy.isDisjoint(with: sound.fuzzy) else { return nil }
                 i += 1

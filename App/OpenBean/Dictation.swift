@@ -189,8 +189,9 @@ final class Dictation {
         if settings.polishEnabled, let url = URL(string: settings.polishEndpoint) {
             let usable = Polisher.isLocal(url) ? await Polisher.isUp(url) : true
             if usable {
+                // 润色只拿词条本身，误听别名不给（免得大模型把别名当成要用的词）
                 polisher = Polisher(endpoint: url, apiKey: settings.polishAPIKey, model: settings.polishModel,
-                                    glossary: words)
+                                    glossary: GlossaryCorrector.canonicalTerms(words))
             }
         }
 

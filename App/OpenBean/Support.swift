@@ -39,8 +39,13 @@ enum AppPaths {
 
     static func readGlossary() -> [String] {
         if !FileManager.default.fileExists(atPath: glossary.path) {
-            try? "# One term per line (names, product names, jargon). OpenBean fixes same-sounding words to these; clean-up prefers them too.\n"
-                .write(to: glossary, atomically: true, encoding: .utf8)
+            try? """
+            # One term per line (names, product names, jargon). OpenBean fixes same-sounding words to these; clean-up prefers them too.
+            # A word it keeps mishearing: write the term, an equals sign, then what it hears, separated by commas:
+            #   Claude Code = cloud code, 克劳德 code
+            # English aliases ignore case, spaces and hyphens and match whole words; Chinese ones must match exactly.
+
+            """.write(to: glossary, atomically: true, encoding: .utf8)
         }
         return ((try? String(contentsOf: glossary, encoding: .utf8)) ?? "")
             .split(whereSeparator: \.isNewline)

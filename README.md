@@ -194,6 +194,20 @@ rules are conservative: single characters are never touched, two-character terms
 where it isn't part of another word, and text that already matches stays as it is. Replacements are logged. The
 clean-up step, when on, also prefers these terms.
 
+Some words are misheard as something that doesn't sound alike in Chinese — typically English terms inside Mandarin
+(`Claude` → `cloud`, `session` → `筛选`). Declare those after an equals sign, separated by commas:
+
+```
+Claude Code = cloud code, 克劳德 code
+Codex = codeex, code x
+session = 筛选
+```
+
+Whenever one of the right-hand sides is recognised, the left-hand side is written. English aliases match whole words,
+ignoring case, spaces and hyphens (`cloud code`, `cloudcode`, `Cloud-Code`); aliases containing Chinese characters must
+match those characters exactly. Lines without `=` work as before, and only the left-hand terms are given to clean-up.
+Pick aliases you never say on purpose: a bare `cloud` would turn every real "cloud" into "Claude".
+
 **Automation:** `openbean://dictate/toggle` (also `dictate/start`, `dictate/stop`), `openbean://sync` and
 `openbean://open` (or `openbean://open/<recording id>`), `openbean://settings` (or `openbean://settings/<voice|polish|library|models>`) — for Shortcuts, Raycast or scripts (`open "openbean://dictate/toggle"`).
 
@@ -268,8 +282,8 @@ The wire protocol is documented in [docs/PROTOCOL.md](docs/PROTOCOL.md) so it ca
 5. **Optional cloud speech recognition** — for transcribing recordings in the library first; voice typing stays
    on-device. Off by default, like cloud clean-up.
 
-Known gaps: the first ~1 s after pressing the button is lost; the word list only fixes words that were recognised
-with the same sound; code comments are in Chinese.
+Known gaps: the first ~1 s after pressing the button is lost; the word list only fixes other mis-hearings that you
+declare as aliases; code comments are in Chinese.
 
 ## Third-party components
 
@@ -303,6 +317,7 @@ openbean 是录音豆的开源本地驱动：通过蓝牙和 Wi‑Fi 连接设�
 
 - **识别**：Apple 设备端听写出灰字预览；每句停顿后由 SenseVoice-Small 定稿（每句约 0.1 秒，带标点）。
 - **个人词表**：每句定稿后先按个人词表纠正专有名词，不需要大模型：读音相同的错字换成词表里的词，英文恢复词表的大小写和空格（open bean → OpenBean）；单字不改，两字词只在不和别的字成词时才改。录音库转写也一样。
+  读音不同的误听（多是中文里夹的英文词，如 Claude 被认成 cloud、session 被认成「筛选」）可以在等号后面声明，逗号分隔：`Claude Code = cloud code, 克劳德 code`，识别出右边任何一个都写成左边。英文别名不分大小写、空格和连字符可有可无、只按整词匹配；含汉字的别名要一字不差。没有等号的行照旧；润色只拿等号左边的词。别把自己真会说的词当别名（单写一个 cloud，所有真的 cloud 都会变成 Claude）。
 - **润色（可选）**：接任意 OpenAI 兼容服务，本机的（如 llama.cpp 跑 Qwen3-30B-A3B）或云端的（DeepSeek、通义千问等，填 API Key，Key 存钥匙串），去口头禅、按个人词表纠正同音字，保留你的说法。用云端时每句话的文字会发给该服务，录音和语音识别仍在本机。
 - **按停顿排版**：停 0.8 秒定稿一句；稍长用逗号，更长用句号，超过 2.5 秒换段（用 Shift+回车，聊天软件里不会误发送）。均可在设置里调。
 
