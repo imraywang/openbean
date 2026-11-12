@@ -100,6 +100,9 @@ final class Dictation {
     /// 设备页「开始录音」：下一次开始录音事件不触发听写
     var ignoreNextStart = false
     var onFinished: () -> Void = {}
+    /// 一次输入结束（有文字时），用于语音输入记录
+    var onEntry: (DictationEntry) -> Void = { _ in }
+    private var targetApp: String?
 
     // MARK: 设备事件
 
@@ -141,6 +144,7 @@ final class Dictation {
         level = 0; noiseFloor = -60; listeningSince = nil; typedCount = 0; polishing = 0; deliveredByClipboard = false
         text = TwoPassText(); segments = []; lastEnd = nil; chain = nil; early = []
         typing = settings.typeIntoApp && Typist.trusted
+        targetApp = NSWorkspace.shared.frontmostApplication?.localizedName
         if settings.typeIntoApp, !Typist.trusted { Log.write("没有辅助功能权限，只显示不打字") }
         let r = recognizer
         svQueue.async { r?.reset() }
@@ -303,6 +307,11 @@ final class Dictation {
             deliveredByClipboard = true
         }
         Log.write("结束听写：\(finalText)")
+        if !finalText.isEmpty, settings.keepHistory {
+            let since = listeningSince ?? Date()
+            onEntry(DictationEntry(date: since, duration: Date().timeIntervalSince(since), text: finalText,
+                                   app: targetApp, viaClipboard: deliveredByClipboard))
+        }
         device.endDictation()
         phase = .idle
         onFinished()

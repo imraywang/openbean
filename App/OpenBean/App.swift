@@ -10,6 +10,8 @@ final class AppModel {
     let settings = Settings()
     let device = DeviceController()
     let models = ModelStore()
+    let log = DictationLog()
+    let nav = Navigator()
     lazy var dictation = Dictation(device: device, settings: settings)
     lazy var library = LibraryStore(device: device, settings: settings)
     lazy var hud = HUDController(dictation: dictation)
@@ -21,6 +23,7 @@ final class AppModel {
         device.onConnected = { [weak self] in Task { await self?.library.refreshDeviceList() } }
         dictation.onStarted = { [weak self] id in self?.library.markDictation(id) }
         dictation.onFinished = { [weak self] in self?.library.resumeIfNeeded() }
+        dictation.onEntry = { [weak self] in self?.log.add($0) }
         Hotkey.shared.onPress = { [weak self] in
             guard let self, self.device.isReady else { return }
             Task { await self.dictation.toggle() }
@@ -54,7 +57,7 @@ final class AppModel {
             NSApp.activate()
             openMain?()
         case let p where p.hasPrefix("open/"):
-            if let id = UInt32(p.dropFirst(5)) { library.selection = id }
+            if let id = UInt32(p.dropFirst(5)) { nav.show(recording: id, in: library) }
             NSApp.activate()
             openMain?()
         default:
@@ -79,7 +82,7 @@ struct OpenBeanApp: App {
         Window("OpenBean", id: "main") {
             MainView(model: model)
         }
-        .defaultSize(width: 900, height: 600)
+        .defaultSize(width: 1180, height: 760)
         .defaultLaunchBehavior(.suppressed)
 
         Window("Welcome to OpenBean", id: "onboarding") {
@@ -124,30 +127,6 @@ final class Delegate: NSObject, NSApplicationDelegate {
 
 // MARK: - 主窗口
 
-struct MainView: View {
-    let model: AppModel
-    @State private var query = ""
-
-    var body: some View {
-        NavigationSplitView {
-            RecordingSidebar(library: model.library, device: model.device, dictation: model.dictation,
-                             selection: Binding(get: { model.library.selection }, set: { model.library.selection = $0 }),
-                             query: $query)
-                .navigationSplitViewColumnWidth(min: 260, ideal: 300, max: 420)
-        } detail: {
-            if let id = model.library.selection, let r = model.library.recordings.first(where: { $0.id == id }) {
-                RecordingDetail(recording: r, library: model.library, device: model.device).id(id)
-            } else {
-                LibraryHome(device: model.device, settings: model.settings)
-            }
-        }
-        .searchable(text: $query, placement: .sidebar, prompt: "Search")
-        .navigationTitle("")
-        .task { await model.library.refreshDeviceList() }
-        .onAppear { NSApp.activate() }
-    }
-}
-
 /// 菜单栏菜单第一次渲染时登记「打开主窗口」的方法（链接 openbean://open 用）
 private struct OpenWindowBinder: View {
     let model: AppModel
@@ -163,11 +142,13 @@ struct MenuIcon: View {
     let device: DeviceController
     let dictation: Dictation
     var body: some View {
-        switch (device.state, dictation.phase) {
-        case (_, .listening), (_, .starting): Image(systemName: "waveform.circle.fill")
-        case (.ready, _): Image(systemName: "mic.circle")
-        default: Image(systemName: "mic.slash.circle")
-        }
+        Image(nsImage: BeanArt.menuIcons[state]!)
+    }
+
+    private var state: BeanArt.State {
+        if dictation.phase == .listening || dictation.phase == .starting { return .listening }
+        guard device.state == .ready else { return .disconnected }
+        return device.activity == .syncing ? .syncing : .connected
     }
 }
 

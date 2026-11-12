@@ -19,6 +19,7 @@ struct SettingsView: View {
                     ForEach(Hotkey.Preset.allCases) { Text($0.label).tag($0) }
                 }
                 Toggle("Play a sound when it's ready to listen", isOn: $settings.readySound)
+                Toggle("Keep voice typing history on this Mac", isOn: $settings.keepHistory)
                 Toggle("Type into the active app", isOn: $settings.typeIntoApp)
                 if settings.typeIntoApp && !trusted {
                     HStack {

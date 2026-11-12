@@ -67,6 +67,8 @@ final class Settings {
     var buttonDictates: Bool { didSet { d.set(buttonDictates, forKey: "buttonDictates") } }
     /// 可以开始说话时提示一声
     var readySound: Bool { didSet { d.set(readySound, forKey: "readySound") } }
+    /// 在本机保存语音输入记录（概览里的统计也靠它）
+    var keepHistory: Bool { didSet { d.set(keepHistory, forKey: "keepHistory") } }
     @ObservationIgnored var onHotkeyChange: (() -> Void)?
 
     init() {
@@ -74,7 +76,8 @@ final class Settings {
                               "polishEndpoint": "http://127.0.0.1:8092", "polishModel": "local",
                               "paragraphGap": 2.5, "sentencePause": 0.8,
                               "hotkey": Hotkey.Preset.optionSpace.rawValue, "autoTranscribe": true,
-                              "onboardingDone": false, "buttonDictates": true, "readySound": true])
+                              "onboardingDone": false, "buttonDictates": true, "readySound": true,
+                              "keepHistory": true])
         typeIntoApp = d.bool(forKey: "typeIntoApp")
         polishEnabled = d.bool(forKey: "polishEnabled")
         polishEndpoint = d.string(forKey: "polishEndpoint") ?? ""
@@ -86,6 +89,7 @@ final class Settings {
         onboardingDone = d.bool(forKey: "onboardingDone")
         buttonDictates = d.bool(forKey: "buttonDictates")
         readySound = d.bool(forKey: "readySound")
+        keepHistory = d.bool(forKey: "keepHistory")
     }
 }
 

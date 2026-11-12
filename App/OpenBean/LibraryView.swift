@@ -4,30 +4,37 @@ import AVFoundation
 import Observation
 import SwiftUI
 
-// MARK: - 侧边栏：按日期分组的录音列表 + 底部设备卡片
+// MARK: - 录音列表：按日期分组（录音库页的中间一栏）
 
-struct RecordingSidebar: View {
+struct RecordingList: View {
     @Bindable var library: LibraryStore
-    let device: DeviceController
-    let dictation: Dictation
+    let nav: Navigator
     @Binding var selection: UInt32?
     @Binding var query: String
 
     private var items: [Recording] { library.visible.filter { library.matches($0, query: query) } }
 
     var body: some View {
-        List(selection: $selection) {
-            ForEach(sections, id: \.title) { section in
-                Section(section.title) {
-                    ForEach(section.items) { r in
-                        RecordingRow(recording: r, snippet: library.snippet(r.id), transcribing: library.transcribing[r.id])
-                            .tag(r.id)
-                            .contextMenu { RecordingMenu(recording: r, library: library) }
+        ScrollViewReader { proxy in
+            List(selection: $selection) {
+                ForEach(sections, id: \.title) { section in
+                    Section(section.title) {
+                        ForEach(section.items) { r in
+                            RecordingRow(recording: r, snippet: library.snippet(r.id), transcribing: library.transcribing[r.id])
+                                .tag(r.id)
+                                .id(r.id)
+                                // 从概览点进来的那条亮一下再退回选中色
+                                .background(RoundedRectangle(cornerRadius: 6)
+                                    .fill(Color.accentColor.opacity(nav.flash == r.id ? 0.45 : 0))
+                                    .padding(.horizontal, -6).padding(.vertical, -3))
+                                .contextMenu { RecordingMenu(recording: r, library: library) }
+                        }
                     }
                 }
             }
+            .listStyle(.inset)
+            .onAppear { if let id = selection { proxy.scrollTo(id, anchor: .center) } }
         }
-        .listStyle(.sidebar)
         .overlay {
             if items.isEmpty {
                 ContentUnavailableView {
@@ -36,9 +43,6 @@ struct RecordingSidebar: View {
                     Text(query.isEmpty ? "Sync downloads recordings from your recorder." : "Try another word.")
                 }
             }
-        }
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            DeviceCard(device: device, library: library, dictation: dictation)
         }
         .toolbar {
             ToolbarItem {
@@ -130,89 +134,6 @@ struct RecordingMenu: View {
             Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([library.audioURL(recording.id)]) }
             Divider()
             Button("Delete local copy", role: .destructive) { library.deleteLocal(recording.id) }
-        }
-    }
-}
-
-/// 侧边栏底部：录音豆状态 + 同步。点一下看完整设备信息。
-struct DeviceCard: View {
-    let device: DeviceController
-    let library: LibraryStore
-    let dictation: Dictation
-    @State private var showDetails = false
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Divider().padding(.horizontal, -12)
-            Button { showDetails = true } label: {
-                HStack(spacing: 10) {
-                    Image(systemName: device.isReady ? "mic.circle.fill" : "mic.slash.circle")
-                        .font(.system(size: 22))
-                        .foregroundStyle(device.isReady ? Color.accentColor : .secondary)
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(device.deviceName).font(.callout.weight(.medium)).lineLimit(1)
-                        Text(status).font(.caption).foregroundStyle(.secondary).lineLimit(1)
-                    }
-                    Spacer(minLength: 0)
-                    Image(systemName: "chevron.up").font(.caption2).foregroundStyle(.tertiary)
-                }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .popover(isPresented: $showDetails, arrowEdge: .top) {
-                DeviceView(device: device, dictation: dictation).frame(width: 380, height: 520)
-            }
-
-            syncRow
-        }
-        .padding(.horizontal, 12)
-        .padding(.bottom, 10)
-        .background(.bar)
-    }
-
-    @ViewBuilder private var syncRow: some View {
-        switch library.sync {
-        case let .downloading(_, done, total, f, _):
-            VStack(alignment: .leading, spacing: 3) {
-                ProgressView(value: f).controlSize(.small)
-                Text("Downloading \(done + 1) of \(total)…").font(.caption2).foregroundStyle(.secondary)
-            }
-        case let .wifi(msg):
-            Text(msg).font(.caption2).foregroundStyle(.secondary).lineLimit(2)
-        case .listing:
-            HStack(spacing: 6) { ProgressView().controlSize(.mini); Text("Checking the recorder…").font(.caption2).foregroundStyle(.secondary) }
-        case .paused:
-            Text("Sync paused for dictation").font(.caption2).foregroundStyle(.secondary)
-        case let .failed(e):
-            Text("Sync failed: \(e)").font(.caption2).foregroundStyle(.red).lineLimit(2)
-        case .idle:
-            Button {
-                Task { await library.syncAll() }
-            } label: {
-                Label(pendingText, systemImage: "arrow.triangle.2.circlepath").frame(maxWidth: .infinity)
-            }
-            .controlSize(.small)
-            .disabled(!device.isReady || device.activity != .idle)
-        }
-    }
-
-    private var pendingText: String {
-        let n = library.recordings.filter { $0.onDevice && !$0.downloaded && !$0.isDictation }.count
-        return n > 0 ? String(localized: "Sync \(n) new") : String(localized: "Sync")
-    }
-
-    private var status: String {
-        switch device.state {
-        case .ready:
-            let b = device.battery.map { "\($0)%" } ?? ""
-            switch device.activity {
-            case .dictating: return String(localized: "Listening") + (b.isEmpty ? "" : " · \(b)")
-            case .syncing: return String(localized: "Syncing") + (b.isEmpty ? "" : " · \(b)")
-            case .idle: return b.isEmpty ? String(localized: "Connected") : String(localized: "Connected · \(b)")
-            }
-        case .connecting: return String(localized: "Connecting…")
-        case .idle, .searching: return String(localized: "Searching…")
-        case .failed: return String(localized: "Not connected")
         }
     }
 }
