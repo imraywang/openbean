@@ -56,7 +56,7 @@ final class Settings {
 
     init() {
         d.register(defaults: ["typeIntoApp": true, "polishEnabled": false,
-                              "polishEndpoint": "http://127.0.0.1:8092", "polishModel": "local", "paragraphGap": 1.5,
+                              "polishEndpoint": "http://127.0.0.1:8092", "polishModel": "local", "paragraphGap": 2.5,
                               "sentencePause": 0.8])
         typeIntoApp = d.bool(forKey: "typeIntoApp")
         polishEnabled = d.bool(forKey: "polishEnabled")
