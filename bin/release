@@ -77,5 +77,5 @@ if (( NOTARIZE )); then
   spctl --assess --type open --context context:primary-signature --verbose=2 "$DMG"
 fi
 
-shasum -a 256 "$DMG" | tee "$DMG.sha256"
+(cd "$OUT" && shasum -a 256 "${DMG:t}" | tee "${DMG:t}.sha256")
 echo "完成：$ROOT/$DMG"
