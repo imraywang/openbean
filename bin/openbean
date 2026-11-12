@@ -2,13 +2,17 @@
 # macOS 只认 .app 自己的蓝牙权限：直接从终端跑命令行程序，系统会按终端去查权限并终止进程。
 # 所以先把它包成一个最小的 .app，再用 open 启动，输出转回当前终端。
 set -e
+# 签名身份：有固定证书就用它（重新打包后系统权限不会失效），否则临时签名。
+# 本机证书可用 Scripts/make-signing-cert.sh 创建
+SIGN_ID="${OPENBEAN_SIGN_ID:-openbean local signing}"
+security find-identity -p codesigning 2>/dev/null | grep -q "\"$SIGN_ID\"" || SIGN_ID="-"
 ROOT="${0:A:h}/.."
 (cd "$ROOT" && swift build -q -c release)
 APP="$ROOT/.build/openbean.app"
 mkdir -p "$APP/Contents/MacOS"
 cp "$ROOT/.build/release/openbean" "$APP/Contents/MacOS/openbean"
 cp "$ROOT/Support/Info.plist" "$APP/Contents/Info.plist"
-codesign -s - -f "$APP" >/dev/null 2>&1
+codesign -s "$SIGN_ID" -f "$APP" >/dev/null 2>&1
 LOG=$(mktemp -t openbean)
 open -W -n --stdout "$LOG" --stderr "$LOG" "$APP" --args "$@" --out "$PWD" &
 OPEN_PID=$!

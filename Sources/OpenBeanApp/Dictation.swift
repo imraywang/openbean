@@ -39,8 +39,8 @@ final class Dictation {
         var gap: Double?
     }
 
-    /// 停顿短于这个值，两句之间用逗号；否则用句号
-    static let commaGap = 0.9
+    /// 两句之间停顿短于「切句停顿 + 0.3 秒」用逗号，否则用句号
+    private var commaGap: Double { settings.sentencePause + 0.3 }
     private static let strong: Set<Character> = ["？", "！", "?", "!"]
 
     /// 去掉句末的句号/逗号（问号、感叹号保留）：句末标点等下一句来了再定
@@ -51,7 +51,7 @@ final class Dictation {
     }
 
     /// 放在第 i 句前面的连接标点
-    static func joiner(prev: String, gap: Double?) -> String {
+    static func joiner(prev: String, gap: Double?, commaGap: Double) -> String {
         guard let last = prev.last, !strong.contains(last) else { return "" }
         return (gap ?? 99) < commaGap ? "，" : "。"
     }
@@ -65,9 +65,10 @@ final class Dictation {
         self.settings = settings
         decoder = try? OpusDecoder()
         let models = AppPaths.models
+        let pause = Float(settings.sentencePause)
         svQueue.async { [weak self] in
             do {
-                let r = try SentenceRecognizer(modelsDir: models)
+                let r = try SentenceRecognizer(modelsDir: models, minSilence: pause)
                 DispatchQueue.main.async {
                     self?.recognizer = r
                     self?.recognizerReady = true
@@ -81,6 +82,7 @@ final class Dictation {
     // MARK: 设备事件
 
     func handle(_ e: DeviceEvent) {
+        Log.write("设备事件：\(e)")
         switch e {
         case let .recordingStarted(fileId):
             Task { await begin(fileId: fileId) }
@@ -102,11 +104,15 @@ final class Dictation {
     // MARK: 开始
 
     private func begin(fileId: UInt32) async {
-        guard phase == .idle, let session = device.session, let decoder else { return }
+        guard phase == .idle, let session = device.session, let decoder else {
+            Log.write("没有开始听写：phase=\(phase) 已连接=\(device.session != nil) 解码器=\(decoder != nil)")
+            return
+        }
         phase = .starting
         finalText = ""; volatileText = ""; lastError = nil
         text = TwoPassText(); segments = []; lastEnd = nil; chain = nil; early = []
         typing = settings.typeIntoApp && Typist.trusted
+        if settings.typeIntoApp, !Typist.trusted { Log.write("没有辅助功能权限，只显示不打字") }
         let r = recognizer
         svQueue.async { r?.reset() }
         Log.write("开始听写 file=\(fileId)")
@@ -188,7 +194,7 @@ final class Dictation {
                 if typing {
                     if idx > 0 {
                         let prev = self.segments[idx - 1]
-                        Typist.type(Self.joiner(prev: prev.polished ?? prev.raw, gap: gap))
+                        Typist.type(Self.joiner(prev: prev.polished ?? prev.raw, gap: gap, commaGap: self.commaGap))
                     }
                     if newPara { Typist.newline() }
                     Typist.type(final)
@@ -202,7 +208,7 @@ final class Dictation {
         for (i, s) in segments.enumerated() {
             if i > 0 {
                 let p = segments[i - 1]
-                out += Self.joiner(prev: p.polished ?? p.raw, gap: s.gap)
+                out += Self.joiner(prev: p.polished ?? p.raw, gap: s.gap, commaGap: commaGap)
                 if s.newParagraph { out += "\n\n" }
             }
             out += s.polished ?? s.raw
@@ -229,7 +235,7 @@ final class Dictation {
         await chain?.value
         // 补上最后一句的句末标点
         if let last = segments.last {
-            let tail = Self.joiner(prev: last.polished ?? last.raw, gap: nil)
+            let tail = Self.joiner(prev: last.polished ?? last.raw, gap: nil, commaGap: commaGap)
             if !tail.isEmpty {
                 finalText += tail
                 if typing { Typist.type(tail) }

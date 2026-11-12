@@ -129,6 +129,13 @@ struct SettingsView: View {
                 TextField("地址", text: $settings.polishEndpoint)
                 TextField("模型名", text: $settings.polishModel)
             }
+            Section("切句") {
+                HStack {
+                    Slider(value: $settings.sentencePause, in: 0.4...1.5, step: 0.1)
+                    Text(String(format: "停顿 %.1f 秒定稿一句", settings.sentencePause)).monospacedDigit()
+                }
+                Text("太短会把一句话切碎、错字变多；太长定稿变慢。重启 App 后生效。").font(.caption).foregroundStyle(.secondary)
+            }
             Section("分段") {
                 HStack {
                     Slider(value: $settings.paragraphGap, in: 0.8...4, step: 0.1)

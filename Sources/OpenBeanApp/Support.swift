@@ -51,15 +51,19 @@ final class Settings {
     var polishEndpoint: String { didSet { d.set(polishEndpoint, forKey: "polishEndpoint") } }
     var polishModel: String { didSet { d.set(polishModel, forKey: "polishModel") } }
     var paragraphGap: Double { didSet { d.set(paragraphGap, forKey: "paragraphGap") } }
+    /// 停顿多久算一句结束（交给 SenseVoice 定稿）。太短会把一句话切碎、识别变差；重启 App 后生效
+    var sentencePause: Double { didSet { d.set(sentencePause, forKey: "sentencePause") } }
 
     init() {
         d.register(defaults: ["typeIntoApp": true, "polishEnabled": false,
-                              "polishEndpoint": "http://127.0.0.1:8092", "polishModel": "local", "paragraphGap": 1.5])
+                              "polishEndpoint": "http://127.0.0.1:8092", "polishModel": "local", "paragraphGap": 1.5,
+                              "sentencePause": 0.8])
         typeIntoApp = d.bool(forKey: "typeIntoApp")
         polishEnabled = d.bool(forKey: "polishEnabled")
         polishEndpoint = d.string(forKey: "polishEndpoint") ?? ""
         polishModel = d.string(forKey: "polishModel") ?? "local"
         paragraphGap = d.double(forKey: "paragraphGap")
+        sentencePause = d.double(forKey: "sentencePause")
     }
 }
 
