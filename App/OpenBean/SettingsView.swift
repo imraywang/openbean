@@ -267,6 +267,7 @@ private struct LibrarySettings: View {
                     Button("Show in Finder") { NSWorkspace.shared.open(AppPaths.library) }
                 }
             }
+            NoteSettingsSections(settings: settings, notes: AppModel.shared.library.notes)
         }
         .formStyle(.grouped)
     }

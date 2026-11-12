@@ -153,6 +153,10 @@ struct RecordingMenu: View {
         }
         if recording.downloaded {
             Button(recording.transcribed ? "Transcribe again" : "Transcribe") { Task { await library.transcribe(recording.id) } }
+            if library.notes.canSummarize(recording) {
+                Button(library.notes.summary(recording.id) != nil ? "Summarise again" : "Summarise") { library.notes.summarize(recording.id) }
+                    .disabled(library.notes.summarizing[recording.id] != nil)
+            }
             Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([library.audioURL(recording.id)]) }
             Divider()
             Button("Delete local copy", role: .destructive) { library.deleteLocal(recording.id) }
@@ -173,6 +177,7 @@ struct RecordingDetail: View {
     @State private var title = ""
     @State private var player = PlayerModel()
     @State private var confirmWifi = false
+    @State private var saveNote = false
     @FocusState private var titleFocused: Bool
 
     var body: some View {
@@ -198,6 +203,9 @@ struct RecordingDetail: View {
         .task(id: recording.downloaded) { await library.loadPeaks(recording.id) }
         .onChange(of: recording.downloaded) { _, now in if now { player.load(library.audioURL(recording.id)) } }
         .onDisappear { player.stop() }
+        // 摘要可能给录音起了标题：没在编辑时跟着更新输入框，免得失焦时把它改回空
+        .onChange(of: recording.title) { _, t in if !titleFocused { title = t ?? "" } }
+        .modifier(SaveNoteModifier(recording: recording, notes: library.notes, request: $saveNote))
         .confirmationDialog("Download over Wi‑Fi?", isPresented: $confirmWifi) {
             Button("Download over Wi‑Fi") { Task { await library.syncViaWifi(ids: [recording.id]) } }
         } message: {
@@ -232,6 +240,9 @@ struct RecordingDetail: View {
                     }
                     .help(recording.transcribed ? "Transcribe again" : "Transcribe")
                 }
+                if recording.transcribed && !recording.isDictation {
+                    SummariseButton(recording: recording, notes: library.notes)
+                }
                 Menu {
                     Button("Copy transcript") {
                         NSPasteboard.general.clearContents()
@@ -239,6 +250,7 @@ struct RecordingDetail: View {
                     }.disabled(!recording.transcribed)
                     Button("Transcript as Markdown…") { library.exportMarkdown(recording.id) }.disabled(!recording.transcribed)
                     Button("Audio (Ogg Opus)…") { library.exportAudio(recording.id) }
+                    Button("Save note to folder") { saveNote = true }.disabled(!library.notes.canSummarize(recording))
                     Divider()
                     Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([library.audioURL(recording.id)]) }
                 } label: {
@@ -268,6 +280,7 @@ struct RecordingDetail: View {
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 10) {
+                        SummaryCard(recording: recording, notes: library.notes)
                         ForEach(Array(segs.enumerated()), id: \.offset) { i, s in
                             let current = player.playing && player.time >= s.start && player.time < s.end + 0.3
                             HStack(alignment: .firstTextBaseline, spacing: 14) {

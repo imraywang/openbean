@@ -69,6 +69,8 @@ final class LibraryStore {
 
     private let device: DeviceController
     private let settings: Settings
+    /// 摘要和知识库笔记
+    let notes: NoteService
     private let work = DispatchQueue(label: "openbean.library", qos: .userInitiated)
     private var resumeAfterDictation = false
     /// syncAll 正在跑（防止手动和自动同步叠在一起）
@@ -88,7 +90,9 @@ final class LibraryStore {
     init(device: DeviceController, settings: Settings) {
         self.device = device
         self.settings = settings
+        notes = NoteService(settings: settings)
         load()
+        notes.library = self
     }
 
     var visible: [Recording] {
@@ -197,6 +201,7 @@ final class LibraryStore {
     func deleteLocal(_ id: UInt32) {
         try? FileManager.default.removeItem(at: folder(id))
         transcripts[id] = nil
+        notes.forget(id)
         if let i = recordings.firstIndex(where: { $0.id == id }) {
             if recordings[i].onDevice {
                 recordings[i].downloaded = false
@@ -421,6 +426,7 @@ final class LibraryStore {
             if let d = try? JSONEncoder().encode(segs) { try? d.write(to: transcriptURL(id), options: .atomic) }
             update(id) { $0.transcribed = true }
             Log.write("已转写 \(id)：\(segs.count) 句")
+            notes.afterTranscription(id)
         case let .failure(e):
             Log.write("转写失败 \(id)：\(e)")
         }
@@ -432,6 +438,12 @@ final class LibraryStore {
         guard let r = recordings.first(where: { $0.id == id }) else { return "" }
         var s = "# \(r.displayTitle)\n\n"
         s += "\(r.start.formatted(date: .long, time: .shortened)) · \(Self.clock(r.duration))\n\n"
+        if let sum = notes.summary(id) {
+            s += "## Summary\n\n\(sum.summary)\n\n"
+            if !sum.keyPoints.isEmpty { s += "## Key points\n\n" + sum.keyPoints.map { "- \($0)\n" }.joined() + "\n" }
+            if !sum.actionItems.isEmpty { s += "## Action items\n\n" + sum.actionItems.map { "- [ ] \($0)\n" }.joined() + "\n" }
+            s += "## Transcript\n\n"
+        }
         for seg in transcript(id) { s += "**[\(Self.clock(seg.start))]** \(seg.text)\n\n" }
         return s
     }
