@@ -93,6 +93,16 @@ struct OpenBeanApp: App {
 
 final class Delegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ n: Notification) {
+        // 只允许一份在跑：两份会同时抢录音豆的蓝牙连接，谁都连不上
+        let me = ProcessInfo.processInfo.processIdentifier
+        let others = NSRunningApplication.runningApplications(withBundleIdentifier: Bundle.main.bundleIdentifier ?? "")
+            .filter { $0.processIdentifier != me }
+        if let other = others.first {
+            Log.write("已有一份 OpenBean 在运行（pid \(other.processIdentifier)），这份退出")
+            other.activate()
+            NSApp.terminate(nil)
+            return
+        }
         NSApp.setActivationPolicy(.accessory)
         MainActor.assumeIsolated { AppModel.shared.start() }
     }

@@ -124,17 +124,15 @@ struct HUDView: View {
 
     private var capsule: some View {
         HStack(spacing: 12) {
-            leading.frame(width: 34, height: 22)
+            leading.frame(width: state.mode == .listening ? 26 : 34, height: 26)
             middle
             trailing
         }
         .padding(.leading, 14)
         .padding(.trailing, showsStop ? 6 : 16)
         .frame(height: 44)
-        // 正在听时固定宽度，文字变长不会让胶囊跳；其他状态按内容收缩
-        .frame(width: state.mode == .listening ? 440 : nil)
-        .frame(minWidth: 168, maxWidth: 500)
-        .fixedSize(horizontal: state.mode != .listening, vertical: false)
+        // 正在听时固定宽度；其他状态按内容收缩
+        .modifier(CapsuleWidth(fixed: state.mode == .listening ? 236 : nil))
         .background(Capsule().fill(.ultraThinMaterial))
         .background(Capsule().fill(Color.black.opacity(0.72)))
         .overlay(Capsule().strokeBorder(Color.white.opacity(0.12), lineWidth: 1))
@@ -149,7 +147,7 @@ struct HUDView: View {
         case .starting:
             BreathingDots()
         case .listening:
-            Waveform(level: dictation.level)
+            MicPulse(level: dictation.level)
         case .finishing:
             ProgressView().controlSize(.small).tint(.white)
         case .done:
@@ -167,19 +165,9 @@ struct HUDView: View {
         case .starting:
             label("Getting ready…", secondary: true)
         case .listening:
-            if dictation.finalText.isEmpty && dictation.volatileText.isEmpty {
-                label("Listening — go ahead", secondary: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            } else {
-                // 只显示末尾：定稿白色，识别中灰色
-                (Text(tail(dictation.finalText, keep: max(0, 30 - dictation.volatileText.count)))
-                    + Text(dictation.volatileText).foregroundColor(.white.opacity(0.5)))
-                    .font(.system(size: 15))
-                    .foregroundStyle(.white)
-                    .lineLimit(1)
-                    .truncationMode(.head)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
+            // 说话时不显示文字：只用声波表示「正在收音」
+            Waveform(level: dictation.level, bars: 15)
+                .frame(maxWidth: .infinity)
         case .finishing:
             label(dictation.polishing > 0 ? "Polishing…" : "Wrapping up…", secondary: true)
         case let .done(count, clipboard):
@@ -224,27 +212,54 @@ struct HUDView: View {
             .lineLimit(1)
     }
 
-    private func tail(_ s: String, keep: Int) -> String { s.count > keep ? "…" + s.suffix(keep) : s }
     private func clock(_ t: TimeInterval) -> String { String(format: "%d:%02d", Int(t) / 60, Int(t) % 60) }
 }
 
-/// 跟着音量跳的声波：7 根竖条，中间高两边低，各自带一点抖动
+private struct CapsuleWidth: ViewModifier {
+    let fixed: CGFloat?
+    func body(content: Content) -> some View {
+        if let fixed {
+            content.frame(width: fixed)
+        } else {
+            content.frame(minWidth: 168, maxWidth: 500).fixedSize(horizontal: true, vertical: false)
+        }
+    }
+}
+
+/// 跟着音量跳的声波：中间高两边低，各自带一点抖动
 struct Waveform: View {
     let level: Float
-    private let weights: [CGFloat] = [0.45, 0.7, 0.9, 1, 0.9, 0.7, 0.45]
+    var bars = 7
 
     var body: some View {
         TimelineView(.animation(minimumInterval: 1 / 30)) { ctx in
             let t = ctx.date.timeIntervalSinceReferenceDate
-            HStack(alignment: .center, spacing: 2.5) {
-                ForEach(weights.indices, id: \.self) { i in
-                    let wobble = 0.75 + 0.25 * sin(t * 9 + Double(i) * 1.3)
-                    let h = 3 + 19 * CGFloat(level) * weights[i] * CGFloat(wobble)
-                    Capsule().fill(Color.white).frame(width: 2.5, height: h)
+            HStack(alignment: .center, spacing: 3) {
+                ForEach(0..<bars, id: \.self) { i in
+                    let x = Double(i) / Double(max(bars - 1, 1)) * 2 - 1      // -1…1
+                    let weight = 0.35 + 0.65 * (1 - x * x)                       // 中间高
+                    let wobble = 0.7 + 0.3 * sin(t * 9 + Double(i) * 1.1)
+                    let h = 3 + 19 * CGFloat(level) * CGFloat(weight * wobble)
+                    Capsule().fill(Color.white.opacity(0.9)).frame(width: 3, height: h)
                 }
             }
             .animation(.linear(duration: 0.08), value: level)
         }
+    }
+}
+
+/// 正在收音：麦克风，外圈随音量扩散
+struct MicPulse: View {
+    let level: Float
+    var body: some View {
+        ZStack {
+            Circle().fill(Color.red.opacity(0.35))
+                .scaleEffect(1 + CGFloat(level) * 0.55)
+            Circle().fill(Color.red)
+            Image(systemName: "mic.fill").font(.system(size: 12, weight: .semibold)).foregroundStyle(.white)
+        }
+        .frame(width: 24, height: 24)
+        .animation(.spring(response: 0.18, dampingFraction: 0.6), value: level)
     }
 }
 
