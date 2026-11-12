@@ -333,10 +333,11 @@ final class LibraryStore {
         transcribing[id] = 0
         let url = audioURL(id)
         let models = AppPaths.models
+        let glossary = GlossaryCorrector(terms: AppPaths.readGlossary())
         let result: Result<[TranscriptSegment], Error> = await withCheckedContinuation { c in
             work.async {
                 c.resume(returning: Result {
-                    try FileTranscriber.transcribe(url: url, models: models) { p in
+                    try FileTranscriber.transcribe(url: url, models: models, glossary: glossary) { p in
                         DispatchQueue.main.async { [weak self] in self?.transcribing[id] = p }
                     }
                 })
@@ -390,7 +391,8 @@ final class LibraryStore {
 
 /// 离线转写一个音频文件：解码 → 16 kHz → VAD 切句 → SenseVoice
 enum FileTranscriber {
-    static func transcribe(url: URL, models: URL, progress: (Double) -> Void) throws -> [TranscriptSegment] {
+    static func transcribe(url: URL, models: URL, glossary: GlossaryCorrector,
+                           progress: (Double) -> Void) throws -> [TranscriptSegment] {
         let file = try AVAudioFile(forReading: url)
         let target = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: 16000, channels: 1, interleaved: false)!
         guard let conv = AVAudioConverter(from: file.processingFormat, to: target) else { throw VoiceError.initFailed("converter") }
@@ -415,14 +417,17 @@ enum FileTranscriber {
                 fed = true; st.pointee = .haveData; return inBuf
             }
             let samples = Array(UnsafeBufferPointer(start: outBuf.floatChannelData![0], count: Int(outBuf.frameLength)))
-            out += recognizer.accept(samples).map(seg)
+            out += recognizer.accept(samples).map { seg($0, glossary) }
             progress(Double(file.framePosition) / total)
         }
-        out += recognizer.flush().map(seg)
+        out += recognizer.flush().map { seg($0, glossary) }
         return out.filter { !$0.text.isEmpty }
     }
 
-    private static func seg(_ s: SentenceRecognizer.Sentence) -> TranscriptSegment {
-        TranscriptSegment(start: s.start, end: s.end, text: s.text)
+    /// 每句先按个人词表纠正专有名词
+    private static func seg(_ s: SentenceRecognizer.Sentence, _ glossary: GlossaryCorrector) -> TranscriptSegment {
+        let r = glossary.correct(s.text)
+        for f in r.replacements { Log.write("词表纠正：\(f.original) → \(f.replacement)") }
+        return TranscriptSegment(start: s.start, end: s.end, text: r.text)
     }
 }

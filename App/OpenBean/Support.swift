@@ -25,7 +25,7 @@ enum AppPaths {
 
     static func readGlossary() -> [String] {
         if !FileManager.default.fileExists(atPath: glossary.path) {
-            try? "# One term per line (names, product names, jargon). Clean-up prefers these when a word sounds similar.\n"
+            try? "# One term per line (names, product names, jargon). OpenBean fixes same-sounding words to these; clean-up prefers them too.\n"
                 .write(to: glossary, atomically: true, encoding: .utf8)
         }
         return ((try? String(contentsOf: glossary, encoding: .utf8)) ?? "")

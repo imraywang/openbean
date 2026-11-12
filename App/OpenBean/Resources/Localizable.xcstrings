@@ -302,16 +302,6 @@
         }
       }
     },
-    "Any OpenAI-compatible server works: llama.cpp (llama-server), Ollama, LM Studio. It removes filler words, fixes likely homophones using your word list and keeps your wording.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "支持任意 OpenAI 兼容服务：llama.cpp（llama-server）、Ollama、LM Studio。会去掉口头禅、按个人词表纠正同音字，并保留你的说法。"
-          }
-        }
-      }
-    },
     "Any OpenAI-compatible service works: llama.cpp (llama-server), Ollama or LM Studio on this Mac, or cloud services such as DeepSeek, Qwen, Kimi and OpenAI. The API key is kept in your keychain.": {
       "localizations": {
         "zh-Hans": {
@@ -442,16 +432,6 @@
         }
       }
     },
-    "Clean up each sentence with a local LLM": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "用本地大模型润色每一句"
-          }
-        }
-      }
-    },
     "Clean up each sentence with an LLM": {
       "localizations": {
         "zh-Hans": {
@@ -468,16 +448,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "用大模型润色"
-          }
-        }
-      }
-    },
-    "Clean up with local LLM": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "本地大模型润色"
           }
         }
       }
@@ -1262,12 +1232,12 @@
         }
       }
     },
-    "One term per line: names, product names, jargon. Clean-up prefers these when a word sounds similar.": {
+    "One term per line: names, product names, jargon. OpenBean fixes same-sounding names and spelling to these without an LLM; clean-up prefers them too.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "每行一个词：人名、产品名、术语。润色遇到读音相近的词时优先用它们。"
+            "value": "每行一个词：人名、产品名、术语。不用大模型也会把读音相同的错字和英文写法改成这些词；润色时也优先用它们。"
           }
         }
       }
@@ -1368,16 +1338,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "概览"
-          }
-        }
-      }
-    },
-    "Pauses": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "停顿"
           }
         }
       }
@@ -1622,16 +1582,6 @@
         }
       }
     },
-    "Search": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "搜索"
-          }
-        }
-      }
-    },
     "Search titles and transcripts": {
       "localizations": {
         "zh-Hans": {
@@ -1772,16 +1722,6 @@
         }
       }
     },
-    "Short pauses finalise a phrase; slightly longer ones become a comma, longer ones a full stop. A too-short phrase pause chops sentences and hurts accuracy. Restart OpenBean after changing it.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "短停顿定稿一句；稍长的停顿补逗号，更长的补句号。定稿停顿太短会把一句话切碎、错字变多。修改后需重启 OpenBean。"
-          }
-        }
-      }
-    },
     "Shortcut: %@": {
       "localizations": {
         "zh-Hans": {
@@ -1808,16 +1748,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "在访达中显示"
-          }
-        }
-      }
-    },
-    "Show library folder": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "打开录音库文件夹"
           }
         }
       }

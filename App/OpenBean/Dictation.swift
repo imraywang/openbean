@@ -68,6 +68,8 @@ final class Dictation {
     private var lastEnd: Double?
     private var chain: Task<Void, Never>?
     private var polisher: Polisher?
+    /// 个人词表纠正（不需要大模型），每次听写开始时按词表重建
+    private var glossary = GlossaryCorrector(terms: [])
     private var typing = false
 
     init(device: DeviceController, settings: Settings) {
@@ -176,13 +178,16 @@ final class Dictation {
             lastError = "\(error)"; phase = .idle; device.endDictation(); return
         }
 
+        // 每次开始都重读词表，改了词表下一次就生效
+        let words = AppPaths.readGlossary()
+        glossary = GlossaryCorrector(terms: words)
         polisher = nil
         // 本机服务先探一下（1 秒），没开就不润色；云端不探，免得拖慢开始，请求失败时那句原样输出
         if settings.polishEnabled, let url = URL(string: settings.polishEndpoint) {
             let usable = Polisher.isLocal(url) ? await Polisher.isUp(url) : true
             if usable {
                 polisher = Polisher(endpoint: url, apiKey: settings.polishAPIKey, model: settings.polishModel,
-                                    glossary: AppPaths.readGlossary())
+                                    glossary: words)
             }
         }
 
@@ -241,16 +246,19 @@ final class Dictation {
 
     private func sentences(_ list: [SentenceRecognizer.Sentence]) {
         for s in list {
-            let raw = text.commit(text: s.text, end: s.end + 0.1)
+            let recognized = text.commit(text: s.text, end: s.end + 0.1)
             volatileText = text.pendingText
-            guard raw.contains(where: { $0.isLetter || $0.isNumber }) else { continue }
+            guard recognized.contains(where: { $0.isLetter || $0.isNumber }) else { continue }
+            // 先按个人词表纠正专有名词，再交给可选的润色
+            let (raw, fixes) = glossary.correct(recognized)
             let gap = lastEnd.map { s.start - $0 }
             let newPara = gap.map { $0 >= settings.paragraphGap } ?? false
             lastEnd = s.end
             let idx = segments.count
             segments.append(Segment(raw: Self.trimTail(raw), polished: nil, newParagraph: newPara, gap: gap))
             rebuild()
-            Log.write(String(format: "定稿 [%.2f–%.2f s，%.0f ms]%@ %@", s.start, s.end, s.decodeMs, newPara ? " ¶" : "", raw))
+            Log.write(String(format: "定稿 [%.2f–%.2f s，%.0f ms]%@ %@", s.start, s.end, s.decodeMs, newPara ? " ¶" : "", recognized))
+            for f in fixes { Log.write("词表纠正：\(f.original) → \(f.replacement)") }
             let prev = chain, polisher = self.polisher, typing = self.typing
             chain = Task { @MainActor [weak self] in
                 await prev?.value
