@@ -35,6 +35,7 @@ final class DeviceController {
     }
 
     private func lostConnection() {
+        Log.write("连接断开，准备重连")
         session = nil
         state = .searching
         loop?.cancel()
@@ -45,17 +46,17 @@ final class DeviceController {
     }
 
     private func connectLoop() async {
-        do { try await link.waitPoweredOn() } catch {
-            state = .failed("\(error)")
-            return
-        }
         var delay: UInt64 = 2
         while !Task.isCancelled {
             do {
+                // 蓝牙状态偶尔迟迟不回报，也要一直重试，不能放弃
+                try await link.waitPoweredOn()
                 try await connectOnce()
+                Log.write("已连接录音豆")
                 return
             } catch {
                 state = .failed("\(error)")
+                Log.write("连接失败（\(delay) 秒后重试）：\(error)")
                 try? await Task.sleep(nanoseconds: delay * 1_000_000_000)
                 delay = min(delay * 2, 30)
             }
@@ -69,7 +70,11 @@ final class DeviceController {
             .flatMap { link.retrieve($0) }
         if let p = target {
             state = .connecting
-            do { try await link.connect(p, timeout: 12) } catch { target = nil }
+            Log.write("按上次的设备直连")
+            do { try await link.connect(p, timeout: 12) } catch {
+                Log.write("直连失败：\(error)，改为扫描")
+                target = nil
+            }
         }
         if target == nil {
             guard let d = await link.scan(seconds: 6).first(where: \.serviceMatch) else {

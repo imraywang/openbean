@@ -42,6 +42,8 @@ public final class Link: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     private var peripheral: CBPeripheral?
     private var writeChar: CBCharacteristic?
     private var assembler = FrameAssembler()
+    /// 完整连上（通知已打开）之后才为 true；连接过程中失败/超时导致的断开不算「掉线」
+    private var established = false
 
     private var poweredOn: CheckedContinuation<Void, Error>?
     private var connecting: CheckedContinuation<Void, Error>?
@@ -158,6 +160,7 @@ public final class Link: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     private func finishConnect(_ r: Result<Void, Error>) {
         guard let c = connecting else { return }
         connecting = nil
+        if case .success = r { established = true }
         c.resume(with: r)
     }
 
@@ -173,7 +176,10 @@ public final class Link: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     public func centralManager(_ c: CBCentralManager, didDisconnectPeripheral p: CBPeripheral, error: Error?) {
         log("断开：\(error?.localizedDescription ?? "正常")")
         finishConnect(.failure(LinkError.disconnected))
-        if p.identifier == peripheral?.identifier { onDisconnect?() }
+        if p.identifier == peripheral?.identifier, established {
+            established = false
+            onDisconnect?()
+        }
         let w = waiters
         waiters = []
         w.forEach { $0.cont.resume(throwing: LinkError.disconnected) }
