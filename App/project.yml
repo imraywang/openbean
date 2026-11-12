@@ -9,8 +9,9 @@ options:
 settings:
   base:
     SWIFT_VERSION: "5.0"
-    MARKETING_VERSION: "0.2.0"
-    CURRENT_PROJECT_VERSION: "1"
+    MARKETING_VERSION: "0.2.1"
+    # 构建号：Sparkle 按它比新旧。每次发布加 1（0.2.0 是 1），只增不减；bin/release 会拦下 appcast 里已有的构建号
+    CURRENT_PROJECT_VERSION: "2"
     SWIFT_EMIT_LOC_STRINGS: true
     LOCALIZATION_PREFERS_STRING_CATALOGS: true
     # 本机自签名证书（Scripts/make-signing-cert.sh）：重新编译后系统权限不会失效
@@ -22,6 +23,10 @@ settings:
 packages:
   openbean:
     path: ..
+  # 自动更新（Sparkle 2）。generate_keys / sign_update 在编译后的 SourcePackages/artifacts/sparkle/Sparkle/bin/
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    from: 2.10.1
 targets:
   OpenBean:
     type: application
@@ -40,6 +45,8 @@ targets:
         product: OpenBeanKit
       - package: openbean
         product: OpenBeanVoice
+      # 二进制 xcframework，Xcode 自动拷进 Frameworks 并签名（写 embed: true 反而找不到 Sparkle-product）
+      - package: Sparkle
       - framework: ../Vendor/sherpa-onnx/lib/libsherpa-onnx-c-api.dylib
         embed: true
         codeSign: true
@@ -63,3 +70,10 @@ targets:
         CFBundleURLTypes:
           - CFBundleURLName: dev.openbean.app
             CFBundleURLSchemes: [openbean]
+        # 自动更新（Sparkle）：订阅源是仓库 master 上的 appcast.xml，由 bin/release 写入
+        SUFeedURL: https://raw.githubusercontent.com/imraywang/openbean/master/appcast.xml
+        # EdDSA 公钥；私钥在发布者登录钥匙串里（generate_keys 生成），见 bin/release 开头
+        SUPublicEDKey: BjLS2mK2S8UTBjerLJvUbUGQdToKi3/ffYsX/LQp0Kc=
+        # 默认就在后台每天检查一次，不再弹「要不要自动检查」的询问
+        SUEnableAutomaticChecks: true
+        SUScheduledCheckInterval: 86400
