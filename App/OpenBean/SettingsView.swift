@@ -255,6 +255,10 @@ private struct LibrarySettings: View {
     var body: some View {
         Form {
             Section {
+                Toggle(isOn: $settings.autoSync) {
+                    Text("Sync new recordings automatically")
+                    Text("Over Bluetooth, when the recorder connects or goes back in its case")
+                }
                 Toggle(isOn: $settings.autoTranscribe) {
                     Text("Transcribe recordings after download")
                     Text("Runs on this Mac with SenseVoice")

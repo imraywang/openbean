@@ -11,6 +11,8 @@ struct RecordingList: View {
     let nav: Navigator
     @Binding var selection: UInt32?
     @Binding var query: String
+    @State private var confirmDelete: Recording?
+    @State private var deleteError: String?
 
     private var items: [Recording] { library.visible.filter { library.matches($0, query: query) } }
 
@@ -27,13 +29,31 @@ struct RecordingList: View {
                                 .background(RoundedRectangle(cornerRadius: 6)
                                     .fill(Color.accentColor.opacity(nav.flash == r.id ? 0.45 : 0))
                                     .padding(.horizontal, -6).padding(.vertical, -3))
-                                .contextMenu { RecordingMenu(recording: r, library: library) }
+                                .contextMenu {
+                                    RecordingMenu(recording: r, library: library) { confirmDelete = r }
+                                }
                         }
                     }
                 }
             }
             .listStyle(.inset)
             .onAppear { if let id = selection { proxy.scrollTo(id, anchor: .center) } }
+        }
+        .confirmationDialog("Delete this recording from the recorder?", isPresented: Binding(
+            get: { confirmDelete != nil }, set: { if !$0 { confirmDelete = nil } }
+        ), presenting: confirmDelete) { r in
+            Button("Delete from recorder", role: .destructive) {
+                Task { deleteError = await library.deleteFromRecorder([r.id]) }
+            }
+        } message: { _ in
+            Text("This cannot be undone. The copy on this Mac is kept.")
+        }
+        .alert("Couldn't delete from the recorder", isPresented: Binding(
+            get: { deleteError != nil }, set: { if !$0 { deleteError = nil } }
+        )) {
+            Button("OK") { deleteError = nil }
+        } message: {
+            Text(deleteError ?? "")
         }
         .overlay {
             if items.isEmpty {
@@ -125,6 +145,8 @@ struct RecordingRow: View {
 struct RecordingMenu: View {
     let recording: Recording
     let library: LibraryStore
+    /// 「从录音豆删除…」：由列表弹确认框
+    var deleteFromRecorder: (() -> Void)?
     var body: some View {
         if recording.onDevice && !recording.downloaded {
             Button("Download") { Task { await library.syncAll(ids: [recording.id]) } }
@@ -134,6 +156,10 @@ struct RecordingMenu: View {
             Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([library.audioURL(recording.id)]) }
             Divider()
             Button("Delete local copy", role: .destructive) { library.deleteLocal(recording.id) }
+        }
+        if let deleteFromRecorder, library.mayDeleteFromRecorder(recording) {
+            Button("Delete from recorder…", role: .destructive) { deleteFromRecorder() }
+                .disabled(!library.recorderIdle)
         }
     }
 }

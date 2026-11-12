@@ -2,7 +2,7 @@
 
 import Foundation
 
-/// 本小样用到的命令。绑定/解绑、恢复出厂、删文件、OTA 故意不放进来。
+/// 本小样用到的命令。绑定/解绑、恢复出厂、OTA 故意不放进来；删文件只经 `D3200Session.deleteFile` 带校验地发。
 public enum Cmd {
     public static func getDeviceInfo() -> [UInt8] { Frame.encode(type: 0x01, id: 0x01) }
 
@@ -30,6 +30,10 @@ public enum Cmd {
     }
 
     public static func closeSoftAP() -> [UInt8] { Frame.encode(type: 0x1A, id: 0x02) }
+
+    /// 删除录音豆上的一个录音：1A/10 + fileId（u32 LE），和 1A/07 里 fileId 的编码相同。
+    /// ⚠️ 还没在真机上验证过；删了不能恢复。只经 `D3200Session.deleteFile` 发（它会先做安全检查、再回读列表确认）。
+    public static func deleteFile(id: UInt32) -> [UInt8] { Frame.encode(type: 0x1A, id: 0x10, payload: u32le(id)) }
 
     /// Wi‑Fi 通道里的文件请求：18 字节、没有校验字节、最后一字节固定 0x1B，以小写 hex 文本发出。
     public static func wifiFileRequestHex(id: UInt32, offset: UInt32 = 0) -> String {
@@ -61,6 +65,7 @@ public enum Rx {
     public static let fileSlice: UInt8 = 0x08
     public static let fileDone: UInt8 = 0x0A
     public static let fileList: UInt8 = 0x0E
+    public static let deleteFile: UInt8 = 0x10 // 删除回包（社区笔记：status 低 4 位为 1 表示成功；未经真机验证）
     public static let fileSliceMark: UInt8 = 0x12
 
     public static func isTransport(_ p: Packet) -> Bool { p.type == 0x1A || p.type == 0x1B }
