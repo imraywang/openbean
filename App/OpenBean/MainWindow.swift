@@ -8,14 +8,17 @@ import SwiftUI
 // MARK: - 导航
 
 enum MainSection: String, CaseIterable, Identifiable, Hashable {
-    case overview, library, dictation, recorder
+    case overview, library, dictation, recorder, settings
     var id: String { rawValue }
+    /// 侧栏上半部分的内容页（⌘1–⌘4）；设置单独放在下面（⌘,）
+    static let pages: [MainSection] = [.overview, .library, .dictation, .recorder]
     var title: LocalizedStringKey {
         switch self {
         case .overview: return "Overview"
         case .library: return "Library"
         case .dictation: return "Voice typing"
         case .recorder: return "Recorder"
+        case .settings: return "Settings"
         }
     }
     var icon: String {
@@ -24,6 +27,7 @@ enum MainSection: String, CaseIterable, Identifiable, Hashable {
         case .library: return "list.bullet"
         case .dictation: return "keyboard"
         case .recorder: return "mic"
+        case .settings: return "gearshape"
         }
     }
 }
@@ -31,6 +35,7 @@ enum MainSection: String, CaseIterable, Identifiable, Hashable {
 @MainActor @Observable
 final class Navigator {
     var section: MainSection = .overview
+    var settingsTab: SettingsTab = .voice
     /// 刚从别处跳过来的录音：那一行亮一下，提示「你在这」
     var flash: UInt32?
 
@@ -63,6 +68,8 @@ struct MainView: View {
                 .transition(.opacity)
         }
         .animation(reduceMotion ? nil : .easeOut(duration: 0.18), value: nav.section)
+        // 再窄工具栏就放不下设置页的四个标签，会收进 » 菜单
+        .frame(minWidth: 960, minHeight: 600)
         .background { shortcuts }
         .task { await model.library.refreshDeviceList() }
         .onAppear { NSApp.activate() }
@@ -76,16 +83,19 @@ struct MainView: View {
         case .recorder:
             DeviceView(device: model.device, dictation: model.dictation)
                 .navigationTitle("Recorder")
+        case .settings: SettingsPage(model: model)
         }
     }
 
     /// ⌘1–⌘4 切页面，⌃⌘S 收起/展开侧栏（菜单栏 App 没有菜单，用隐藏按钮接快捷键）
     private var shortcuts: some View {
         ZStack {
-            ForEach(Array(MainSection.allCases.enumerated()), id: \.offset) { i, s in
+            ForEach(Array(MainSection.pages.enumerated()), id: \.offset) { i, s in
                 Button("") { model.nav.section = s }
                     .keyboardShortcut(KeyEquivalent(Character("\(i + 1)")), modifiers: .command)
             }
+            Button("") { model.nav.section = .settings }
+                .keyboardShortcut(",", modifiers: .command)
             Button("") {
                 withAnimation { columns = columns == .detailOnly ? .all : .detailOnly }
             }
@@ -103,10 +113,16 @@ struct NavSidebar: View {
 
     var body: some View {
         List(selection: Binding<MainSection?>(get: { section }, set: { if let s = $0 { section = s } })) {
-            ForEach(MainSection.allCases) { s in
-                Label(s.title, systemImage: s.icon)
+            ForEach(MainSection.pages) { s in
+                Label { Text(s.title) } icon: {
+                    if s == .recorder { BeanSymbol() } else { Image(systemName: s.icon) }
+                }
                     .badge(badge(s))
                     .tag(s)
+            }
+            Section {
+                Label(MainSection.settings.title, systemImage: MainSection.settings.icon)
+                    .tag(MainSection.settings)
             }
         }
         .listStyle(.sidebar)
@@ -311,10 +327,7 @@ struct OverviewView: View {
         // 两行：上面是设备和同步，下面三个数平分宽度，窗口窄时也不会挤出去
         return VStack(alignment: .leading, spacing: 18) {
             HStack(spacing: 14) {
-                Image(systemName: device.isReady ? "mic.fill" : "mic.slash.fill")
-                    .font(.system(size: 20, weight: .semibold))
-                    .frame(width: 44, height: 44)
-                    .background(Circle().fill(device.isReady ? Color.accentColor : Color.white.opacity(0.15)))
+                BeanBadge(size: 44, color: device.isReady ? .accentColor : .white.opacity(0.15))
                 VStack(alignment: .leading, spacing: 3) {
                     Text(device.deviceName).font(.headline)
                     Text(heroStatus(info)).font(.caption).foregroundStyle(.white.opacity(0.7)).lineLimit(1)

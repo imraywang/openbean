@@ -131,7 +131,7 @@ work too). Smaller models such as Qwen3-4B are faster to download but worse at f
 One term per line (names, product names, jargon). The clean-up step prefers these when a word sounds similar.
 
 **Automation:** `openbean://dictate/toggle` (also `dictate/start`, `dictate/stop`), `openbean://sync` and
-`openbean://open` (or `openbean://open/<recording id>`) — for Shortcuts, Raycast or scripts (`open "openbean://dictate/toggle"`).
+`openbean://open` (or `openbean://open/<recording id>`), `openbean://settings` (or `openbean://settings/<voice|polish|library|models>`) — for Shortcuts, Raycast or scripts (`open "openbean://dictate/toggle"`).
 
 **Voice typing history:** what you dictate is kept only on this Mac, in
 `~/Library/Application Support/openbean/dictation.json`, for the *Voice typing* page and the Overview totals.

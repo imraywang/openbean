@@ -163,8 +163,13 @@ final class Dictation {
         }
 
         polisher = nil
-        if settings.polishEnabled, let url = URL(string: settings.polishEndpoint), await Polisher.isUp(url) {
-            polisher = Polisher(endpoint: url, model: settings.polishModel, glossary: AppPaths.readGlossary())
+        // 本机服务先探一下（1 秒），没开就不润色；云端不探，免得拖慢开始，请求失败时那句原样输出
+        if settings.polishEnabled, let url = URL(string: settings.polishEndpoint) {
+            let usable = Polisher.isLocal(url) ? await Polisher.isUp(url) : true
+            if usable {
+                polisher = Polisher(endpoint: url, apiKey: settings.polishAPIKey, model: settings.polishModel,
+                                    glossary: AppPaths.readGlossary())
+            }
         }
 
         do {

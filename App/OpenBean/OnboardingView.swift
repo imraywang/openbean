@@ -54,7 +54,12 @@ struct OnboardingView: View {
 
     private func header(_ icon: String, _ title: LocalizedStringKey, _ text: LocalizedStringKey) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Image(systemName: icon).font(.system(size: 34)).foregroundStyle(Color.accentColor)
+            // "bean" 表示录音豆自己的「声豆」徽标，其余是 SF Symbols
+            if icon == "bean" {
+                BeanBadge(size: 40)
+            } else {
+                Image(systemName: icon).font(.system(size: 34)).foregroundStyle(Color.accentColor)
+            }
             Text(title).font(.title.weight(.semibold))
             Text(text).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
         }
@@ -74,7 +79,7 @@ struct OnboardingView: View {
 
     private var recorder: some View {
         VStack(alignment: .leading, spacing: 18) {
-            header("mic.circle", "Connect your recorder",
+            header("bean", "Connect your recorder",
                    "Take the recorder out of its case. OpenBean finds it over Bluetooth — no pairing in System Settings needed. If macOS asks for Bluetooth access, allow it.")
             HStack(spacing: 10) {
                 switch model.device.state {

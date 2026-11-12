@@ -92,3 +92,34 @@ enum BeanArt {
         .listening: menuIcon(.listening), .syncing: menuIcon(.syncing),
     ]
 }
+
+/// 圆底「声豆」徽标：白色豆子、三道声波镂空成底色（录音豆页、概览卡片用）
+struct BeanBadge: View {
+    var size: CGFloat = 44
+    var color: Color = .accentColor
+
+    var body: some View {
+        Canvas { ctx, sz in
+            let d = min(sz.width, sz.height)
+            ctx.fill(Path(ellipseIn: CGRect(x: 0, y: 0, width: d, height: d)), with: .color(color))
+            // 100 网格里的豆子占 6…94，缩到直径的 64%
+            let s = d * 0.64 / 88
+            ctx.translateBy(x: d / 2 - 50 * s, y: d / 2 - 50 * s)
+            ctx.scaleBy(x: s, y: s)
+            ctx.fill(Path(BeanArt.bean), with: .color(.white))
+            ctx.stroke(Path(BeanArt.bars), with: .color(color),
+                       style: StrokeStyle(lineWidth: 7, lineCap: .round))
+        }
+        .frame(width: size, height: size)
+        .accessibilityHidden(true)
+    }
+}
+
+/// 侧栏里的单色「声豆」线稿，跟随列表的强调色
+struct BeanSymbol: View {
+    var body: some View {
+        Image(nsImage: BeanArt.menuIcons[.connected]!)
+            .renderingMode(.template)
+            .accessibilityHidden(true)
+    }
+}

@@ -5,6 +5,7 @@ import ApplicationServices
 import Carbon.HIToolbox
 import Foundation
 import Observation
+import Security
 
 enum AppPaths {
     static let support: URL = {
@@ -49,6 +50,30 @@ enum Log {
     }
 }
 
+/// 钥匙串里的通用密码（服务名 OpenBean）
+enum Keychain {
+    private static func query(_ account: String) -> [String: Any] {
+        [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: "OpenBean", kSecAttrAccount as String: account]
+    }
+
+    static func get(_ account: String) -> String? {
+        var q = query(account)
+        q[kSecReturnData as String] = true
+        var out: CFTypeRef?
+        guard SecItemCopyMatching(q as CFDictionary, &out) == errSecSuccess, let d = out as? Data else { return nil }
+        return String(data: d, encoding: .utf8)
+    }
+
+    static func set(_ value: String, for account: String) {
+        SecItemDelete(query(account) as CFDictionary)
+        guard !value.isEmpty else { return }
+        var q = query(account)
+        q[kSecValueData as String] = Data(value.utf8)
+        let st = SecItemAdd(q as CFDictionary, nil)
+        if st != errSecSuccess { Log.write("钥匙串写入失败 \(account)：\(st)") }
+    }
+}
+
 /// 设置（UserDefaults）
 @MainActor @Observable
 final class Settings {
@@ -57,6 +82,8 @@ final class Settings {
     var polishEnabled: Bool { didSet { d.set(polishEnabled, forKey: "polishEnabled") } }
     var polishEndpoint: String { didSet { d.set(polishEndpoint, forKey: "polishEndpoint") } }
     var polishModel: String { didSet { d.set(polishModel, forKey: "polishModel") } }
+    /// 云端润色服务的 Key，存钥匙串，不进 UserDefaults
+    var polishAPIKey: String { didSet { Keychain.set(polishAPIKey, for: "polishAPIKey") } }
     var paragraphGap: Double { didSet { d.set(paragraphGap, forKey: "paragraphGap") } }
     /// 停顿多久算一句结束；重启 App 后生效
     var sentencePause: Double { didSet { d.set(sentencePause, forKey: "sentencePause") } }
@@ -82,6 +109,7 @@ final class Settings {
         polishEnabled = d.bool(forKey: "polishEnabled")
         polishEndpoint = d.string(forKey: "polishEndpoint") ?? ""
         polishModel = d.string(forKey: "polishModel") ?? "local"
+        polishAPIKey = Keychain.get("polishAPIKey") ?? ""
         paragraphGap = d.double(forKey: "paragraphGap")
         sentencePause = d.double(forKey: "sentencePause")
         hotkey = Hotkey.Preset(rawValue: d.string(forKey: "hotkey") ?? "") ?? .optionSpace

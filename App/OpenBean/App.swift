@@ -54,11 +54,17 @@ final class AppModel {
         case "sync":
             Task { await library.syncAll() }
         case "open":
-            NSApp.activate()
+            openMain?()
+        case "settings":
+            nav.section = .settings
+            openMain?()
+        case let p where p.hasPrefix("settings/"):
+            // openbean://settings/voice|polish|library|models
+            if let tab = SettingsTab(rawValue: String(p.dropFirst(9))) { nav.settingsTab = tab }
+            nav.section = .settings
             openMain?()
         case let p where p.hasPrefix("open/"):
             if let id = UInt32(p.dropFirst(5)) { nav.show(recording: id, in: library) }
-            NSApp.activate()
             openMain?()
         default:
             break
@@ -90,11 +96,6 @@ struct OpenBeanApp: App {
         }
         .windowResizability(.contentSize)
         .defaultLaunchBehavior(model.settings.onboardingDone ? .suppressed : .presented)
-
-        SwiftUI.Settings {
-            SettingsView(settings: model.settings, models: model.models)
-                .frame(width: 560, height: 560)
-        }
     }
 }
 
@@ -127,12 +128,29 @@ final class Delegate: NSObject, NSApplicationDelegate {
 
 // MARK: - 主窗口
 
+/// 把窗口真正带到前台。
+/// macOS 14 起 NSApp.activate() 只是「请求」，菜单栏 App 在菜单还没收起时发出常被系统忽略；
+/// 窗口已经开着、只是被别的 App 盖住时，openWindow 也只在本 App 内排序。
+/// 所以等到下一轮（菜单已收起）再激活，并把窗口强制排到最前。
+@MainActor func bringToFront(_ id: String) {
+    DispatchQueue.main.async {
+        NSApp.activate()
+        let w = NSApp.windows.first { $0.identifier?.rawValue == id || $0.identifier?.rawValue.hasPrefix("\(id)-") == true }
+        guard let w else { Log.write("没找到窗口 \(id)"); return }
+        if w.isMiniaturized { w.deminiaturize(nil) }
+        w.makeKeyAndOrderFront(nil)
+        w.orderFrontRegardless()
+    }
+}
+
 /// 菜单栏菜单第一次渲染时登记「打开主窗口」的方法（链接 openbean://open 用）
 private struct OpenWindowBinder: View {
     let model: AppModel
     @Environment(\.openWindow) private var openWindow
     var body: some View {
-        Color.clear.frame(width: 0, height: 0).onAppear { model.openMain = { openWindow(id: "main") } }
+        Color.clear.frame(width: 0, height: 0).onAppear {
+            model.openMain = { openWindow(id: "main"); bringToFront("main") }
+        }
     }
 }
 
@@ -155,7 +173,6 @@ struct MenuIcon: View {
 struct MenuContent: View {
     let model: AppModel
     @Environment(\.openWindow) private var openWindow
-    @Environment(\.openSettings) private var openSettings
 
     var body: some View {
         let d = model.device, dict = model.dictation, s = model.settings
@@ -175,11 +192,11 @@ struct MenuContent: View {
             s.typeIntoApp = $0
             if $0, !Typist.trusted { Typist.requestTrust() }
         }))
-        Toggle("Clean up with local LLM", isOn: Binding(get: { s.polishEnabled }, set: { s.polishEnabled = $0 }))
+        Toggle("Clean up with an LLM", isOn: Binding(get: { s.polishEnabled }, set: { s.polishEnabled = $0 }))
         Divider()
         Button("Open OpenBean") { open("main") }
             .keyboardShortcut("o")
-        Button("Settings…") { NSApp.activate(); openSettings() }
+        Button("Settings…") { model.nav.section = .settings; open("main") }
             .keyboardShortcut(",")
         if !s.onboardingDone { Button("Set up…") { open("onboarding") } }
         Divider()
@@ -188,8 +205,8 @@ struct MenuContent: View {
     }
 
     private func open(_ id: String) {
-        NSApp.activate()
         openWindow(id: id)
+        bringToFront(id)
     }
 
     private func deviceLine(_ d: DeviceController) -> String {

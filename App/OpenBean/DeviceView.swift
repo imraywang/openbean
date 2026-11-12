@@ -12,9 +12,7 @@ struct DeviceView: View {
         Form {
             Section {
                 HStack(spacing: 14) {
-                    Image(systemName: device.isReady ? "mic.circle.fill" : "mic.slash.circle")
-                        .font(.system(size: 40))
-                        .foregroundStyle(device.isReady ? Color.accentColor : .secondary)
+                    BeanBadge(size: 44, color: device.isReady ? .accentColor : .secondary.opacity(0.5))
                     VStack(alignment: .leading, spacing: 2) {
                         Text(device.deviceName).font(.title3.weight(.semibold))
                         Text(stateText).foregroundStyle(.secondary)

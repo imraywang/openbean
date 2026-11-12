@@ -22,6 +22,36 @@
         }
       }
     },
+    "%.1f s": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%.1f 秒"
+          }
+        }
+      }
+    },
+    "%.1f s · new paragraph": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%.1f 秒 · 换段"
+          }
+        }
+      }
+    },
+    "%.1f s · phrase": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%.1f 秒 · 定稿"
+          }
+        }
+      }
+    },
     "%@ / %@": {
       "localizations": {
         "zh-Hans": {
@@ -152,6 +182,36 @@
         }
       }
     },
+    "A soft tick when the bar turns into a microphone": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "悬浮条变成麦克风时轻响一声"
+          }
+        }
+      }
+    },
+    "A too-short phrase pause chops sentences and hurts accuracy. Restart OpenBean after changing it.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "定稿停顿太短会把句子切碎、降低准确率。修改后需要重启 OpenBean。"
+          }
+        }
+      }
+    },
+    "API key": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "API Key"
+          }
+        }
+      }
+    },
     "About": {
       "localizations": {
         "zh-Hans": {
@@ -178,6 +238,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "设备信息"
+          }
+        }
+      }
+    },
+    "Accessibility permission granted": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "辅助功能已授权"
           }
         }
       }
@@ -238,6 +308,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "支持任意 OpenAI 兼容服务：llama.cpp（llama-server）、Ollama、LM Studio。会去掉口头禅、按个人词表纠正同音字，并保留你的说法。"
+          }
+        }
+      }
+    },
+    "Any OpenAI-compatible service works: llama.cpp (llama-server), Ollama or LM Studio on this Mac, or cloud services such as DeepSeek, Qwen, Kimi and OpenAI. The API key is kept in your keychain.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "支持任何 OpenAI 兼容服务：本机的 llama.cpp（llama-server）、Ollama、LM Studio，或 DeepSeek、通义千问、Kimi、OpenAI 等云端服务。API Key 保存在钥匙串里。"
           }
         }
       }
@@ -332,6 +412,16 @@
         }
       }
     },
+    "Check connection": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "检查连接"
+          }
+        }
+      }
+    },
     "Checking the recorder…": {
       "localizations": {
         "zh-Hans": {
@@ -358,6 +448,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "用本地大模型润色每一句"
+          }
+        }
+      }
+    },
+    "Clean up each sentence with an LLM": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "用大模型逐句润色"
+          }
+        }
+      }
+    },
+    "Clean up with an LLM": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "用大模型润色"
           }
         }
       }
@@ -468,6 +578,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "已连接 · 正在语音输入"
+          }
+        }
+      }
+    },
+    "Connected, but the API key was rejected": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已连上，但 API Key 被拒绝"
           }
         }
       }
@@ -882,6 +1002,16 @@
         }
       }
     },
+    "Library folder": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "录音库文件夹"
+          }
+        }
+      }
+    },
     "Listening": {
       "localizations": {
         "zh-Hans": {
@@ -922,12 +1052,32 @@
         }
       }
     },
+    "Models": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "模型"
+          }
+        }
+      }
+    },
     "Needs Accessibility permission": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "需要辅助功能权限"
+          }
+        }
+      }
+    },
+    "Needs Accessibility permission. When off, the text is copied to the clipboard.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "需要辅助功能权限；关掉则只拷贝到剪贴板。"
           }
         }
       }
@@ -1042,6 +1192,16 @@
         }
       }
     },
+    "Not reachable: %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连不上：%@"
+          }
+        }
+      }
+    },
     "Not recording": {
       "localizations": {
         "zh-Hans": {
@@ -1098,6 +1258,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "在录音豆上"
+          }
+        }
+      }
+    },
+    "One term per line: names, product names, jargon. Clean-up prefers these when a word sounds similar.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每行一个词：人名、产品名、术语。润色遇到读音相近的词时优先用它们。"
+          }
+        }
+      }
+    },
+    "Only needed for cloud services": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "仅云端服务需要"
           }
         }
       }
@@ -1172,6 +1352,16 @@
         }
       }
     },
+    "Output": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "输出"
+          }
+        }
+      }
+    },
     "Overview": {
       "localizations": {
         "zh-Hans": {
@@ -1188,6 +1378,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "停顿"
+          }
+        }
+      }
+    },
+    "Pauses and layout": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "停顿与排版"
           }
         }
       }
@@ -1392,12 +1592,32 @@
         }
       }
     },
+    "Removes filler words, fixes likely homophones using your word list and keeps your wording.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "去掉口头禅，按个人词表纠正同音字，保留你的说法。"
+          }
+        }
+      }
+    },
     "Retry": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "重试"
+          }
+        }
+      }
+    },
+    "Runs on this Mac with SenseVoice": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "用 SenseVoice 在本机转写"
           }
         }
       }
@@ -1502,6 +1722,16 @@
         }
       }
     },
+    "Server": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "服务"
+          }
+        }
+      }
+    },
     "Server address": {
       "localizations": {
         "zh-Hans": {
@@ -1518,6 +1748,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "设置向导…"
+          }
+        }
+      }
+    },
+    "Settings": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "设置"
           }
         }
       }
@@ -1822,6 +2062,16 @@
         }
       }
     },
+    "The text of each sentence is sent to %@. Audio and speech recognition stay on this Mac.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每句话的文字会发送到 %@；录音和语音识别仍在这台 Mac 上。"
+          }
+        }
+      }
+    },
     "This month": {
       "localizations": {
         "zh-Hans": {
@@ -1992,6 +2242,16 @@
         }
       }
     },
+    "Trigger": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "触发"
+          }
+        }
+      }
+    },
     "Try another word.": {
       "localizations": {
         "zh-Hans": {
@@ -2038,6 +2298,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "在 Mac 上直接使用你的 soundcore Work 录音豆，不需要官方 App，也不经过云端。"
+          }
+        }
+      }
+    },
+    "Used by the Voice typing page and the Overview totals": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「语音输入」页和概览统计都靠它"
           }
         }
       }
@@ -2132,12 +2402,42 @@
         }
       }
     },
+    "comma": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "逗号"
+          }
+        }
+      }
+    },
+    "full stop": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "句号"
+          }
+        }
+      }
+    },
     "http://127.0.0.1:8092": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "http://127.0.0.1:8092"
+          }
+        }
+      }
+    },
+    "invalid address": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "地址无效"
           }
         }
       }
