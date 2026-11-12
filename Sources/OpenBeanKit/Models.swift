@@ -72,6 +72,12 @@ public struct RecordingFile: Sendable {
     /// 1060 的文件拉下来正好 53 帧 × 20 ms；另一条 5920820 与 endTime−fileId=5921 秒吻合。
     public let durationMs: UInt32
 
+    public init(id: UInt32, endTime: UInt32?, durationMs: UInt32) {
+        self.id = id
+        self.endTime = endTime
+        self.durationMs = durationMs
+    }
+
     public var durationSeconds: Double { Double(durationMs) / 1000 }
     /// 线上传输字节：每 20 ms 一片 166 字节（seq 4 + flags 1 + 数据 160 + 填充 1）。
     public var wireBytes: Int { Int(durationMs) / 20 * 166 }

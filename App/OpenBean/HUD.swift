@@ -4,7 +4,6 @@ import AppKit
 import SwiftUI
 
 /// 听写时屏幕下方的悬浮条：不抢焦点，文字打进当前应用。
-@available(macOS 26.0, *)
 @MainActor
 final class HUDController {
     private let dictation: Dictation
@@ -57,7 +56,6 @@ final class HUDController {
     }
 }
 
-@available(macOS 26.0, *)
 struct HUDView: View {
     let dictation: Dictation
     var body: some View {

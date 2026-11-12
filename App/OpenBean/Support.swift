@@ -2,6 +2,7 @@
 
 import AppKit
 import ApplicationServices
+import Carbon.HIToolbox
 import Foundation
 import Observation
 
@@ -13,12 +14,18 @@ enum AppPaths {
         return u
     }()
     static var models: URL { support.appendingPathComponent("models") }
+    static var library: URL {
+        let u = support.appendingPathComponent("Library")
+        try? FileManager.default.createDirectory(at: u, withIntermediateDirectories: true)
+        return u
+    }
     static var glossary: URL { support.appendingPathComponent("glossary.txt") }
     static var log: URL { support.appendingPathComponent("openbean.log") }
 
     static func readGlossary() -> [String] {
         if !FileManager.default.fileExists(atPath: glossary.path) {
-            try? "# 个人词表：每行一个常用词、人名或术语，润色时优先纠正成这些词\n".write(to: glossary, atomically: true, encoding: .utf8)
+            try? "# One term per line (names, product names, jargon). Clean-up prefers these when a word sounds similar.\n"
+                .write(to: glossary, atomically: true, encoding: .utf8)
         }
         return ((try? String(contentsOf: glossary, encoding: .utf8)) ?? "")
             .split(whereSeparator: \.isNewline)
@@ -27,7 +34,7 @@ enum AppPaths {
     }
 }
 
-/// 简单日志：写到 ~/Library/Application Support/openbean/openbean.log
+/// 简单日志：~/Library/Application Support/openbean/openbean.log
 enum Log {
     private static let q = DispatchQueue(label: "openbean.log")
     static func write(_ s: String) {
@@ -42,7 +49,7 @@ enum Log {
     }
 }
 
-/// 设置（存 UserDefaults）
+/// 设置（UserDefaults）
 @MainActor @Observable
 final class Settings {
     private let d = UserDefaults.standard
@@ -51,29 +58,45 @@ final class Settings {
     var polishEndpoint: String { didSet { d.set(polishEndpoint, forKey: "polishEndpoint") } }
     var polishModel: String { didSet { d.set(polishModel, forKey: "polishModel") } }
     var paragraphGap: Double { didSet { d.set(paragraphGap, forKey: "paragraphGap") } }
-    /// 停顿多久算一句结束（交给 SenseVoice 定稿）。太短会把一句话切碎、识别变差；重启 App 后生效
+    /// 停顿多久算一句结束；重启 App 后生效
     var sentencePause: Double { didSet { d.set(sentencePause, forKey: "sentencePause") } }
+    var hotkey: Hotkey.Preset { didSet { d.set(hotkey.rawValue, forKey: "hotkey"); onHotkeyChange?() } }
+    var autoTranscribe: Bool { didSet { d.set(autoTranscribe, forKey: "autoTranscribe") } }
+    var onboardingDone: Bool { didSet { d.set(onboardingDone, forKey: "onboardingDone") } }
+    /// 录音豆按键：true = 语音输入；false = 只录音（例如录会议）
+    var buttonDictates: Bool { didSet { d.set(buttonDictates, forKey: "buttonDictates") } }
+    @ObservationIgnored var onHotkeyChange: (() -> Void)?
 
     init() {
         d.register(defaults: ["typeIntoApp": true, "polishEnabled": false,
-                              "polishEndpoint": "http://127.0.0.1:8092", "polishModel": "local", "paragraphGap": 2.5,
-                              "sentencePause": 0.8])
+                              "polishEndpoint": "http://127.0.0.1:8092", "polishModel": "local",
+                              "paragraphGap": 2.5, "sentencePause": 0.8,
+                              "hotkey": Hotkey.Preset.optionSpace.rawValue, "autoTranscribe": true,
+                              "onboardingDone": false, "buttonDictates": true])
         typeIntoApp = d.bool(forKey: "typeIntoApp")
         polishEnabled = d.bool(forKey: "polishEnabled")
         polishEndpoint = d.string(forKey: "polishEndpoint") ?? ""
         polishModel = d.string(forKey: "polishModel") ?? "local"
         paragraphGap = d.double(forKey: "paragraphGap")
         sentencePause = d.double(forKey: "sentencePause")
+        hotkey = Hotkey.Preset(rawValue: d.string(forKey: "hotkey") ?? "") ?? .optionSpace
+        autoTranscribe = d.bool(forKey: "autoTranscribe")
+        onboardingDone = d.bool(forKey: "onboardingDone")
+        buttonDictates = d.bool(forKey: "buttonDictates")
     }
 }
 
-/// 用键盘事件把文字打进当前焦点所在的应用（需要「辅助功能」权限）。
+/// 用键盘事件把文字打进当前焦点所在的应用（需要辅助功能权限）。
 enum Typist {
     static var trusted: Bool { AXIsProcessTrusted() }
 
     static func requestTrust() {
         let key = kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String
         _ = AXIsProcessTrustedWithOptions([key: true] as CFDictionary)
+    }
+
+    static func openAccessibilitySettings() {
+        NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
     }
 
     static func type(_ text: String) {
@@ -95,5 +118,52 @@ enum Typist {
             e.flags = .maskShift
             e.post(tap: .cghidEventTap)
         }
+    }
+}
+
+/// 全局快捷键（Carbon 热键，不需要额外权限）
+@MainActor
+final class Hotkey {
+    enum Preset: String, CaseIterable, Identifiable {
+        case off, optionSpace, controlOptionSpace, commandShiftD, f5
+        var id: String { rawValue }
+        var label: String {
+            switch self {
+            case .off: return String(localized: "None")
+            case .optionSpace: return "⌥ Space"
+            case .controlOptionSpace: return "⌃⌥ Space"
+            case .commandShiftD: return "⇧⌘ D"
+            case .f5: return "F5"
+            }
+        }
+        var key: (code: UInt32, mods: UInt32)? {
+            switch self {
+            case .off: return nil
+            case .optionSpace: return (UInt32(kVK_Space), UInt32(optionKey))
+            case .controlOptionSpace: return (UInt32(kVK_Space), UInt32(optionKey | controlKey))
+            case .commandShiftD: return (UInt32(kVK_ANSI_D), UInt32(cmdKey | shiftKey))
+            case .f5: return (UInt32(kVK_F5), 0)
+            }
+        }
+    }
+
+    static let shared = Hotkey()
+    private var ref: EventHotKeyRef?
+    private var handler: EventHandlerRef?
+    var onPress: () -> Void = {}
+
+    func register(_ preset: Preset) {
+        if let ref { UnregisterEventHotKey(ref); self.ref = nil }
+        if handler == nil {
+            var spec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
+            InstallEventHandler(GetApplicationEventTarget(), { _, _, _ in
+                DispatchQueue.main.async { MainActor.assumeIsolated { Hotkey.shared.onPress() } }
+                return noErr
+            }, 1, &spec, nil, &handler)
+        }
+        guard let k = preset.key else { return }
+        let id = EventHotKeyID(signature: OSType(0x4F42_4E21), id: 1) // "OBN!"
+        let status = RegisterEventHotKey(k.code, k.mods, id, GetApplicationEventTarget(), 0, &ref)
+        if status != noErr { Log.write("快捷键注册失败 \(preset.rawValue)：\(status)") }
     }
 }

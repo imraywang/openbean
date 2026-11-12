@@ -7,7 +7,6 @@ import OpenBeanKit
 import OpenBeanVoice
 
 /// 一次听写：录音豆开始录音 → 实时流 → Apple 灰字 + SenseVoice 每句定稿 → 可选润色 → 打字。
-@available(macOS 26.0, *)
 @MainActor @Observable
 final class Dictation {
     enum Phase: Equatable { case idle, starting, listening, finishing }
@@ -64,6 +63,11 @@ final class Dictation {
         self.device = device
         self.settings = settings
         decoder = try? OpusDecoder()
+        loadRecognizer()
+    }
+
+    /// 加载 SenseVoice（启动时、以及引导里下载完模型之后）
+    func loadRecognizer() {
         let models = AppPaths.models
         let pause = Float(settings.sentencePause)
         svQueue.async { [weak self] in
@@ -72,6 +76,7 @@ final class Dictation {
                 DispatchQueue.main.async {
                     self?.recognizer = r
                     self?.recognizerReady = true
+                    self?.lastError = nil
                 }
             } catch {
                 DispatchQueue.main.async { self?.lastError = "\(error)" }
@@ -79,12 +84,24 @@ final class Dictation {
         }
     }
 
+    /// 本次听写对应的设备录音（开始时通知录音库）
+    var onStarted: (UInt32) -> Void = { _ in }
+    /// 设备页「开始录音」：下一次开始录音事件不触发听写
+    var ignoreNextStart = false
+    var onFinished: () -> Void = {}
+
     // MARK: 设备事件
 
     func handle(_ e: DeviceEvent) {
         Log.write("设备事件：\(e)")
         switch e {
         case let .recordingStarted(fileId):
+            // 只录音：按键设成「只录音」，或者设备页手动开始录音
+            if ignoreNextStart || !settings.buttonDictates {
+                ignoreNextStart = false
+                Log.write("只录音，不听写 file=\(fileId)")
+                return
+            }
             Task { await begin(fileId: fileId) }
         case .recordingStopped:
             Task { await end() }
@@ -116,6 +133,8 @@ final class Dictation {
         let r = recognizer
         svQueue.async { r?.reset() }
         Log.write("开始听写 file=\(fileId)")
+        onStarted(fileId)
+        await device.beginDictation()
 
         // 先开流，识别器准备好之前的音频先攒着
         do {
@@ -124,7 +143,7 @@ final class Dictation {
                 DispatchQueue.main.async { self?.feed(pcm) }
             }
         } catch {
-            lastError = "\(error)"; phase = .idle; return
+            lastError = "\(error)"; phase = .idle; device.endDictation(); return
         }
 
         polisher = nil
@@ -243,6 +262,8 @@ final class Dictation {
         }
         volatileText = ""
         Log.write("结束听写：\(finalText)")
+        device.endDictation()
         phase = .idle
+        onFinished()
     }
 }
