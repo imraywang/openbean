@@ -11,9 +11,9 @@ enum WifiSync {
     static let password = "1762900000000"
 
     static func run(session: D3200Session, link: Link, files: [RecordingFile],
-                    status: @escaping (String) -> Void) async throws -> [(UInt32, [UInt8])] {
+                    status: @escaping (String) async -> Void) async throws -> [(UInt32, [UInt8])] {
         let ifc = wifiInterface()
-        status(String(localized: "Asking the recorder to start its Wi‑Fi…"))
+        await status(String(localized: "Asking the recorder to start its Wi‑Fi…"))
         let ack = try await link.request(Cmd.openSoftAP(ssid: ssid, password: password), timeout: 45,
                                          label: "Wi‑Fi") { $0.type == 0x1A && $0.id == 0x05 }
         guard let ep = SoftAPEndpoint(frame: ack.raw) else { throw LinkError.missing("Wi‑Fi address") }
@@ -23,7 +23,7 @@ enum WifiSync {
         var results: [(UInt32, [UInt8])] = []
         var failure: Error?
         do {
-            status(String(localized: "Joining the recorder's Wi‑Fi (your Mac is offline for a moment)…"))
+            await status(String(localized: "Joining the recorder's Wi‑Fi (your Mac is offline for a moment)…"))
             try await join(ifc: ifc, deviceIP: ep.ip)
             let w = WifiExport(endpoint: ep, crypto: session.crypto)
             w.log = { Log.write("Wi‑Fi: \($0)") }
@@ -31,7 +31,7 @@ enum WifiSync {
             for (n, f) in files.enumerated() {
                 let t = try await w.pull(f) { got, expected, _ in
                     let pct = expected > 0 ? Int(Double(got) / Double(expected) * 100) : 0
-                    status(String(localized: "Downloading \(n + 1) of \(files.count) over Wi‑Fi… \(pct)%"))
+                    await status(String(localized: "Downloading \(n + 1) of \(files.count) over Wi‑Fi… \(pct)%"))
                 }
                 if t.decrypted, !t.audio.isEmpty { results.append((f.id, t.audio)) }
             }
@@ -39,7 +39,7 @@ enum WifiSync {
         } catch {
             failure = error
         }
-        status(String(localized: "Reconnecting to your usual network…"))
+        await status(String(localized: "Reconnecting to your usual network…"))
         await restore(ifc: ifc, deviceIP: ep.ip)
         if let failure { throw failure }
         return results

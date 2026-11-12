@@ -255,10 +255,11 @@ final class LibraryStore {
             sync = .downloading(id: r.id, done: n, total: pending.count, fraction: 0, kbps: 0)
             let file = RecordingFile(id: r.id, endTime: nil, durationMs: r.durationMs)
             do {
+                // pull 在后台执行器上回调，这里切回主线程再碰界面状态
                 let t = try await s.pull(file, shouldCancel: { [weak self] in
-                    MainActor.assumeIsolated { self?.device.syncShouldYield ?? true }
+                    await MainActor.run { self?.device.syncShouldYield ?? true }
                 }) { [weak self] got, expected, elapsed in
-                    MainActor.assumeIsolated {
+                    await MainActor.run {
                         self?.sync = .downloading(id: r.id, done: n, total: pending.count,
                                                   fraction: expected > 0 ? Double(got) / Double(expected) : 0,
                                                   kbps: Double(got) / 1024 / max(elapsed, 0.1))
@@ -313,7 +314,7 @@ final class LibraryStore {
             let done = try await WifiSync.run(session: s, link: device.link, files: targets.map {
                 RecordingFile(id: $0.id, endTime: nil, durationMs: $0.durationMs)
             }) { [weak self] msg in
-                MainActor.assumeIsolated { self?.sync = .wifi(msg) }
+                await MainActor.run { self?.sync = .wifi(msg) }
             }
             for (id, audio) in done {
                 try saveAudio(audio, id: id)
@@ -398,10 +399,15 @@ enum FileTranscriber {
         let chunk: AVAudioFrameCount = 48000
         let total = max(Double(file.length), 1)
         var done = false
-        while !done {
+        while !done, file.framePosition < file.length {
             let inBuf = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: chunk)!
-            try file.read(into: inBuf, frameCount: chunk)
-            if inBuf.frameLength == 0 { done = true; break }
+            // Ogg Opus 的 length 是估算值，读到末尾时 AVAudioFile 会抛 eofErr（-39），当作读完
+            do {
+                try file.read(into: inBuf, frameCount: chunk)
+            } catch let e as NSError where e.domain == NSOSStatusErrorDomain && e.code == -39 {
+                done = true
+            }
+            if inBuf.frameLength == 0 { break }
             let outBuf = AVAudioPCMBuffer(pcmFormat: target, frameCapacity: chunk / 3 + 64)!
             var fed = false
             conv.convert(to: outBuf, error: nil) { _, st in

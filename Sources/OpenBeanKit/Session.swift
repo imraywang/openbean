@@ -157,8 +157,8 @@ public final class D3200Session {
 
     /// 离线拉一个文件（BLE 通道）。`idle` 是多久没有新数据就放弃，不是总时长上限。
     public func pull(_ file: RecordingFile, idle: Double = 20, maxSeconds: Double? = nil,
-                     shouldCancel: () -> Bool = { false },
-                     progress: (Int, Int, Double) -> Void) async throws -> Transfer {
+                     shouldCancel: () async -> Bool = { false },
+                     progress: (Int, Int, Double) async -> Void) async throws -> Transfer {
         let st = TransferState(fileId: file.id)
         let started = Date()
         link.sync { install(st) }
@@ -170,11 +170,11 @@ public final class D3200Session {
                 (st.bytes, st.done, Date().timeIntervalSince(st.lastActivity),
                  st.head.map { Int($0.size) / 166 * 160 } ?? file.audioBytes)
             }
-            progress(bytes, expected, Date().timeIntervalSince(started))
+            await progress(bytes, expected, Date().timeIntervalSince(started))
             if done || (expected > 0 && bytes >= expected) { break }
             if quiet > idle { break }
             if let maxSeconds, Date().timeIntervalSince(started) >= maxSeconds { break }
-            if shouldCancel() { break }
+            if await shouldCancel() { break }
         }
         return finish(st, started: started)
     }

@@ -174,7 +174,7 @@ public final class WifiExport: NSObject, URLSessionDelegate, URLSessionWebSocket
     // MARK: 拉文件
 
     public func pull(_ file: RecordingFile, maxSeconds: Double? = nil, idle: Double = 20,
-                     progress: (Int, Int, Double) -> Void) async throws -> Transfer {
+                     progress: (Int, Int, Double) async -> Void) async throws -> Transfer {
         let st = TransferState(fileId: file.id)
         q.sync { state = st }
         let started = Date()
@@ -185,7 +185,7 @@ public final class WifiExport: NSObject, URLSessionDelegate, URLSessionWebSocket
                 (st.bytes, st.done, Date().timeIntervalSince(st.lastActivity),
                  st.head.map { Int($0.size) / 166 * 160 } ?? file.audioBytes)
             }
-            progress(bytes, expected, Date().timeIntervalSince(started))
+            await progress(bytes, expected, Date().timeIntervalSince(started))
             if done || (expected > 0 && bytes >= expected) { break }
             if quiet > idle { break }
             if let maxSeconds, Date().timeIntervalSince(started) >= maxSeconds { break }
