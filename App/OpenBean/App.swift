@@ -16,6 +16,8 @@ final class AppModel {
     lazy var library = LibraryStore(device: device, settings: settings)
     lazy var hud = HUDController(dictation: dictation)
     lazy var autoSync = AutoSync(device: device, library: library, settings: settings)
+    /// 自动更新：start() 里创建，第二份 App 退出前不会碰到它
+    lazy var updater = Updater()
 
     func start() {
         models.check()
@@ -40,6 +42,7 @@ final class AppModel {
         }
         device.start()
         hud.start()
+        _ = updater
     }
 
     /// 主窗口打开回调（由 MainView 登记，用于 openbean://open）
@@ -215,6 +218,8 @@ struct MenuContent: View {
         Button("Settings…") { model.nav.section = .settings; open("main") }
             .keyboardShortcut(",")
         if !s.onboardingDone { Button("Set up…") { open("onboarding") } }
+        Button("Check for Updates…") { model.updater.check() }
+            .disabled(!model.updater.canCheck)
         Divider()
         Button("Quit OpenBean") { NSApp.terminate(nil) }
             .keyboardShortcut("q")

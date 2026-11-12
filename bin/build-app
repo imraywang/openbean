@@ -9,8 +9,9 @@ command -v xcodegen >/dev/null || { echo "需要 XcodeGen：brew install xcodege
 SIGN_ID="${OPENBEAN_SIGN_ID:-openbean local signing}"
 security find-identity -p codesigning 2>/dev/null | grep -q "\"$SIGN_ID\"" || SIGN_ID="-"
 (cd App && xcodegen generate -q)
+# 下载 Sparkle 等公开包不需要凭据；不加 netrc 的话 xcodebuild 会去钥匙串查 github.com 的密码，弹窗卡住
 xcodebuild -project App/OpenBean.xcodeproj -scheme OpenBean -configuration Release \
-  -derivedDataPath App/build CODE_SIGN_IDENTITY="$SIGN_ID" -quiet build
+  -derivedDataPath App/build CODE_SIGN_IDENTITY="$SIGN_ID" -packageAuthorizationProvider netrc -quiet build
 rm -rf .build/OpenBean.app
 mkdir -p .build
 cp -R App/build/Build/Products/Release/OpenBean.app .build/OpenBean.app

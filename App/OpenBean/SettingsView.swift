@@ -27,7 +27,7 @@ struct SettingsPage: View {
             case .voice: VoiceSettings(settings: model.settings)
             case .polish: PolishSettings(settings: model.settings)
             case .library: LibrarySettings(settings: model.settings)
-            case .models: ModelSettings(models: model.models)
+            case .models: ModelSettings(models: model.models, updater: model.updater)
             }
         }
         .frame(maxWidth: 680)
@@ -277,13 +277,29 @@ private struct LibrarySettings: View {
 
 private struct ModelSettings: View {
     let models: ModelStore
+    @Bindable var updater: Updater
+
+    private var version: String {
+        let info = Bundle.main.infoDictionary ?? [:]
+        let short = info["CFBundleShortVersionString"] as? String ?? ""
+        let build = info["CFBundleVersion"] as? String ?? ""
+        return build.isEmpty ? short : "\(short) (\(build))"
+    }
+
     var body: some View {
         Form {
             Section("Speech models") {
                 ModelStatusRow(models: models)
             }
             Section("About") {
-                LabeledContent("Version", value: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "")
+                LabeledContent("Version") {
+                    HStack {
+                        Text(version).textSelection(.enabled)
+                        Button("Check now") { updater.check() }
+                            .disabled(!updater.canCheck)
+                    }
+                }
+                Toggle("Automatically check for updates", isOn: $updater.automaticallyChecks)
                 Link("Source code and protocol notes", destination: URL(string: "https://github.com/imraywang/openbean")!)
             }
         }

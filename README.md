@@ -63,6 +63,10 @@ Get the signed and notarized `OpenBean-<version>.dmg` from
 [Releases](https://github.com/imraywang/openbean/releases/latest), open it and drag OpenBean to Applications.
 Apple silicon and macOS 26 or later only.
 
+From 0.2.1 on OpenBean updates itself ([Sparkle](https://sparkle-project.org)): it checks once a day and asks before
+installing. *Check for Updates…* is in the menu bar menu; the switch for automatic checks is in
+Settings → Models → About. If you have 0.2.0, download the new version once by hand.
+
 ### Build and run
 
 ```bash
@@ -78,9 +82,17 @@ permissions. macOS asks for **Bluetooth**; to type into other apps OpenBean also
 
 To work on the app in Xcode: `cd App && xcodegen generate && open OpenBean.xcodeproj`.
 
-**Releases** are built with `bin/release`: Developer ID signing with the hardened runtime, a DMG, notarization and
-stapling (`bin/release --no-notarize` stops after signing). It needs the Developer ID certificate and a `notarytool`
-keychain profile; the script prints the one-time setup command if the profile is missing.
+**Releases** are built with `bin/release`: Developer ID signing with the hardened runtime (Sparkle's nested helpers
+included), a DMG, notarization and stapling, then an EdDSA signature for Sparkle and a new item in `appcast.xml`
+(`bin/release --no-notarize` skips notarization and writes the appcast only to `.build/release/`). It needs the
+Developer ID certificate, a `notarytool` keychain profile and the Sparkle private key in the login keychain; the
+script says what is missing. To ship a version:
+
+1. In `App/project.yml` set `MARKETING_VERSION` and add 1 to `CURRENT_PROJECT_VERSION` (the build number Sparkle
+   compares; the script refuses a build or version already in `appcast.xml`).
+2. Run `bin/release`. It updates `appcast.xml` at the repo root.
+3. Create the GitHub release `v<version>` with the DMG and its `.sha256`, then commit and push `appcast.xml` to
+   `master`. Installed copies read the feed from there, so push only after the DMG is downloadable.
 
 **Why the signing certificate:** macOS remembers permissions per code signature. With ad-hoc signing every rebuild
 looks like a new app and you have to grant Accessibility again. `make-signing-cert.sh` creates a self-signed
@@ -297,6 +309,7 @@ openbean 是录音豆的开源本地驱动：通过蓝牙和 Wi‑Fi 连接设�
 **要求**：macOS 26 及以上，Apple 芯片。
 
 **下载**：在 [Releases](https://github.com/imraywang/openbean/releases/latest) 下载已签名、已公证的 `OpenBean-<版本>.dmg`，打开后拖进「应用程序」。
+0.2.1 起 App 会自动更新（Sparkle）：每天检查一次，装之前先问你；菜单栏菜单里有「检查更新…」，自动检查的开关在「设置 → 模型 → 关于」。装的是 0.2.0 的话，手动下载一次新版即可。
 
 **自己编译**：需要 Xcode 26+ 和 XcodeGen（`brew install xcodegen`）。
 
