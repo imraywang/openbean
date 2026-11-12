@@ -48,6 +48,9 @@ enum Log {
             }
         }
     }
+
+    /// 等排队的日志都写完（退出前用）
+    static func flush() { q.sync {} }
 }
 
 /// 钥匙串里的通用密码（服务名 OpenBean）
