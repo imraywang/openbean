@@ -342,8 +342,14 @@ final class NoteService {
         }
         guard let url = target else { return .skipped("") }
 
+        // 对话段：转写在笔记里按段分节（{{segments}}）
+        let sections = library.conversations.conversations(id).map {
+            NoteTemplate.Section(lines: $0.lines, start: $0.wallStart, end: $0.wallEnd, approximate: $0.wallApprox,
+                                 title: $0.summary?.title)
+        }
         let values = NoteTemplate.Values(title: r.displayTitle, start: r.start, duration: r.duration, recordingID: id,
-                                         summary: summary(id), lines: segs.map { TimedLine(start: $0.start, text: $0.text) })
+                                         summary: summary(id), lines: segs.map { TimedLine(start: $0.start, text: $0.text) },
+                                         sections: sections)
         let text = NoteTemplate.render(AppPaths.readNoteTemplate(), values)
         do {
             try text.write(to: url, atomically: true, encoding: .utf8)

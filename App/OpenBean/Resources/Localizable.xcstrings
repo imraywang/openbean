@@ -3462,6 +3462,16 @@
         }
       }
     },
+    "about %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "约 %@"
+          }
+        }
+      }
+    },
     "comma": {
       "localizations": {
         "zh-Hans": {

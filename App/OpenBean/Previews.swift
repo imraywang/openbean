@@ -143,6 +143,16 @@ private struct PreviewFrame<Content: View>: View {
     let _ = DemoState.shared.playAt = 75
     PreviewFrame(width: 860) { RecordingDetail(recording: r, library: m.library, device: m.device) }
 }
+#Preview("录音详情 · 三段对话（全文按段分节）") {
+    let m = PreviewFixtures.model()
+    PreviewFrame(width: 860) { RecordingDetail(recording: PreviewFixtures.recording("segmented", in: m), library: m.library, device: m.device) }
+}
+#Preview("录音详情 · 三段对话 · 深色") {
+    let m = PreviewFixtures.model()
+    PreviewFrame(dark: true, width: 860) {
+        RecordingDetail(recording: PreviewFixtures.recording("segmented", in: m), library: m.library, device: m.device)
+    }
+}
 #Preview("录音详情 · 没转写") {
     let m = PreviewFixtures.model()
     PreviewFrame(width: 860, height: 500) {

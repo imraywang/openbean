@@ -3,6 +3,7 @@
 import AVFoundation
 import OpenBeanVoice
 import Observation
+import OpenBeanLibrary
 import SwiftUI
 
 // MARK: - 录音列表：按日期分组（录音库页的中间一栏）
@@ -268,17 +269,18 @@ struct RecordingDetail: View {
         }
     }
 
-    /// 按文档排：标题、摘要导语、待办、要点、全文（按停顿并成段落）；播放条浮在底部
+    /// 按文档排：标题、摘要导语、待办、要点、全文（按停顿并成段落；有多段对话时按段分节）；播放条浮在底部
     private var document: some View {
         let segs = library.transcript(recording.id)
-        let paras = TranscriptParagraphs.group(segs)
+        let sections = TranscriptSections(segs, conversations: library.conversations.conversations(recording.id))
+        let paras = sections.paragraphs
         let current = player.playing ? segs.firstIndex { player.time >= $0.start && player.time < $0.end + 0.3 } : nil
         return ScrollViewReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
                     header
                     SummaryCard(recording: recording, notes: library.notes)
-                    transcript(segs, paras: paras, current: current)
+                    transcript(segs, sections: sections, current: current)
                 }
                 .frame(maxWidth: 680, alignment: .leading)
                 .padding(.horizontal, 32).padding(.top, 20)
@@ -403,7 +405,8 @@ struct RecordingDetail: View {
         }
     }
 
-    @ViewBuilder private func transcript(_ segs: [TranscriptSegment], paras: [Range<Int>], current: Int?) -> some View {
+    @ViewBuilder private func transcript(_ segs: [TranscriptSegment], sections: TranscriptSections, current: Int?) -> some View {
+        let paras = sections.paragraphs
         if segs.isEmpty {
             VStack(alignment: .leading, spacing: 10) {
                 if library.transcribing[recording.id] != nil {
@@ -421,10 +424,16 @@ struct RecordingDetail: View {
                 LazyVStack(alignment: .leading, spacing: 14) {
                     ForEach(paras.indices, id: \.self) { p in
                         let r = paras[p]
-                        TranscriptParagraph(segments: Array(segs[r]), first: r.lowerBound,
-                                            current: current.flatMap { r.contains($0) ? $0 : nil })
-                            .equatable()
-                            .id(p)
+                        VStack(alignment: .leading, spacing: 14) {
+                            // 一段对话的第一个段落前放这段的小标题（只有一段对话时没有）
+                            if let c = sections.heading(before: p) {
+                                ConversationHeading(conversation: c).padding(.top, p == 0 ? 0 : 12)
+                            }
+                            TranscriptParagraph(segments: Array(segs[r]), first: r.lowerBound,
+                                                current: current.flatMap { r.contains($0) ? $0 : nil })
+                                .equatable()
+                        }
+                        .id(p)
                     }
                 }
             }
@@ -448,6 +457,55 @@ struct RecordingDetail: View {
             }
         }
     }
+}
+
+/// 全文怎么分：只有一段对话（或还没切段）时就是按停顿并成的段落；有多段时先按对话段分节，节内再并段落，
+/// 段落不跨节。段的句子范围和转写对不上时（转写刚变、段还没重算）当作没有段
+struct TranscriptSections {
+    let paragraphs: [Range<Int>]
+    /// 段落下标 → 从这个段落开始的对话段
+    private let starts: [Int: Conversation]
+
+    init(_ segs: [TranscriptSegment], conversations: [Conversation]) {
+        let valid = conversations.count > 1
+            && conversations.first?.from == 0 && conversations.last?.to == segs.count
+            && zip(conversations, conversations.dropFirst()).allSatisfy { $0.to == $1.from && $0.from < $0.to }
+        guard valid else {
+            paragraphs = TranscriptParagraphs.group(segs)
+            starts = [:]
+            return
+        }
+        var paras: [Range<Int>] = [], starts: [Int: Conversation] = [:]
+        for c in conversations {
+            starts[paras.count] = c
+            paras += TranscriptParagraphs.group(Array(segs[c.lines])).map { ($0.lowerBound + c.from)..<($0.upperBound + c.from) }
+        }
+        paragraphs = paras
+        self.starts = starts
+    }
+
+    func heading(before paragraph: Int) -> Conversation? { starts[paragraph] }
+}
+
+/// 全文里一段对话的小标题：段摘要的标题（还没有时只有时间）、起止时刻和时长
+struct ConversationHeading: View {
+    let conversation: Conversation
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            if let t = conversation.summary?.title, !t.isEmpty {
+                Text(t).font(.title3.weight(.semibold))
+                Text(detail).font(.callout).foregroundStyle(.secondary)
+            } else {
+                Text(conversation.clockRange).font(.title3.weight(.semibold).monospacedDigit())
+                Text(LibraryStore.clock(conversation.duration)).font(.callout.monospacedDigit()).foregroundStyle(.secondary)
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isHeader)
+    }
+
+    private var detail: String { "\(conversation.clockRange) · \(LibraryStore.clock(conversation.duration))" }
 }
 
 /// 转写的一段：左边是这段第一句的时间，右边是连在一起的句子。每句是一个链接，点了从那句播放；正在播的那句标亮

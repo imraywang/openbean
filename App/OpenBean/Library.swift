@@ -98,6 +98,8 @@ final class LibraryStore {
     private let settings: Settings
     /// 摘要和知识库笔记
     let notes: NoteService
+    /// 按停顿切的对话段（segments.json）
+    let conversations = ConversationStore()
     private let work = DispatchQueue(label: "openbean.library", qos: .userInitiated)
     private var resumeAfterDictation = false
     /// syncAll 正在跑（防止手动和自动同步叠在一起）
@@ -120,6 +122,7 @@ final class LibraryStore {
         notes = NoteService(settings: settings)
         load()
         notes.library = self
+        conversations.library = self
     }
 
     var visible: [Recording] { recordings.filter { includes($0, in: filter) } }
@@ -257,6 +260,7 @@ final class LibraryStore {
     /// 转写文件被词表回填改过：丢掉缓存（列表摘要、搜索、导出、详情都会读新文字），笔记按规则刷新
     func transcriptRewritten(_ id: UInt32) {
         transcripts[id] = nil
+        conversations.refresh(id)
         notes.transcriptChanged(id)
     }
 
@@ -264,6 +268,7 @@ final class LibraryStore {
     func deleteLocal(_ id: UInt32) {
         try? FileManager.default.removeItem(at: folder(id))
         transcripts[id] = nil
+        conversations.forget(id)
         notes.forget(id)
         if let i = recordings.firstIndex(where: { $0.id == id }) {
             if recordings[i].onDevice {
@@ -568,6 +573,8 @@ final class LibraryStore {
             if let d = try? JSONEncoder().encode(segs) { try? d.write(to: transcriptURL(id), options: .atomic) }
             update(id) { $0.transcribed = true }
             Log.write("已转写 \(id)：\(segs.count) 句")
+            // 先切段再写笔记：笔记按段分节
+            conversations.refresh(id)
             notes.afterTranscription(id)
         case let .failure(e):
             Log.write("转写失败 \(id)：\(e)")

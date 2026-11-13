@@ -4,7 +4,8 @@ import Foundation
 
 /// 每条录音写进知识库文件夹的 Markdown 笔记：模板渲染和文件名
 public enum NoteTemplate {
-    /// 默认模板：YAML frontmatter + 摘要 / 要点 / 待办（有才写）+ 打开链接 + 带时间戳的转写
+    /// 默认模板：YAML frontmatter + 摘要 / 要点 / 待办（有才写）+ 打开链接 + 带时间戳的转写。
+    /// 转写用 {{segments}}：一条录音只有一段对话时和 {{transcript}} 完全一样，有多段时每段一个小标题（见 Values.sections）
     public static let defaultTemplate = """
     ---
     title: {{title_yaml}}
@@ -37,7 +38,7 @@ public enum NoteTemplate {
 
     ## Transcript
 
-    {{transcript}}
+    {{segments}}
 
     """
 
@@ -46,6 +47,7 @@ public enum NoteTemplate {
     <!-- OpenBean note template. Delete this file to go back to the default.
     Placeholders: {{title}} {{title_yaml}} {{date}} {{time}} {{created_at}} {{duration}} {{recording_id}}
     {{summary}} {{key_points}} {{action_items}} {{link}} {{transcript}}
+    {{segments}} is the transcript split into conversations, one heading each (same as {{transcript}} when there is only one).
     {{#name}}…{{/name}} keeps the text in between only when {{name}} is not empty. Unknown placeholders are left as they are. -->
 
     """
@@ -59,9 +61,11 @@ public enum NoteTemplate {
         public var summary: RecordingSummary?
         public var lines: [TimedLine]
         public var timeZone: TimeZone
+        /// 按停顿切出的对话段；少于两段时 {{segments}} 就是 {{transcript}}
+        public var sections: [Section]
 
         public init(title: String, start: Date, duration: Double, recordingID: UInt32, summary: RecordingSummary?,
-                    lines: [TimedLine], timeZone: TimeZone = .current) {
+                    lines: [TimedLine], timeZone: TimeZone = .current, sections: [Section] = []) {
             self.title = title
             self.start = start
             self.duration = duration
@@ -69,6 +73,20 @@ public enum NoteTemplate {
             self.summary = summary
             self.lines = lines
             self.timeZone = timeZone
+            self.sections = sections
+        }
+
+        func transcript(_ r: Range<Int>) -> String {
+            lines[r].map { "[\(Summarizer.clock($0.start))] \($0.text)" }.joined(separator: "\n\n")
+        }
+
+        /// 分节的转写：每段一个三级标题「HH:mm–HH:mm 小标题」（时间只是近似时前面加 ~），下面是这段的句子
+        var segmented: String {
+            let r = sections.map { $0.lines.clamped(to: 0..<lines.count) }.filter { !$0.isEmpty }
+            guard r.count > 1 else { return transcript(0..<lines.count) }
+            return zip(sections, r).map { s, range in
+                "### \(s.heading(timeZone))\n\n\(transcript(range))"
+            }.joined(separator: "\n\n")
         }
 
         public var dictionary: [String: String] {
@@ -87,8 +105,38 @@ public enum NoteTemplate {
                 "key_points": (summary?.keyPoints ?? []).map { "- \($0)" }.joined(separator: "\n"),
                 "action_items": (summary?.actionItems ?? []).map { "- [ ] \($0)" }.joined(separator: "\n"),
                 "link": "[Open in OpenBean](openbean://open/\(recordingID))",
-                "transcript": lines.map { "[\(Summarizer.clock($0.start))] \($0.text)" }.joined(separator: "\n\n"),
+                "transcript": transcript(0..<lines.count),
+                "segments": segmented,
             ]
+        }
+    }
+
+    /// 笔记里的一节（一段对话）
+    public struct Section: Sendable, Hashable {
+        /// 句子下标（Values.lines），左闭右开
+        public var lines: Range<Int>
+        public var start: Date
+        public var end: Date
+        /// 时间只是近似（录音中途暂停过）
+        public var approximate: Bool
+        /// 段的小标题（段摘要给的）；没有时标题只有时间
+        public var title: String?
+
+        public init(lines: Range<Int>, start: Date, end: Date, approximate: Bool = false, title: String? = nil) {
+            self.lines = lines
+            self.start = start
+            self.end = end
+            self.approximate = approximate
+            self.title = title
+        }
+
+        /// 「09:12–09:40 小标题」。不含 # [ ] | ^ 这些在 Obsidian 标题链接里有特殊含义的字符
+        public func heading(_ tz: TimeZone) -> String {
+            var h = (approximate ? "~" : "") + NoteTemplate.format(start, "HH:mm", tz) + "–" + NoteTemplate.format(end, "HH:mm", tz)
+            if let t = title?.trimmingCharacters(in: .whitespacesAndNewlines), !t.isEmpty {
+                h += " " + NoteTemplate.sanitize(t, maxLength: 40)
+            }
+            return h
         }
     }
 

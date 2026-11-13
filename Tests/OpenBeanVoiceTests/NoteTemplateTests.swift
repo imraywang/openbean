@@ -95,4 +95,37 @@ final class NoteTemplateTests: XCTestCase {
         taken.insert("2026-11-12-1511.md")
         XCTAssertEqual(name(nil), "2026-11-12-1511-2.md")
     }
+
+    func testSegmentsWithOneSectionIsTheTranscript() {
+        var v = values(nil)
+        let plain = NoteTemplate.render("{{transcript}}", v)
+        XCTAssertEqual(NoteTemplate.render("{{segments}}", v), plain)
+        v.sections = [NoteTemplate.Section(lines: 0..<2, start: start, end: start.addingTimeInterval(70))]
+        XCTAssertEqual(NoteTemplate.render("{{segments}}", v), plain)
+    }
+
+    func testSegmentsWithSeveralSectionsGetHeadings() {
+        var v = values(nil)
+        v.sections = [NoteTemplate.Section(lines: 0..<1, start: start, end: start.addingTimeInterval(3)),
+                      NoteTemplate.Section(lines: 1..<2, start: start.addingTimeInterval(65.4), end: start.addingTimeInterval(1800),
+                                           approximate: true, title: "发布 #计划")]
+        XCTAssertEqual(NoteTemplate.render("{{segments}}", v), """
+        ### 15:11–15:11
+
+        [00:00] 大家好。
+
+        ### ~15:12–15:41 发布 -计划
+
+        [01:05] 下周五发布。
+        """)
+        // 默认模板用的就是它
+        XCTAssertTrue(NoteTemplate.render(NoteTemplate.defaultTemplate, v).contains("### 15:11–15:11"))
+    }
+
+    func testSegmentsIgnoresRangesOutsideTheTranscript() {
+        var v = values(nil)
+        v.sections = [NoteTemplate.Section(lines: 0..<1, start: start, end: start),
+                      NoteTemplate.Section(lines: 5..<9, start: start, end: start)]
+        XCTAssertEqual(NoteTemplate.render("{{segments}}", v), NoteTemplate.render("{{transcript}}", v))
+    }
 }

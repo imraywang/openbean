@@ -120,6 +120,7 @@ pass_default() {
   go "select/untranscribed"; shot 05 library-untranscribed main "录音库：已下载、没转写"
   go "select/ondevice";      shot 06 library-ondevice main "录音库：还在录音豆上、没下载"
   go "select/long";          shot 07 library-long main "录音库：两小时的长录音"
+  go "select/segmented";     shot 07 library-segmented main "录音库：一条录音切成三段对话（全文按段分节）"
   go "select/none";          shot 08 library-noselection main "录音库：没有选中"
   go "search/%E5%AE%9A%E4%BB%B7"; shot 09 library-search main "录音库：搜索「定价」"
   go "search/zzzz";          shot 10 library-search-empty main "录音库：搜索没有结果"

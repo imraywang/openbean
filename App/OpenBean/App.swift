@@ -62,6 +62,8 @@ final class AppModel {
         device.start()
         hud.start()
         glossaryBackfill.start()
+        // 已转写的录音补算对话段（后台，缺了或过时了才算）
+        library.conversations.backfill()
         _ = updater
     }
 

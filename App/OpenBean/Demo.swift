@@ -8,7 +8,7 @@
 //   state/connected|searching|connecting|failed|bluetooth-off|no-permission|lost|syncing|sync-failed|dictating|recording|low-battery|charging
 //   hud/hidden|starting|listening|polishing|wrapping|typed|copied|nothing|error
 //   page/today|library|dictation|recorder（overview 同 today）   today/<天数，负数往前>   settings/voice|polish|library|agent|about（设置窗口）
-//   select/summary|untranscribed|ondevice|long|none   search/<词>   filter/all|onRecorder|untranscribed|todos
+//   select/summary|untranscribed|ondevice|long|segmented|none   search/<词>   filter/all|onRecorder|untranscribed|todos
 //   play/<秒>|off   todo/check|clear   onboarding/<0–4>   close/onboarding|main|settings   window/main|onboarding/<宽>x<高>   appearance/light|dark|auto
 //   trusted/yes|no   models/ready|missing|downloading   menu/open   ping   quit
 // 数据档：启动参数 -demoProfile empty 用空数据目录 openbean-demo-empty（第一次用：空库、没连过设备、向导未完成）。
@@ -60,9 +60,20 @@ enum DemoData {
         ]
         for (k, v) in values { d.set(v, forKey: k) }
         d.removeObject(forKey: "hotkeyCustom")
-        guard !empty, !FileManager.default.fileExists(atPath: AppPaths.library.appendingPathComponent("index.json").path) else { return }
+        guard !empty else { return }
+        // 假数据改过（版本号变了）：预览的数据目录会一直留着，整个假录音库重新生成
+        let marker = AppPaths.library.appendingPathComponent("demo-version")
+        let fm = FileManager.default
+        if (try? String(contentsOf: marker, encoding: .utf8)) != String(dataVersion), Flavor.isFake {
+            for u in (try? fm.contentsOfDirectory(at: AppPaths.library, includingPropertiesForKeys: nil)) ?? [] { try? fm.removeItem(at: u) }
+        }
+        guard !fm.fileExists(atPath: AppPaths.library.appendingPathComponent("index.json").path) else { return }
         seed()
+        try? String(dataVersion).write(to: marker, atomically: true, encoding: .utf8)
     }
+
+    /// 假数据的版本：specs、台词、生成的文件改了就加 1
+    static let dataVersion = 2
 
     /// 可重现的随机数（SplitMix64）：同一天生成的数据完全一样
     struct RNG {
@@ -87,6 +98,8 @@ enum DemoData {
         var topic: String?
         /// 已从录音豆删掉（只在本机）
         var offDevice = false
+        /// 一条录音里有几段隔得很远的谈话（台词、从第几秒开始、多长）：切段后是多段。空 = 用 topic 铺满整条
+        var parts: [(topic: String, at: Double, seconds: Double)] = []
     }
 
     /// 二十多条录音，跨五周：今天（5 条，不算语音输入片段）、昨天（含一条跨午夜的、一条凌晨的）、本周、上个月都有；
@@ -123,6 +136,9 @@ enum DemoData {
         Spec(day: 27, hour: 11, minute: 30, seconds: 2_411, kind: .raw, offDevice: true),
         Spec(day: 31, hour: 14, minute: 10, seconds: 1_245, kind: .summary, topic: "supplier2", offDevice: true),
         Spec(day: 36, hour: 9, minute: 40, seconds: 66, kind: .transcript, topic: "errands2", offDevice: true),
+        // 傍晚开着录了两个半小时：站会、供应商电话、1:1 三段谈话，中间是长时间的安静（切成三段）
+        Spec(day: 0, hour: 17, minute: 30, seconds: 9_000, kind: .transcript,
+             parts: [("standup", 40, 300), ("supplier", 1_900, 420), ("oneonone", 5_600, 1_500)]),
     ]
 
     static func seed() {
@@ -144,9 +160,20 @@ enum DemoData {
             if downloaded {
                 try? enc.encode(peaks(&rng, seconds: s.seconds)).write(to: dir.appendingPathComponent("peaks.json"))
             }
+            var segs: [TranscriptSegment] = []
             if r.transcribed, let topic = s.topic {
-                let segs = transcript(lines[topic] ?? [], seconds: s.seconds, rng: &rng)
+                segs = transcript(lines[topic] ?? [], seconds: s.seconds, rng: &rng)
+            }
+            for p in s.parts {
+                segs += transcript(lines[p.topic] ?? [], seconds: p.seconds, rng: &rng)
+                    .map { TranscriptSegment(start: $0.start + p.at, end: $0.end + p.at, text: $0.text) }
+            }
+            if r.transcribed, !segs.isEmpty {
                 try? enc.encode(segs).write(to: dir.appendingPathComponent("transcript.json"))
+                // 对话段：和 App 转写完以后算的一样
+                let conv = ConversationFile.build(segs.map { ConversationFile.Line(start: $0.start, end: $0.end, text: $0.text) },
+                                                  recordingStart: start, wallApprox: false)
+                try? conv.encoded().write(to: dir.appendingPathComponent("segments.json"))
             }
             if s.kind == .summary, let topic = s.topic, let sum = summaries[topic] {
                 r.title = sum.title
@@ -563,6 +590,8 @@ final class DemoController {
         case "untranscribed": return all.first { $0.downloaded && !$0.transcribed }?.id
         case "ondevice": return all.first { !$0.downloaded }?.id
         case "long": return all.max { $0.duration < $1.duration }?.id
+        // 切成多段对话的录音（段最多的那条）
+        case "segmented": return all.max { lib.conversations.conversations($0.id).count < lib.conversations.conversations($1.id).count }?.id
         case "none": return nil
         default: return UInt32(what)
         }
