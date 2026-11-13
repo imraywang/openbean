@@ -41,7 +41,7 @@ struct DeviceView: View {
                             dictation.ignoreNextStart = true
                             Task { await device.startRecording() }
                         }
-                        Button("Stop recording") { Task { await device.pauseRecording() } }
+                        Button("Stop recording") { Task { await device.stopRecording() } }
                     }
                     .disabled(!device.isReady)
                     Text("Records on the recorder without voice typing — for meetings and notes. Sync it to the library afterwards.")

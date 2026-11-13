@@ -223,7 +223,15 @@ final class DeviceController {
         try? await session?.startRecording()
     }
 
-    func pauseRecording() async {
-        try? await session?.pauseRecording()
+    /// 设备页「停止录音」：先暂停再结束（真机测过的顺序），录音豆收尾成一个独立文件，下次开始不会续写
+    func stopRecording() async {
+        guard let s = session else { return }
+        do { try await s.pauseRecording() } catch { Log.write("暂停录音失败：\(error)"); return }
+        do {
+            let id = try await s.stopRecording()
+            Log.write("已结束录音" + (id.map { "（1A/0A file=\($0)）" } ?? "（没等到 1A/0A）"))
+        } catch {
+            Log.write("结束录音失败：\(error)")
+        }
     }
 }

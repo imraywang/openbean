@@ -187,6 +187,10 @@ final class Dictation {
     /// 这次听写的文件号是猜的（没等到设备通知，取了文件列表里最新的一条）
     private var guessedFile = false
 
+    /// 这次是 App 发的暂停（不是按录音豆按键停的）：暂停只是暂停，结束时还要发「结束录音」让录音豆收尾文件。
+    /// 按键停止设备自己会收尾，不用发
+    private var pausedByApp = false
+
     /// 菜单里的开始/停止：让设备开始或暂停录音，后续由设备事件驱动
     func toggle() async {
         guard let s = device.session else { Log.write("语音输入没开始：录音豆没连上"); return }
@@ -213,6 +217,8 @@ final class Dictation {
                     }
                     Log.write("录音豆上有一段 App 不知道的录音，先停掉再开始语音输入")
                     try await s.pauseRecording()
+                    // 暂停后再结束（真机测过的顺序），这样下面的「开始」会新建文件，而不是续写那段录音
+                    do { try await s.stopRecording() } catch { Log.write("结束那段录音失败：\(error)") }
                     try? await Task.sleep(nanoseconds: 600_000_000)
                 }
                 guessedFile = false
@@ -222,7 +228,9 @@ final class Dictation {
                 try await s.startRecording()
                 marks.append(String(format: "开始回包 %.0f", Date().timeIntervalSince(t0) * 1000))
                 // 设备新建录音文件时会报文件号（1A/06），但要 1 秒多才到；续写上一个文件时根本不报。
-                // 不干等：手里有上一次的文件号就先按它开始，通知到了发现是新文件再换过去（见 handle）
+                // 现在每次结束都会发「结束录音」，正常情况下这里总是新建文件、总会有 1A/06，上一次的文件号多半猜错。
+                // 猜的兜底先留着（结束命令失败、或别处只暂停没结束时还会续写）：手里有上一次的文件号就先按它开始，
+                // 通知到了发现是新文件再换过去（见 handle）
                 if phase == .idle, currentFile != 0 {
                     guessedFile = true
                     let guess = currentFile
@@ -251,7 +259,8 @@ final class Dictation {
                     await begin(fileId: id)
                 }
             } else {
-                try await s.pauseRecording()
+                pausedByApp = true
+                do { try await s.pauseRecording() } catch { pausedByApp = false; throw error }
             }
         } catch {
             lastError = "\(error)"
@@ -278,6 +287,7 @@ final class Dictation {
         let r = recognizer
         svQueue.async { r?.reset() }
         gotAudio = false
+        pausedByApp = false
         Log.write("开始听写 file=\(fileId)")
         startedAt = Date()
         currentFile = fileId
@@ -469,6 +479,17 @@ final class Dictation {
             notifiedNew: notifiedNew, startedAt: appStart?.at ?? Date())
         appStart = nil
         notifiedNew = []
+        // App 发的暂停只是暂停、文件还开着：文字已经交付，再发「结束录音」让录音豆收尾（暂停 → 结束，真机测过的顺序）。
+        // 收尾后下次开始会新建文件，这次的文件也才删得掉。等到 1A/0A（最多 3 秒）再往下走，免得和删除抢。失败只写日志
+        if pausedByApp, let s = device.session {
+            do {
+                let done = try await s.stopRecording()
+                Log.write("已结束录音 file=\(currentFile)" + (done.map { $0 == currentFile ? "（收到 1A/0A）" : "（1A/0A 说的是 \($0)）" } ?? "（没等到 1A/0A）"))
+            } catch {
+                Log.write("结束录音失败 file=\(currentFile)：\(error)")
+            }
+        }
+        pausedByApp = false
         if !finalText.isEmpty, settings.keepHistory {
             let since = listeningSince ?? Date()
             onEntry(DictationEntry(date: since, duration: Date().timeIntervalSince(since), text: finalText,
