@@ -242,6 +242,16 @@
         }
       }
     },
+    "%lld recordings · %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld 条录音 · %2$@"
+          }
+        }
+      }
+    },
     "%lld times": {
       "localizations": {
         "zh-Hans": {
@@ -708,6 +718,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "清空记录"
+          }
+        }
+      }
+    },
+    "Clear history…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清除记录…"
           }
         }
       }
@@ -1192,12 +1212,62 @@
         }
       }
     },
+    "Every recording on this Mac has a transcript.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这台 Mac 上的录音都有转写了。"
+          }
+        }
+      }
+    },
+    "Everything is synced": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "都同步了"
+          }
+        }
+      }
+    },
+    "Everything is transcribed": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "都转写了"
+          }
+        }
+      }
+    },
     "Export": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "导出"
+          }
+        }
+      }
+    },
+    "Export audio (Ogg Opus)…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "导出音频（Ogg Opus）…"
+          }
+        }
+      }
+    },
+    "Export transcript as Markdown…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "导出转写（Markdown）…"
           }
         }
       }
@@ -1308,6 +1378,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "从这里开始"
+          }
+        }
+      }
+    },
+    "Has to-dos": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "有待办"
+          }
+        }
+      }
+    },
+    "Hide list": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "隐藏列表"
           }
         }
       }
@@ -1472,6 +1562,16 @@
         }
       }
     },
+    "More": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更多"
+          }
+        }
+      }
+    },
     "Move OpenBean to the Applications folder first: the path changes when the app moves.": {
       "localizations": {
         "zh-Hans": {
@@ -1532,6 +1632,16 @@
         }
       }
     },
+    "No recordings are waiting on the recorder.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "录音豆上没有等着同步的录音。"
+          }
+        }
+      }
+    },
     "No recordings yet": {
       "localizations": {
         "zh-Hans": {
@@ -1558,6 +1668,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "没有识别到语音。"
+          }
+        }
+      }
+    },
+    "No to-dos": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有待办"
           }
         }
       }
@@ -1718,6 +1838,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "好"
+          }
+        }
+      }
+    },
+    "On recorder": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在录音豆上"
           }
         }
       }
@@ -2172,16 +2302,6 @@
         }
       }
     },
-    "Recordings you make on the recorder show up here after you sync them to this Mac.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "在录音豆上录的音，同步到这台 Mac 后会出现在这里。"
-          }
-        }
-      }
-    },
     "Records on the recorder without voice typing — for meetings and notes. Sync it to the library afterwards.": {
       "localizations": {
         "zh-Hans": {
@@ -2422,6 +2542,26 @@
         }
       }
     },
+    "Share": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "共享"
+          }
+        }
+      }
+    },
+    "Share or export": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "共享或导出"
+          }
+        }
+      }
+    },
     "Shortcut: %@": {
       "localizations": {
         "zh-Hans": {
@@ -2448,6 +2588,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "在访达中显示"
+          }
+        }
+      }
+    },
+    "Show list": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示列表"
           }
         }
       }
@@ -2598,6 +2748,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "摘要"
+          }
+        }
+      }
+    },
+    "Summaries with action items show up here.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "摘要里有待办事项的录音会出现在这里。"
           }
         }
       }

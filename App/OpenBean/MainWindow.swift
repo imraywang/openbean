@@ -38,6 +38,8 @@ final class Navigator {
     var flash: UInt32?
 
     func show(recording id: UInt32, in library: LibraryStore) {
+        // 当前筛选里看不到这条就回到「全部」
+        if let r = library.recordings.first(where: { $0.id == id }), !library.includes(r, in: library.filter) { library.filter = .all }
         library.selection = id
         section = .library
         flash = id
@@ -83,7 +85,7 @@ struct MainView: View {
         switch s {
         case .overview: OverviewView(model: model)
         case .library: LibraryPage(model: model)
-        case .dictation: DictationHistoryView(log: model.log, settings: model.settings)
+        case .dictation: DictationHistoryView(log: model.log, settings: model.settings, library: model.library)
         case .recorder:
             DeviceView(device: model.device, dictation: model.dictation, library: model.library)
                 .navigationTitle("Recorder")
@@ -110,35 +112,58 @@ struct MainView: View {
     }
 }
 
+/// 侧栏里的一项：一个页面，或「录音」下面的一个筛选
+enum SidebarTag: Hashable {
+    case page(MainSection)
+    case filter(LibraryStore.Filter)
+}
+
 struct NavSidebar: View {
     let model: AppModel
     @Binding var section: MainSection
+    @State private var libraryExpanded = true
+
+    private var library: LibraryStore { model.library }
+
+    private var selection: Binding<SidebarTag?> {
+        Binding(get: {
+            section == .library && library.filter != .all ? .filter(library.filter) : .page(section)
+        }, set: { tag in
+            switch tag {
+            case let .page(s): if s == .library { library.filter = .all }; section = s
+            case let .filter(f): library.filter = f; section = .library
+            case nil: break
+            }
+        })
+    }
 
     var body: some View {
-        List(selection: Binding<MainSection?>(get: { section }, set: { if let s = $0 { section = s } })) {
+        List(selection: selection) {
             ForEach(MainSection.pages) { s in
-                Label { Text(s.title) } icon: {
-                    if s == .recorder { BeanSymbol() } else { Image(systemName: s.icon) }
+                if s == .library {
+                    DisclosureGroup(isExpanded: $libraryExpanded) {
+                        ForEach(LibraryStore.Filter.actionable) { f in
+                            Label(f.label, systemImage: f.icon)
+                                .badge(library.count(f))
+                                .tag(SidebarTag.filter(f))
+                        }
+                    } label: {
+                        Label(s.title, systemImage: s.icon).tag(SidebarTag.page(s))
+                    }
+                } else {
+                    Label { Text(s.title) } icon: {
+                        if s == .recorder { BeanSymbol() } else { Image(systemName: s.icon) }
+                    }
+                    .tag(SidebarTag.page(s))
                 }
-                    .badge(badge(s))
-                    .tag(s)
             }
         }
         .listStyle(.sidebar)
         .safeAreaInset(edge: .bottom, spacing: 0) {
             DeviceFooter(device: model.device, library: model.library) { section = .recorder }
         }
-    }
-
-    /// 侧栏数字只数要处理的：还在录音豆上没下载、或下载了还没转写的录音（0 不显示）
-    private func badge(_ s: MainSection) -> Int {
-        switch s {
-        case .library:
-            return model.library.recordings.filter { r in
-                !r.isDictation && ((r.onDevice && !r.downloaded) || (r.downloaded && !r.transcribed))
-            }.count
-        default: return 0
-        }
+        // 「有待办」要看每条的摘要：在后台读进缓存，不在主线程上逐条读盘
+        .task(id: library.recordings.count) { library.notes.preload(library.recordings.filter { $0.transcribed && !$0.isDictation }.map(\.id)) }
     }
 }
 
@@ -309,6 +334,7 @@ struct SyncToolbarButton: View {
 struct LibraryPage: View {
     let model: AppModel
     @State private var query = ""
+    @SceneStorage("libraryListHidden") private var listHidden = false
 
     var body: some View {
         let library = model.library
@@ -324,10 +350,15 @@ struct LibraryPage: View {
         #if DEMO || DEBUG
         .onChange(of: DemoState.shared.query, initial: true) { _, q in query = q }
         #endif
-        .navigationTitle("Library")
+        .navigationTitle(library.filter.label)
         .onAppear {
             // 第一次进来默认选最近一条
             if library.selection == nil { library.selection = library.visible.first?.id }
+        }
+        // 换了筛选，选中的那条不在里面了：选新列表的第一条
+        .onChange(of: library.filter) {
+            if let id = library.selection, library.visible.contains(where: { $0.id == id }) { return }
+            library.selection = library.visible.first?.id
         }
     }
 
@@ -344,20 +375,35 @@ struct LibraryPage: View {
 
     private var columns: some View {
         let library = model.library
-        return HStack(spacing: 0) {
-            RecordingList(library: library, nav: model.nav,
-                          selection: Binding(get: { library.selection }, set: { library.selection = $0 }),
-                          query: $query)
-                .frame(width: 300)
-            Divider()
+        // 列表栏可以拖宽（NSSplitView），也可以收起（工具栏按钮、⌥⌘L）
+        return HSplitView {
+            if !listHidden {
+                RecordingList(library: library, nav: model.nav,
+                              selection: Binding(get: { library.selection }, set: { library.selection = $0 }),
+                              query: $query)
+                    .frame(minWidth: 240, idealWidth: 300, maxWidth: 480)
+            }
             Group {
                 if let id = library.selection, let r = library.recordings.first(where: { $0.id == id }) {
                     RecordingDetail(recording: r, library: library, device: model.device).id(id)
+                } else if library.visible.isEmpty {
+                    // 筛选是空的：列表那边已经说明了，这边不再叫人「选择一条录音」
+                    Color.clear
                 } else {
                     LibraryHome(device: model.device, settings: model.settings)
                 }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .frame(minWidth: 440, maxWidth: .infinity, maxHeight: .infinity)
+            .layoutPriority(1)
+        }
+        .toolbar {
+            ToolbarItem(placement: .navigation) {
+                Button { withAnimation { listHidden.toggle() } } label: {
+                    Label(listHidden ? "Show list" : "Hide list", systemImage: "list.bullet.rectangle")
+                }
+                .help(listHidden ? "Show list" : "Hide list")
+                .keyboardShortcut("l", modifiers: [.command, .option])
+            }
         }
     }
 }
@@ -707,7 +753,12 @@ private struct ActivityChart: View {
 struct DictationHistoryView: View {
     let log: DictationLog
     let settings: Settings
+    let library: LibraryStore
     @State private var confirmClear = false
+    /// 清理以前留在录音豆上的语音输入文件：确认框里列的条目，和删完的结果
+    @State private var leftover: [Recording] = []
+    @State private var confirmLeftover = false
+    @State private var leftoverResult: String?
 
     var body: some View {
         List {
@@ -741,15 +792,54 @@ struct DictationHistoryView: View {
         .navigationTitle("Voice typing")
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
-                Button("Clear history", role: .destructive) { confirmClear = true }
-                    .disabled(log.entries.isEmpty)
+                Menu {
+                    // 以前留在录音豆上的语音输入文件（原来在录音库的「语音输入片段」筛选里）
+                    Button("Delete voice-typing files from recorder…") {
+                        Task {
+                            // 先读一遍设备列表，确认框里的条数和时长用最新的
+                            await library.refreshDeviceList()
+                            leftover = library.leftoverDictationFiles
+                            confirmLeftover = !leftover.isEmpty
+                        }
+                    }
+                    .disabled(library.leftoverDictationFiles.isEmpty || !library.recorderIdle)
+                    Divider()
+                    Button("Clear history…", role: .destructive) { confirmClear = true }
+                        .disabled(log.entries.isEmpty)
+                } label: {
+                    Label("More", systemImage: "ellipsis.circle")
+                }
+                .help("More")
             }
+        }
+        .confirmationDialog(leftoverTitle, isPresented: $confirmLeftover) {
+            Button("Delete from recorder", role: .destructive) {
+                let ids = leftover.map(\.id)
+                Task {
+                    let r = await library.deleteLeftoverDictation(ids)
+                    leftoverResult = String(localized: "Deleted \(r.deleted), failed \(r.failed).")
+                }
+            }
+        } message: {
+            Text("These files were never downloaded to this Mac. Some may have been continued by later voice typing, so they can be longer than one dictation. This cannot be undone.")
+        }
+        .alert("Voice-typing files", isPresented: Binding(
+            get: { leftoverResult != nil }, set: { if !$0 { leftoverResult = nil } }
+        )) {
+            Button("OK") { leftoverResult = nil }
+        } message: {
+            Text(leftoverResult ?? "")
         }
         .confirmationDialog("Clear all voice typing history?", isPresented: $confirmClear) {
             Button("Clear history", role: .destructive) { log.clear() }
         } message: {
             Text("This removes the text kept on this Mac. It does not change anything you already typed.")
         }
+    }
+
+    private var leftoverTitle: String {
+        let total = leftover.reduce(0) { $0 + $1.duration }
+        return String(localized: "Delete \(leftover.count) voice-typing files (\(LibraryStore.clock(total)) in total) from the recorder?")
     }
 
     private var sections: [(title: String, items: [DictationEntry])] {

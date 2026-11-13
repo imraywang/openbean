@@ -7,7 +7,7 @@ import OpenBeanVoice
 import SwiftUI
 
 /// 存在录音文件夹里的摘要（summary.json）
-struct StoredSummary: Codable {
+struct StoredSummary: Codable, Sendable {
     var summary: RecordingSummary
     var createdAt: Date
     var model: String
@@ -67,6 +67,38 @@ final class NoteService {
         summaries[id] = s
         return s
     }
+
+    /// 只看缓存，不读盘（侧栏数字、「今天」这类一次要看很多条的地方用；配合 preload）
+    func cachedSummary(_ id: UInt32) -> RecordingSummary? {
+        _ = revision
+        return summaries[id]?.summary
+    }
+
+    /// 在后台把这些录音的 summary.json 读进缓存，读完刷新一次界面。已经在缓存里（或确定没有）的跳过
+    func preload(_ ids: [UInt32]) {
+        let todo = ids.filter { summaries[$0] == nil && !noSummary.contains($0) && !preloading.contains($0) }
+        guard !todo.isEmpty else { return }
+        preloading.formUnion(todo)
+        let root = AppPaths.library
+        Task.detached(priority: .utility) {
+            var found: [UInt32: StoredSummary] = [:]
+            for id in todo {
+                let url = root.appendingPathComponent(String(id)).appendingPathComponent("summary.json")
+                if let d = try? Data(contentsOf: url), let s = try? JSONDecoder().decode(StoredSummary.self, from: d) { found[id] = s }
+            }
+            await MainActor.run {
+                for id in todo {
+                    self.preloading.remove(id)
+                    // 读盘期间刚生成的新摘要优先
+                    if self.summaries[id] == nil {
+                        if let s = found[id] { self.summaries[id] = s } else { self.noSummary.insert(id) }
+                    }
+                }
+                self.revision += 1
+            }
+        }
+    }
+    @ObservationIgnored private var preloading: Set<UInt32> = []
 
     private func noteRecord(_ id: UInt32) -> NoteRecord? {
         guard let url = noteRecordURL(id), let d = try? Data(contentsOf: url) else { return nil }

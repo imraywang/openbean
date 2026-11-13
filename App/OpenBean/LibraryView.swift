@@ -13,10 +13,6 @@ struct RecordingList: View {
     @Binding var query: String
     @State private var confirmDelete: Recording?
     @State private var deleteError: String?
-    /// 清理旧的语音输入文件：确认框里列的条目，和删完的结果
-    @State private var leftover: [Recording] = []
-    @State private var confirmLeftover = false
-    @State private var leftoverResult: String?
 
     private var items: [Recording] { library.visible.filter { library.matches($0, query: query) } }
 
@@ -59,68 +55,55 @@ struct RecordingList: View {
         } message: {
             Text(deleteError ?? "")
         }
-        .confirmationDialog(leftoverTitle, isPresented: $confirmLeftover) {
-            Button("Delete from recorder", role: .destructive) {
-                let ids = leftover.map(\.id)
-                Task {
-                    let r = await library.deleteLeftoverDictation(ids)
-                    leftoverResult = String(localized: "Deleted \(r.deleted), failed \(r.failed).")
-                }
-            }
-        } message: {
-            Text("These files were never downloaded to this Mac. Some may have been continued by later voice typing, so they can be longer than one dictation. This cannot be undone.")
-        }
-        .alert("Voice-typing files", isPresented: Binding(
-            get: { leftoverResult != nil }, set: { if !$0 { leftoverResult = nil } }
-        )) {
-            Button("OK") { leftoverResult = nil }
-        } message: {
-            Text(leftoverResult ?? "")
-        }
         .overlay {
             if items.isEmpty {
-                ContentUnavailableView {
-                    Label(query.isEmpty ? "No recordings" : "No matches", systemImage: "waveform")
-                } description: {
-                    Text(query.isEmpty ? "Sync downloads recordings from your recorder." : "Try another word.")
+                if !query.isEmpty {
+                    ContentUnavailableView.search(text: query)
+                } else {
+                    ContentUnavailableView {
+                        Label(emptyTitle, systemImage: library.filter.icon)
+                    } description: {
+                        Text(emptyDetail)
+                    }
                 }
             }
         }
-        .toolbar {
-            ToolbarItem {
-                Menu {
-                    Picker("Show", selection: $library.filter) {
-                        ForEach(LibraryStore.Filter.allCases) { Text($0.label).tag($0) }
-                    }
-                    .pickerStyle(.inline)
-                } label: {
-                    Label("Filter", systemImage: library.filter == .all ? "line.3.horizontal.decrease.circle" : "line.3.horizontal.decrease.circle.fill")
+        // 页脚：这一组录音一共多长（原来概览里的「录音时长」）
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if !items.isEmpty {
+                VStack(spacing: 0) {
+                    Divider()
+                    Text(footer).font(.caption).foregroundStyle(.secondary).monospacedDigit()
+                        .frame(maxWidth: .infinity).padding(.vertical, 6)
                 }
-                .help("Filter recordings")
-            }
-            // 「语音输入」筛选下：清理以前留在录音豆上的语音输入文件
-            if library.filter == .dictation, !library.leftoverDictationFiles.isEmpty {
-                ToolbarItem {
-                    Button {
-                        Task {
-                            // 先读一遍设备列表，确认框里的条数和时长用最新的
-                            await library.refreshDeviceList()
-                            leftover = library.leftoverDictationFiles
-                            confirmLeftover = !leftover.isEmpty
-                        }
-                    } label: {
-                        Label("Delete voice-typing files from recorder…", systemImage: "trash")
-                    }
-                    .disabled(!library.recorderIdle)
-                    .help("Delete voice-typing files from recorder…")
-                }
+                .background(.bar)
             }
         }
     }
 
-    private var leftoverTitle: String {
-        let total = leftover.reduce(0) { $0 + $1.duration }
-        return String(localized: "Delete \(leftover.count) voice-typing files (\(LibraryStore.clock(total)) in total) from the recorder?")
+    private var footer: String {
+        let secs = items.reduce(0) { $0 + $1.duration }
+        let units: Set<Duration.UnitsFormatStyle.Unit> = secs >= 3600 ? [.hours, .minutes] : [.minutes]
+        let total = Duration.seconds(secs).formatted(.units(allowed: units, width: .abbreviated))
+        return String(localized: "\(items.count) recordings · \(total)")
+    }
+
+    private var emptyTitle: LocalizedStringKey {
+        switch library.filter {
+        case .all: return "No recordings"
+        case .onRecorder: return "Everything is synced"
+        case .untranscribed: return "Everything is transcribed"
+        case .todos: return "No to-dos"
+        }
+    }
+
+    private var emptyDetail: LocalizedStringKey {
+        switch library.filter {
+        case .all: return "Sync downloads recordings from your recorder."
+        case .onRecorder: return "No recordings are waiting on the recorder."
+        case .untranscribed: return "Every recording on this Mac has a transcript."
+        case .todos: return "Summaries with action items show up here."
+        }
     }
 
     /// 今天 / 昨天 / 本周 / 按月
@@ -292,33 +275,41 @@ struct RecordingDetail: View {
     }
 
     @ToolbarContentBuilder private var toolbar: some ToolbarContent {
+        // 一组：这条录音的主操作（带文字）；另一组：共享（导出、拷贝、存笔记）
         ToolbarItemGroup(placement: .primaryAction) {
             if recording.downloaded {
+                if recording.transcribed && !recording.isDictation {
+                    SummariseButton(recording: recording, notes: library.notes)
+                        .labelStyle(.titleAndIcon)
+                }
                 if let p = library.transcribing[recording.id] {
                     ProgressView(value: p) { Text("Transcribing…") }.frame(width: 140)
                 } else {
                     Button { Task { await library.transcribe(recording.id) } } label: {
                         Label(recording.transcribed ? "Transcribe again" : "Transcribe", systemImage: "text.bubble")
                     }
+                    .labelStyle(.titleAndIcon)
                     .help(recording.transcribed ? "Transcribe again" : "Transcribe")
                 }
-                if recording.transcribed && !recording.isDictation {
-                    SummariseButton(recording: recording, notes: library.notes)
-                }
+            }
+        }
+        ToolbarItem(placement: .primaryAction) {
+            if recording.downloaded {
                 Menu {
                     Button("Copy transcript") {
                         NSPasteboard.general.clearContents()
                         NSPasteboard.general.setString(library.transcript(recording.id).map(\.text).joined(separator: "\n"), forType: .string)
                     }.disabled(!recording.transcribed)
-                    Button("Transcript as Markdown…") { library.exportMarkdown(recording.id) }.disabled(!recording.transcribed)
-                    Button("Audio (Ogg Opus)…") { library.exportAudio(recording.id) }
+                    Divider()
+                    Button("Export transcript as Markdown…") { library.exportMarkdown(recording.id) }.disabled(!recording.transcribed)
+                    Button("Export audio (Ogg Opus)…") { library.exportAudio(recording.id) }
                     Button("Save note to folder") { saveNote = true }.disabled(!library.notes.canSummarize(recording))
                     Divider()
                     Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([library.audioURL(recording.id)]) }
                 } label: {
-                    Label("Export", systemImage: "square.and.arrow.up")
+                    Label("Share", systemImage: "square.and.arrow.up")
                 }
-                .help("Export")
+                .help("Share or export")
             }
         }
     }

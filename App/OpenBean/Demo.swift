@@ -8,7 +8,7 @@
 //   state/connected|searching|connecting|failed|bluetooth-off|no-permission|lost|syncing|sync-failed|dictating|recording|low-battery|charging
 //   hud/hidden|starting|listening|polishing|wrapping|typed|copied|nothing|error
 //   page/overview|library|dictation|recorder   settings/voice|polish|library|agent|about（设置窗口）
-//   select/summary|untranscribed|ondevice|long|none   search/<词>   filter/all|transcribed|onRecorder|dictation
+//   select/summary|untranscribed|ondevice|long|none   search/<词>   filter/all|onRecorder|untranscribed|todos
 //   onboarding/<0–4>   close/onboarding|main|settings   window/main|onboarding/<宽>x<高>   appearance/light|dark|auto
 //   trusted/yes|no   models/ready|missing|downloading   menu/open   ping   quit
 // 数据档：启动参数 -demoProfile empty 用空数据目录 openbean-demo-empty（第一次用：空库、没连过设备、向导未完成）。

@@ -13,7 +13,8 @@ import SwiftUI
 enum PreviewFixtures {
     /// 一份摆好状态的 AppModel。state 同 openbean-demo://demo/state/<名字>；select 同 demo/select/<名字>
     static func model(_ state: String = "connected", section: MainSection = .overview, tab: SettingsTab = .voice,
-                      select: String? = nil, models: ModelStore.State = .ready, trusted: Bool = true) -> AppModel {
+                      select: String? = nil, filter: LibraryStore.Filter = .all, transcribedAll: Bool = false,
+                      models: ModelStore.State = .ready, trusted: Bool = true) -> AppModel {
         // 不在 Xcode 预览里（例如单元测试里误用）就停下，免得读到真实数据目录
         precondition(Flavor.isFake, "PreviewFixtures 只能在 Xcode 预览里用")
         DemoState.trustedValue = trusted
@@ -22,7 +23,11 @@ enum PreviewFixtures {
         DemoController.apply(state: state, to: m)
         m.nav.section = section
         m.nav.settingsTab = tab
-        m.library.selection = select.flatMap { DemoController.pick($0, in: m.library) }
+        m.library.filter = filter
+        // 「有待办」要摘要在缓存里：预览里直接同步读进来
+        for r in m.library.recordings { _ = m.library.notes.summary(r.id) }
+        if transcribedAll { m.library.demoTranscribeAll() }
+        m.library.selection = select.flatMap { DemoController.pick($0, in: m.library) } ?? (filter == .all ? nil : m.library.visible.first?.id)
         return m
     }
 
@@ -71,6 +76,16 @@ private struct PreviewFrame<Content: View>: View {
 }
 #Preview("主窗口 · 录音豆 · 同步失败") { PreviewFrame { MainView(model: PreviewFixtures.model("sync-failed", section: .recorder)) } }
 #Preview("主窗口 · 录音豆 · 没连上") { PreviewFrame { MainView(model: PreviewFixtures.model("searching", section: .recorder)) } }
+#Preview("主窗口 · 录音库 · 最小尺寸") {
+    PreviewFrame(width: 960, height: 600) { MainView(model: PreviewFixtures.model(section: .library, select: "summary")) }
+}
+#Preview("主窗口 · 录音库 · 筛选在录音豆上") { PreviewFrame { MainView(model: PreviewFixtures.model(section: .library, filter: .onRecorder)) } }
+#Preview("主窗口 · 录音库 · 筛选有待办 · 深色") {
+    PreviewFrame(dark: true) { MainView(model: PreviewFixtures.model(section: .library, filter: .todos)) }
+}
+#Preview("主窗口 · 录音库 · 空的筛选") {
+    PreviewFrame { MainView(model: PreviewFixtures.model("syncing", section: .library, filter: .untranscribed, transcribedAll: true)) }
+}
 #Preview("主窗口 · 语音输入记录") { PreviewFrame { MainView(model: PreviewFixtures.model(section: .dictation)) } }
 
 // MARK: - 单独的页面和部件（不带侧栏，改单个视图时更快）

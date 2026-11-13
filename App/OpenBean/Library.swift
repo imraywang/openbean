@@ -4,6 +4,7 @@ import AppKit
 import AVFoundation
 import Foundation
 import Observation
+import SwiftUI
 import OpenBeanKit
 import OpenBeanVoice
 import UniformTypeIdentifiers
@@ -63,15 +64,26 @@ final class LibraryStore {
     }
     private(set) var transcribing: [UInt32: Double] = [:]
     private var transcripts: [UInt32: [TranscriptSegment]] = [:]
+    /// 录音库的筛选（侧栏「录音」下面的二级项）：全部，和三种「要处理的」
     enum Filter: String, CaseIterable, Identifiable {
-        case all, transcribed, onRecorder, dictation
+        case all, onRecorder, untranscribed, todos
         var id: String { rawValue }
-        var label: String {
+        /// 侧栏里的二级项（不含「全部」：点「录音」本身就是全部）
+        static let actionable: [Filter] = [.onRecorder, .untranscribed, .todos]
+        var label: LocalizedStringKey {
             switch self {
-            case .all: return String(localized: "All recordings")
-            case .transcribed: return String(localized: "Transcribed")
-            case .onRecorder: return String(localized: "Only on recorder")
-            case .dictation: return String(localized: "Dictation clips")
+            case .all: return "Library"
+            case .onRecorder: return "On recorder"
+            case .untranscribed: return "Not transcribed"
+            case .todos: return "Has to-dos"
+            }
+        }
+        var icon: String {
+            switch self {
+            case .all: return "waveform"
+            case .onRecorder: return "arrow.down.circle"
+            case .untranscribed: return "text.bubble"
+            case .todos: return "checklist"
             }
         }
     }
@@ -109,14 +121,19 @@ final class LibraryStore {
         notes.library = self
     }
 
-    var visible: [Recording] {
-        recordings.filter { r in
-            switch filter {
-            case .all: return !r.isDictation
-            case .transcribed: return r.transcribed && !r.isDictation
-            case .onRecorder: return !r.downloaded && !r.isDictation
-            case .dictation: return r.isDictation
-            }
+    var visible: [Recording] { recordings.filter { includes($0, in: filter) } }
+
+    /// 某个筛选下有几条（侧栏的数字）
+    func count(_ f: Filter) -> Int { recordings.reduce(0) { $0 + (includes($1, in: f) ? 1 : 0) } }
+
+    /// 语音输入片段不进录音库；「有待办」只看已经在缓存里的摘要（NoteService.preload 在后台读盘）
+    func includes(_ r: Recording, in f: Filter) -> Bool {
+        guard !r.isDictation else { return false }
+        switch f {
+        case .all: return true
+        case .onRecorder: return !r.downloaded
+        case .untranscribed: return r.downloaded && !r.transcribed
+        case .todos: return notes.cachedSummary(r.id)?.actionItems.isEmpty == false
         }
     }
 
@@ -173,6 +190,11 @@ final class LibraryStore {
 
     #if DEMO || DEBUG
     /// 演示版、预览：直接摆出同步和转写进度
+    /// 预览：假装每条下载了的录音都转写过（「未转写」筛选为空）
+    func demoTranscribeAll() {
+        for i in recordings.indices where recordings[i].downloaded { recordings[i].transcribed = true }
+    }
+
     func demoSet(sync: SyncState, secondsLeft: Double? = nil, transcribing: [UInt32: Double] = [:]) {
         self.sync = sync
         syncSecondsLeft = secondsLeft
