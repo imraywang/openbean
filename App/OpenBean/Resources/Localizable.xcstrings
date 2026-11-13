@@ -242,12 +242,32 @@
         }
       }
     },
+    "%lld to-dos": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 条待办"
+          }
+        }
+      }
+    },
     "A day starts at": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "一天从几点开始"
+          }
+        }
+      }
+    },
+    "A few words": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只有几句话"
           }
         }
       }
@@ -882,12 +902,32 @@
         }
       }
     },
+    "Daily diary": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每日日记"
+          }
+        }
+      }
+    },
     "Day": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "日期"
+          }
+        }
+      }
+    },
+    "Decided": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "定了的事"
           }
         }
       }
@@ -978,6 +1018,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "删除成功 %lld 个，失败 %lld 个。"
+          }
+        }
+      }
+    },
+    "Diary": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "日记"
+          }
+        }
+      }
+    },
+    "Diary subfolder": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "日记子文件夹"
           }
         }
       }
@@ -1118,6 +1178,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "正在下载语音模型… %lld%%"
+          }
+        }
+      }
+    },
+    "Each conversation gets a short summary, and each day a diary: overview, decisions, to-dos and the people mentioned, each pointing back to its conversation. Uses the same LLM service, with several more requests per recording.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每段对话写一段简短的摘要，每天合成一篇日记：概述、定了的事、待办和提到的人，每一条都指回出自哪段对话。用同一个大模型服务，每条录音会多调用几次。"
           }
         }
       }
@@ -1872,6 +1942,16 @@
         }
       }
     },
+    "Open the conversation this comes from": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开出自的那段对话"
+          }
+        }
+      }
+    },
     "OpenBean": {
       "localizations": {
         "zh-Hans": {
@@ -1958,6 +2038,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "停顿与排版"
+          }
+        }
+      }
+    },
+    "People mentioned": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "提到的人"
           }
         }
       }
@@ -2158,6 +2248,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "录音"
+          }
+        }
+      }
+    },
+    "Recordings are split into conversations at long pauses either way; this only adds the summaries. With a notes folder, one Markdown file per day goes into the subfolder.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不管开不开，录音都会在长停顿处切成一段段对话；这个开关只是多写摘要。设置了笔记文件夹时，每天一篇 Markdown 写在这个子文件夹里。"
           }
         }
       }
@@ -3172,6 +3272,16 @@
         }
       }
     },
+    "Too little was said on this day for a diary; the conversations are listed below.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这天说的话太少，没有写日记；对话都列在下面。"
+          }
+        }
+      }
+    },
     "Transcribe": {
       "localizations": {
         "zh-Hans": {
@@ -3428,6 +3538,36 @@
           "stringUnit": {
             "state": "translated",
             "value": "整理中…"
+          }
+        }
+      }
+    },
+    "Write a diary for each day": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每天写一篇日记"
+          }
+        }
+      }
+    },
+    "Write the diary for this day": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "写这天的日记"
+          }
+        }
+      }
+    },
+    "Writing the diary for this day…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在写这天的日记…"
           }
         }
       }

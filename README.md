@@ -175,8 +175,34 @@ started itself and can show is new; it cannot be recovered.
 - *Edit note template…* opens `~/Library/Application Support/openbean/note-template.md` (delete it to go back to the
   default). Placeholders: `{{title}}`, `{{title_yaml}}` (quoted for YAML), `{{date}}`, `{{time}}`, `{{created_at}}`,
   `{{duration}}`, `{{recording_id}}`, `{{summary}}`, `{{key_points}}`, `{{action_items}}`, `{{link}}`,
-  `{{transcript}}`; `{{#name}}…{{/name}}` keeps the text in between only when `name` isn't empty. Unknown
-  placeholders are left as they are.
+  `{{transcript}}`, `{{segments}}` (the transcript with one heading per conversation, see below; the same as
+  `{{transcript}}` for a recording with one conversation, and what the default template uses);
+  `{{#name}}…{{/name}}` keeps the text in between only when `name` isn't empty. Unknown placeholders are left as
+  they are.
+
+**Conversations:** after transcription every recording is split into conversations at pauses of two minutes or more
+(a conversation longer than 45 minutes is split again, into roughly equal parts at its longest pauses). A recording
+with several conversations shows one section per conversation in its transcript and in its note, and on Today each
+conversation is listed on its own, on the day it started — so a recording left running past 4 AM shows up on both
+days. This needs no LLM and is always on. The split is kept next to the recording as `segments.json`.
+
+**Daily diary** (Settings → Library → *Write a diary for each day*, off by default): each conversation gets a short
+summary — a heading, two or three sentences, what was decided, to-dos, the people and things mentioned — and each
+day a diary built from them: an overview, decisions, to-dos and the people mentioned, every item pointing to the
+conversation it came from. Items whose source can't be found are dropped, and names that don't appear in the
+transcript are dropped too; names are listed as spelled, never merged. A day with too little said gets no overview,
+only the list of conversations. The diary appears at the top of Today and, with a notes folder, as
+`<notes folder>/Diary/<yyyy-MM-dd>.md` (the subfolder name can be changed; the Chinese app uses `日记`), linking to
+each recording's note. Edited diary notes are left alone, as with recording notes.
+
+It uses the same LLM service as summaries and makes **several more requests**: one per conversation (more for long
+ones) and one or two per day. On our M5 Max with a local Qwen3-30B-A3B a day with a 99-minute meeting took about 25
+requests and a minute; with a cloud service the conversation summaries are sent there. With the diary on, a
+recording's own summary is put together from its conversation summaries instead of being written separately. Past
+days are not rewritten unless something in them changes (a new recording, a new transcription, a changed word
+list); Today has *Write the diary for this day* for older days. If the service isn't running nothing half-done is
+kept and it is tried again later. Data: `<library>/<recording id>/segments.json` and
+`<library>/days/<yyyy-MM-dd>/day.json`.
 
 Voice typing:
 
@@ -293,9 +319,9 @@ other clients take the same `mcpServers` entry:
 |---|---|---|
 | `list_recordings` | `from`, `to` (local dates `YYYY-MM-DD`, or `today` / `yesterday`), `query`, `limit` (default 20) | Newest first: id, start time, duration, title, whether it has a transcript and a summary, a one-line gist |
 | `get_recording` | `id` | Times, summary, key points, action items, path of its Markdown note, `openbean://open/<id>` link |
-| `get_transcript` | `id`, `start_seconds`, `end_seconds`, `max_chars` (default 6000) | Timestamped sentences; a long transcript is cut and the result says where to continue |
+| `get_transcript` | `id`, `start_seconds`, `end_seconds`, `conversation`, `max_chars` (default 6000) | Timestamped sentences; a long transcript is cut and the result says where to continue. `conversation` reads one conversation of a long recording |
 | `search_recordings` | `query`, `from`, `to`, `limit` (default 10) | Matching recordings with snippets and timestamps. Case-insensitive substring match, so it works for Chinese |
-| `day_overview` | `date` (default today) | Every recording of that day with its summary and action items |
+| `day_overview` | `date` (default today) | Every recording of that day with its summary and action items, the conversations of long recordings, and the day's diary first when there is one |
 
 Each result is text for the model plus `structuredContent`; times carry the UTC offset, and every result names the
 time zone and today's date. A day runs from 4 AM to 4 AM, as on the app's Today page (Settings → Library → "A day
@@ -374,6 +400,12 @@ Done:
 5. ✅ **For agents (0.4)** — a read-only MCP server (stdio) over the recording library on your Mac: list recordings by
    date, read transcripts and summaries, search ([details](#for-agents-mcp)). It does not touch Bluetooth and
    nothing runs in the background.
+
+In progress:
+
+- **Daily diary** — recordings split into conversations, a summary per conversation and a diary per day, on Today,
+  in your notes and for agents ([details](#use)). Next for it: recordings that run all day, the recorder's highlight
+  marks, and privacy options for them.
 
 Next:
 
@@ -501,7 +533,22 @@ bin/build-app && open ".build/OpenBean Dev.app"
   但如果你改过这份笔记，OpenBean 不动它，另写一份新文件（「导出 → 保存笔记到文件夹」会先问：替换还是另存）。
   「为已有录音补写笔记」给已转写的录音补写笔记，已有摘要的不重新摘要。
 - **编辑笔记模板…** 打开 `~/Library/Application Support/openbean/note-template.md`（删掉即恢复默认）。占位符见上方英文说明，
-  `{{#name}}…{{/name}}` 只在该值非空时保留中间内容，不认识的占位符原样保留。
+  `{{#name}}…{{/name}}` 只在该值非空时保留中间内容，不认识的占位符原样保留。`{{segments}}` 是按对话分节的转写（只有一段对话时和
+  `{{transcript}}` 一样），默认模板用的是它。
+
+**对话段**：转写完的录音在停顿两分钟以上的地方切成一段段对话（一段超过 45 分钟时，再在最长的停顿处大致平均地切开）。有多段的录音，
+详情里的全文和笔记里的转写都按段分节；「今天」页每段单独一块、按段开始的那天归天，所以录过凌晨 4 点的录音两天都会出现。
+不用大模型、一直开着，结果存在录音旁边的 `segments.json`。
+
+**每日日记**（设置 → 录音库 →「每天写一篇日记」，默认关）：每段对话写一段段摘要（小标题、两三句话、定了的事、待办、提到的人和事），
+每天再合成一篇日记：概述、定了的事、待办、提到的人，每一条都指回出自哪段对话；出处对不上的条目丢掉，转写里找不到的名字也丢掉；
+人名照转写写，不合并不同写法。一天说的话太少时不写概述，只列对话。日记显示在「今天」页顶上；设置了笔记文件夹时，
+每天一篇写到 `<笔记文件夹>/日记/<yyyy-MM-dd>.md`（子文件夹名可改），链接到每条录音的笔记；你改过的日记不会被覆盖。
+
+它和摘要用同一个大模型服务，但**会多调用几次**：每段对话一次（长的几次），每天再一两次。我们在 M5 Max 上用本机 Qwen3-30B-A3B，
+有一场 99 分钟会议的一天约 25 次调用、一分钟左右；用云端服务时段摘要的内容会发给该服务。开着日记时，整条录音的摘要由各段的
+段摘要合成，不另外再读一遍转写。过去的日子只在内容变了（新录音、重新转写、改了词表）时才重算，「今天」页上可以手动「写这天的日记」；
+服务没开时不留半成品，之后再试。数据在 `<录音库>/<录音 id>/segments.json` 和 `<录音库>/days/<yyyy-MM-dd>/day.json`。
 
 语音输入：菜单栏的豆子图标不带斜杠表示已连接（正在听时变实心，同步时带小箭头）→ 光标放好 → 按录音豆按键（或快捷键），
 等底部悬浮条从「准备中…」变成跳动的麦克风再说话
@@ -528,9 +575,9 @@ Claude Desktop（设置 → 开发者 → 编辑配置，改完退出重开）�
 |---|---|---|
 | `list_recordings` | `from`、`to`（本地日期 `YYYY-MM-DD`，或 `today` / `yesterday`）、`query`、`limit`（默认 20） | 新的在前：id、开始时间、时长、标题、有没有转写和摘要、一行摘要 |
 | `get_recording` | `id` | 时间、摘要、要点、待办、笔记文件路径、`openbean://open/<id>` 链接 |
-| `get_transcript` | `id`、`start_seconds`、`end_seconds`、`max_chars`（默认 6000） | 带时间戳的句子；太长会截断，并说明从哪里接着读 |
+| `get_transcript` | `id`、`start_seconds`、`end_seconds`、`conversation`、`max_chars`（默认 6000） | 带时间戳的句子；太长会截断，并说明从哪里接着读。`conversation` 只读长录音里的某一段对话 |
 | `search_recordings` | `query`、`from`、`to`、`limit`（默认 10） | 命中的录音、前后文片段和时间戳；按子串匹配、不分大小写，中文不用分词 |
-| `day_overview` | `date`（默认今天） | 这一天每条录音的摘要和待办 |
+| `day_overview` | `date`（默认今天） | 这一天每条录音的摘要和待办、长录音的各段对话；有日记时日记在最前面 |
 
 结果既有给模型读的文字，也有结构化内容（`structuredContent`）；时间都带时区，每个结果都写明时区和今天的日期。
 一天从凌晨 4 点算到次日凌晨 4 点，和 App 的「今天」一样（设置 → 录音库 →「一天从几点开始」，或环境变量 `OPENBEAN_DAY_START_HOUR`），
@@ -552,6 +599,7 @@ Claude Desktop（设置 → 开发者 → 编辑配置，改完退出重开）�
 openbean 不会做绑定/解绑、恢复出厂和固件升级。删除录音豆上的录音只有两种情况：你明确要求、且录音已经完整保存在本机；
 或者语音输入结束后，App 删掉它为这次语音输入新建的文件（可在设置里关闭）。
 
-0.3 已完成「录音自动进知识库」：自动同步、转写、摘要、每条录音一份 Markdown 笔记。已完成：给 agent 用的只读 MCP 服务（见上）。下一步（0.4）：区分说话人和会议纪要模板；本地服务 API（让笔记软件、智能家居、AI 助手直接使用录音豆）。以后可能做：可选的云端语音识别、同步到第三方服务。不做：按键手势（按键只有开始和停止两种事件）。
+0.3 已完成「录音自动进知识库」：自动同步、转写、摘要、每条录音一份 Markdown 笔记。已完成：给 agent 用的只读 MCP 服务（见上）。
+在做：每日日记（对话段、段摘要、每天一篇日记，见上），之后是全天佩戴、录音豆的重点标记和相应的隐私选项。下一步（0.4）：区分说话人和会议纪要模板；本地服务 API（让笔记软件、智能家居、AI 助手直接使用录音豆）。以后可能做：可选的云端语音识别、同步到第三方服务。不做：按键手势（按键只有开始和停止两种事件）。
 
 openbean 是独立项目，与 Anker 无关。协议是为了让你使用自己的设备而整理的，固件升级随时可能让它失效。

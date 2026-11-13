@@ -110,6 +110,11 @@ private struct PreviewFrame<Content: View>: View {
 #Preview("今天 · 勾了一条待办") { today(checked: true) }
 #Preview("今天 · 勾了一条待办 · 深色") { today(checked: true, dark: true) }
 #Preview("今天 · 昨天（跨午夜）") { today(dayOffset: -1) }
+#Preview("今天 · 有日记（三段对话）") { today() }
+#Preview("今天 · 有日记 · 深色") { today(dark: true) }
+#Preview("今天 · 只有几句话（不写日记）") { today(dayOffset: -4) }
+#Preview("今天 · 跨凌晨 4 点的录音（后一段算这天）") { today(dayOffset: -2) }
+#Preview("今天 · 跨凌晨 4 点的录音（前一段算这天）") { today(dayOffset: -3) }
 #Preview("今天 · 没有录音的一天") { today(dayOffset: -7) }
 #Preview("今天 · 没有录音的一天 · 深色") { today(dayOffset: -7, dark: true) }
 #Preview("今天 · 低电量") { today("low-battery") }

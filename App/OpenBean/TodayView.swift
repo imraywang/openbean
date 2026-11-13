@@ -6,20 +6,22 @@ import SwiftUI
 
 // MARK: - 一天的内容（只读：现有的录音、缓存里的摘要和待办勾选状态、语音输入记录）
 
-/// 「今天」页上的一块。现在一条录音一块；0.5 有了对话段和日记以后，
-/// 一条录音可以换成几段对话（加一个 case），顶上加当天概述，页面不用重排。
+/// 「今天」页上的一块：一条录音，或者（切成了多段的录音）其中一段对话。顶上另有当天的日记（TodayDiarySection）
 enum TodayBlock: Identifiable {
     case recording(Recording)
+    case conversation(Recording, Conversation)
 
     var id: String {
         switch self {
         case let .recording(r): return "r\(r.id)"
+        case let .conversation(r, c): return "c\(r.id)#\(c.index)"
         }
     }
 
     var start: Date {
         switch self {
         case let .recording(r): return r.start
+        case let .conversation(_, c): return c.wallStart
         }
     }
 }
@@ -28,17 +30,29 @@ enum TodayBlock: Identifiable {
 @MainActor
 struct DayDigest {
     let day: Date
-    /// 这天的录音（不含语音输入片段），按开始时间先后。跨午夜的录音按开始时刻归到哪天
+    /// 这天的录音（不含语音输入片段），按开始时间先后。只有一段对话的录音按开始时刻归天；
+    /// 切成多段的录音按段的开始时刻归天（跨过一天分界的长录音两天都有），每段一块
     let recordings: [Recording]
     let blocks: [TodayBlock]
     let dictation: [DictationEntry]
 
     init(day: Date, boundary: DayBoundary, library: LibraryStore, log: DictationLog) {
         self.day = day
-        recordings = library.recordings
-            .filter { !$0.isDictation && boundary.day(of: $0.start) == day }
-            .sorted { $0.start < $1.start }
-        blocks = recordings.map { .recording($0) }
+        let interval = boundary.interval(of: day)
+        var recs: [Recording] = [], blocks: [TodayBlock] = []
+        // 录音最早可以从前一天开始（段落在这一天里）
+        for r in library.recordings where !r.isDictation && r.start < interval.end && r.start >= interval.start.addingTimeInterval(-86_400) {
+            let convs = r.transcribed ? library.conversations.conversations(r.id) : []
+            if convs.count > 1 {
+                let mine = convs.filter { boundary.day(of: $0.wallStart) == day }
+                if !mine.isEmpty { recs.append(r); blocks += mine.map { .conversation(r, $0) } }
+            } else if boundary.day(of: r.start) == day {
+                recs.append(r)
+                blocks.append(.recording(r))
+            }
+        }
+        recordings = recs.sorted { $0.start < $1.start }
+        self.blocks = blocks.sorted { $0.start < $1.start }
         dictation = log.entries.filter { boundary.day(of: $0.date) == day }.sorted { $0.date < $1.date }
     }
 
@@ -80,6 +94,7 @@ struct TodayView: View {
                     emptyDay(day: day, today: today)
                 } else {
                     attention(digest)
+                    TodayDiarySection(model: model, day: day, digest: digest)
                     todos(digest)
                     timeline(digest)
                 }
@@ -172,11 +187,9 @@ struct TodayView: View {
         }
     }
 
-    /// 这天所有录音的待办汇总，能勾选；标出来自哪条录音
+    /// 这天所有录音的待办汇总，能勾选；标出来自哪条录音（有段摘要的多段录音：来自哪段对话）
     @ViewBuilder private func todos(_ d: DayDigest) -> some View {
-        let items = d.recordings.flatMap { r in
-            (library.notes.cachedSummary(r.id)?.actionItems ?? []).map { (r, $0) }
-        }
+        let items = TodayTodos.items(d, library: library)
         if !items.isEmpty {
             let done = items.filter { library.notes.isDone($0.0.id, $0.1) }.count
             VStack(alignment: .leading, spacing: 7) {
@@ -185,10 +198,10 @@ struct TodayView: View {
                     Text("\(done) of \(items.count) done").font(.callout).foregroundStyle(.secondary).monospacedDigit()
                 }
                 ForEach(Array(items.enumerated()), id: \.offset) { _, it in
-                    let (r, t) = it
+                    let (r, t, source) = it
                     TodoRow(text: t, done: Binding(get: { library.notes.isDone(r.id, t) },
                                                    set: { library.notes.setDone(r.id, t, $0) }),
-                            source: r.displayTitle)
+                            source: source)
                 }
             }
         }
@@ -205,6 +218,8 @@ struct TodayView: View {
                     switch b {
                     case let .recording(r):
                         TodayRecordingBlock(recording: r, library: library) { model.nav.show(recording: r.id, in: library) }
+                    case let .conversation(r, c):
+                        TodayConversationBlock(recording: r, conversation: c) { model.nav.show(recording: r.id, in: library) }
                     }
                 }
             }

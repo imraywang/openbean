@@ -97,11 +97,14 @@ public final class LibraryTools: @unchecked Sendable {
             tool("get_transcript", "Read a transcript",
                  "Read a recording's transcript as timestamped sentences ([mm:ss] from the start of the recording). "
                  + "Long transcripts are cut at max_chars; the result then says which start_seconds to pass to read on. "
-                 + "Use start_seconds / end_seconds to read only part of a recording, e.g. around a timestamp from search_recordings. "
+                 + "Use start_seconds / end_seconds to read only part of a recording, e.g. around a timestamp from search_recordings, "
+                 + "or conversation to read one conversation of a long recording (day_overview lists them). "
                  + "The text is automatic speech recognition and can contain mis-heard words, especially names.",
                  ["id": id,
                   "start_seconds": ["type": "number", "minimum": 0, "description": "Read from this many seconds into the recording (default 0)."],
                   "end_seconds": ["type": "number", "minimum": 0, "description": "Stop at this many seconds into the recording (default: the end)."],
+                  "conversation": ["type": "integer", "minimum": 0,
+                                   "description": "Read only this conversation of the recording (its index from day_overview). Replaces start_seconds / end_seconds."],
                   "max_chars": ["type": "integer", "minimum": 200, "maximum": 50000, "default": 6000,
                                 "description": "Stop after about this many characters of transcript (default 6000)."]],
                  required: ["id"]),
@@ -117,7 +120,11 @@ public final class LibraryTools: @unchecked Sendable {
                  required: ["query"]),
             tool("day_overview", "Overview of a day",
                  "Everything recorded on one local day, in order: each recording's time, duration, title, summary, key points and action items, "
-                 + "plus all action items of the day together. Recordings without a summary show the start of their transcript instead.",
+                 + "plus all action items of the day together. Recordings without a summary show the start of their transcript instead. "
+                 + "Long recordings are split into conversations at long pauses; each is listed with its time, title and summary, and "
+                 + "get_transcript with that conversation index reads just that part. When the user has OpenBean's daily diary turned on, "
+                 + "the day's diary comes first: an overview, what was decided, to-dos and people mentioned, each pointing to the "
+                 + "conversation it comes from (recording id and conversation index).",
                  ["date": ["type": "string", "description": .string("The day. " + dateHelp + " Default: today.")]]),
         ]
     }
@@ -211,8 +218,19 @@ public final class LibraryTools: @unchecked Sendable {
 
     func getTranscript(_ a: [String: JSON]) throws -> ToolResult {
         let r = try recording(a)
-        let from = try number(a, "start_seconds") ?? 0
-        let to = try number(a, "end_seconds")
+        var from = try number(a, "start_seconds") ?? 0
+        var to = try number(a, "end_seconds")
+        var conv: Conversation?
+        if let n = try number(a, "conversation") {
+            let all = library.conversations(r.id)
+            guard let c = all.first(where: { Double($0.index) == n }) else {
+                throw ToolError(all.isEmpty ? "Recording \(r.id) isn't split into conversations; read it with start_seconds / end_seconds."
+                                : "Recording \(r.id) has conversations 0 to \(all.count - 1); there is no conversation \(seconds(n)).")
+            }
+            conv = c
+            from = c.start
+            to = c.end + 0.01
+        }
         let maxChars = try int(a, "max_chars", default: 6000, in: 200...50000)
         if let to, to <= from { throw ToolError("end_seconds must be greater than start_seconds.") }
         let segs: [LibrarySegment]
@@ -235,7 +253,8 @@ public final class LibraryTools: @unchecked Sendable {
             used += line.count + 1
         }
         let s = library.summary(r.id).value
-        let span = (from > 0 || to != nil) ? " from \(timestamp(from)) to \(to.map(timestamp) ?? "the end")" : ""
+        var span = (from > 0 || to != nil) ? " from \(timestamp(from)) to \(to.map(timestamp) ?? "the end")" : ""
+        if let conv { span = ", conversation \(conv.index)" + span }
         var lines = ["Transcript of recording \(r.id) (\(title(r, s) ?? "untitled"), started \(localDateTime(r.start)))\(span):"]
         if picked.isEmpty { lines.append("(nothing in this range; the recording is \(clock(r.duration)) long)") }
         lines += picked.map { "\(timestamp($0.start)) \($0.text)" }
@@ -247,6 +266,7 @@ public final class LibraryTools: @unchecked Sendable {
                                  "segments": .array(picked.map { ["start": .double($0.start), "end": .double($0.end), "text": .string($0.text)] }),
                                  "total_segments": .int(segs.count), "truncated": .bool(next != nil),
                                  "next_start_seconds": .from(next)]
+        if let conv { o["conversation"] = conversationJSON(r, conv) }
         o.merge(contextJSON) { a, _ in a }
         return ToolResult(text: lines.joined(separator: "\n"), structured: .object(o), isError: false)
     }
@@ -303,11 +323,28 @@ public final class LibraryTools: @unchecked Sendable {
     func dayOverview(_ a: [String: JSON]) throws -> ToolResult {
         let dayText = try optionalString(a, "date") ?? "today"
         let day = try parseDay(dayText, key: "date")
-        let list = try library.recordings(in: boundary.interval(of: day)).reversed()
+        let interval = boundary.interval(of: day)
+        // 只有一段的录音按开始时刻归天；切成多段的按段的开始时刻（前一天开始的长录音，后面的段可能落在这天）
+        var list: [LibraryRecording] = []
+        var dayConvs: [UInt32: [Conversation]] = [:]
+        for r in try library.recordings(in: DateInterval(start: interval.start.addingTimeInterval(-86_400), end: interval.end)).reversed() {
+            let convs = library.conversations(r.id)
+            if convs.count > 1 {
+                let mine = convs.filter { $0.wallStart >= interval.start && $0.wallStart < interval.end }
+                if !mine.isEmpty { list.append(r); dayConvs[r.id] = mine }
+            } else if r.start >= interval.start && r.start < interval.end {
+                list.append(r)
+            }
+        }
         let label = dayLabel(day)
         let total = list.reduce(0.0) { $0 + $1.duration }
         var lines = [list.isEmpty ? "\(label): no recordings. \(contextLine)"
                                   : "\(label): \(list.count) recording\(list.count == 1 ? "" : "s"), \(clock(total)) in total. \(contextLine)"]
+        var out = contextJSON
+        if let file = library.day(dayString(day)), file.dayStartHour == boundary.startHour, let d = file.diary {
+            lines += diaryLines(file, d)
+            out["diary"] = diaryJSON(file, d)
+        }
         var items: [JSON] = []
         var todos: [JSON] = []
         for r in list {
@@ -315,6 +352,18 @@ public final class LibraryTools: @unchecked Sendable {
             lines.append("")
             lines.append("\(time(r.start)) · \(clock(r.duration)) · \(title(r, s) ?? "(untitled)") (id \(r.id))")
             var o = brief(r, s).object!
+            if let convs = dayConvs[r.id] {
+                lines.append("Conversations (read one with get_transcript id \(r.id) and its conversation number):")
+                for c in convs {
+                    var line = "- conversation \(c.index): \(wall(c))"
+                    if let cs = c.summary {
+                        if !cs.title.isEmpty { line += " · \(cs.title)" }
+                        if !cs.summary.isEmpty { line += " — \(cs.summary)" }
+                    } else if c.kind == "fragment" { line += " · a few words" }
+                    lines.append(line)
+                }
+                o["conversations"] = .array(convs.map { conversationJSON(r, $0) })
+            }
             if let s {
                 if !s.summary.isEmpty { lines.append(s.summary) }
                 if !s.keyPoints.isEmpty { lines.append("Key points:"); lines += s.keyPoints.map { "- " + $0 } }
@@ -335,12 +384,63 @@ public final class LibraryTools: @unchecked Sendable {
             lines.append("All action items of the day:")
             lines += todos.map { "- \($0["text"]?.string ?? "") (id \($0["recording_id"]?.number.map { String(Int($0)) } ?? ""))" }
         }
-        var out = contextJSON
         out["date"] = .string(dayString(day))
         out["recordings"] = .array(items)
         out["total_duration_seconds"] = .double((total * 10).rounded() / 10)
         out["action_items"] = .array(todos)
         return ToolResult(text: lines.joined(separator: "\n"), structured: .object(out), isError: false)
+    }
+
+    // MARK: - 对话段和日记
+
+    /// 「09:12–09:40」（墙上时间只是近似时前面加 ~）
+    func wall(_ c: Conversation) -> String { (c.wallApprox ? "~" : "") + "\(time(c.wallStart))–\(time(c.wallEnd))" }
+
+    func conversationJSON(_ r: LibraryRecording, _ c: Conversation) -> JSON {
+        var o: [String: JSON] = ["recording_id": .int(Int(r.id)), "index": .int(c.index), "start": .string(iso(c.wallStart)),
+                                 "end": .string(iso(c.wallEnd)), "approximate_time": .bool(c.wallApprox),
+                                 "start_seconds": .double(c.start), "end_seconds": .double(c.end), "kind": .from(c.kind)]
+        if let s = c.summary {
+            o["title"] = .string(s.title)
+            o["summary"] = .string(s.summary)
+            o["decisions"] = .array(s.decisions.map { .string($0) })
+            o["todos"] = .array(s.todos.map { .string($0) })
+            o["people"] = .array(s.people.map { .string($0) })
+        }
+        return .object(o)
+    }
+
+    func refText(_ ref: ConversationRef, _ byRef: [ConversationRef: DayConversation]) -> String {
+        let at = byRef[ref].map { ($0.wallApprox ? "~" : "") + time($0.wallStart) + " " } ?? ""
+        return "\(at)id \(ref.recording) conversation \(ref.index)"
+    }
+
+    func diaryLines(_ f: DayFile, _ d: Diary) -> [String] {
+        let byRef = Dictionary(f.conversations.map { ($0.ref, $0) }, uniquingKeysWith: { a, _ in a })
+        func refs(_ r: [ConversationRef]) -> String { r.map { refText($0, byRef) }.joined(separator: "; ") }
+        var l = ["", "Diary (written by OpenBean from the conversation summaries; each item names where it comes from):"]
+        if let o = d.overview, !o.isEmpty { l.append(o) }
+        if !d.decisions.isEmpty { l.append("Decided:"); l += d.decisions.map { "- \($0.text) (\(refs($0.refs)))" } }
+        if !d.todos.isEmpty {
+            l.append("To-dos:")
+            l += d.todos.map { "- \($0.text)\($0.owner.map { " — " + $0 } ?? "") (\(refs($0.refs)))" }
+        }
+        if !d.people.isEmpty {
+            l.append("People mentioned (as spelled in the transcripts, not merged):")
+            l += d.people.map { "- \($0.name) (\(refs($0.refs)))" }
+        }
+        return l
+    }
+
+    func diaryJSON(_ f: DayFile, _ d: Diary) -> JSON {
+        func refs(_ r: [ConversationRef]) -> JSON { .array(r.map { ["recording_id": .int(Int($0.recording)), "conversation": .int($0.index)] }) }
+        func items(_ xs: [DiaryItem]) -> JSON {
+            .array(xs.map { x in ["text": .string(x.text), "owner": .from(x.owner), "sources": refs(x.refs)] })
+        }
+        return ["overview": .from(d.overview), "decisions": items(d.decisions), "todos": items(d.todos),
+                "people": .array(d.people.map { ["name": .string($0.name), "sources": refs($0.refs)] }),
+                "things": .array(d.things.map { ["name": .string($0.name), "sources": refs($0.refs)] }),
+                "written_at": .string(iso(f.createdAt)), "model": .from(f.model)]
     }
 
     // MARK: - 共用

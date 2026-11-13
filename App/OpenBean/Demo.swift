@@ -56,7 +56,7 @@ enum DemoData {
             "summarizeRecordings": !empty, "notesEnabled": !empty, "notesFolder": empty ? "" : notes.path,
             "autoSync": true, "autoTranscribe": true, "buttonDictates": true, "readySound": true, "keepHistory": true,
             "hotkey": Hotkey.Preset.optionSpace.rawValue, "paragraphGap": 2.5, "sentencePause": 0.8,
-            "deleteDictationAudio": true,
+            "deleteDictationAudio": true, "dailyDiary": !empty, "diaryFolder": "",
         ]
         for (k, v) in values { d.set(v, forKey: k) }
         d.removeObject(forKey: "hotkeyCustom")
@@ -73,7 +73,7 @@ enum DemoData {
     }
 
     /// 假数据的版本：specs、台词、生成的文件改了就加 1
-    static let dataVersion = 2
+    static let dataVersion = 3
 
     /// 可重现的随机数（SplitMix64）：同一天生成的数据完全一样
     struct RNG {
@@ -139,6 +139,9 @@ enum DemoData {
         // 傍晚开着录了两个半小时：站会、供应商电话、1:1 三段谈话，中间是长时间的安静（切成三段）
         Spec(day: 0, hour: 17, minute: 30, seconds: 9_000, kind: .transcript,
              parts: [("standup", 40, 300), ("supplier", 1_900, 420), ("oneonone", 5_600, 1_500)]),
+        // 三天前 22:30 开着录了六个多小时：读书笔记一段，早上 4:20 又说了一句（按段归天：这一句算前天）
+        Spec(day: 3, hour: 22, minute: 30, seconds: 22_000, kind: .transcript,
+             parts: [("reading", 90, 300), ("errands2", 21_000, 40)]),
     ]
 
     static func seed() {
@@ -147,6 +150,7 @@ enum DemoData {
         var rng = RNG(state: 20_261_113)
         var list: [Recording] = []
         let enc = JSONEncoder()
+        var dayConvs: [(Recording, Conversation)] = []
         for s in specs {
             let day = cal.date(byAdding: .day, value: -s.day, to: today)!
             let start = cal.date(bySettingHour: s.hour, minute: s.minute, second: 0, of: day)!
@@ -171,9 +175,23 @@ enum DemoData {
             if r.transcribed, !segs.isEmpty {
                 try? enc.encode(segs).write(to: dir.appendingPathComponent("transcript.json"))
                 // 对话段：和 App 转写完以后算的一样
-                let conv = ConversationFile.build(segs.map { ConversationFile.Line(start: $0.start, end: $0.end, text: $0.text) },
+                var conv = ConversationFile.build(segs.map { ConversationFile.Line(start: $0.start, end: $0.end, text: $0.text) },
                                                   recordingStart: start, wallApprox: false)
+                // 开着每日日记时会有的段摘要：有摘要的录音、分段录音里的各段
+                let topics = s.parts.isEmpty ? [s.topic] : s.parts.map { Optional($0.topic) }
+                for (i, t) in topics.enumerated() where i < conv.segments.count {
+                    guard let t, s.kind == .summary || !s.parts.isEmpty, let cs = conversationSummaries[t] else { continue }
+                    let k = s.parts.isEmpty ? conv.segments.indices : i..<(i + 1)
+                    for j in k {
+                        conv.segments[j].summary = cs.0
+                        // 一个话题的长录音按长度切成了几段：小标题标上第几部分
+                        if k.count > 1 { conv.segments[j].summary?.title += "（\(j + 1)/\(k.count)）" }
+                        conv.segments[j].kind = cs.1
+                        conv.segments[j].summaryModel = "qwen3-8b"
+                    }
+                }
                 try? conv.encoded().write(to: dir.appendingPathComponent("segments.json"))
+                dayConvs += conv.segments.map { (r, $0) }
             }
             if s.kind == .summary, let topic = s.topic, let sum = summaries[topic] {
                 r.title = sum.title
@@ -185,7 +203,74 @@ enum DemoData {
         }
         try? enc.encode(list).write(to: AppPaths.library.appendingPathComponent("index.json"))
         try? JSONEncoder.iso.encode(dictationEntries(today)).write(to: AppPaths.support.appendingPathComponent("dictation.json"))
+        writeDays(dayConvs, recordings: list)
     }
+
+    /// 日文件：今天有日记（概述、定了的事、待办、提到的人），4 天前只有一条随手记（内容太少，只列对话）
+    static func writeDays(_ convs: [(Recording, Conversation)], recordings: [Recording]) {
+        let b = DayBoundary(startHour: 4)
+        func onDay(_ n: Int) -> [(Recording, Conversation)] {
+            let day = b.day(b.day(of: Date()), offsetBy: -n)
+            return convs.filter { b.day(of: $0.1.wallStart) == day }.sorted { $0.1.wallStart < $1.1.wallStart }
+        }
+        func dayConversations(_ cs: [(Recording, Conversation)]) -> [DayConversation] {
+            cs.map { DayConversation(ref: ConversationRef(recording: $0.0.id, index: $0.1.index), wallStart: $0.1.wallStart,
+                                     wallEnd: $0.1.wallEnd, kind: $0.1.kind, title: $0.1.summary?.title, summary: $0.1.summary?.summary) }
+        }
+        func ref(_ cs: [(Recording, Conversation)], _ title: String) -> [ConversationRef] {
+            cs.filter { $0.1.summary?.title.hasPrefix(title) == true }.map { ConversationRef(recording: $0.0.id, index: $0.1.index) }
+        }
+        func write(_ n: Int, _ status: DayFile.Status, _ diary: Diary?) {
+            let cs = onDay(n)
+            guard !cs.isEmpty else { return }
+            let key = DayFile.key(b.day(b.day(of: Date()), offsetBy: -n), calendar: b.calendar)
+            let f = DayFile(date: key, timeZone: TimeZone.current.identifier, dayStartHour: 4, signature: "demo", status: status,
+                            conversations: dayConversations(cs), diary: diary, model: "qwen3-8b", createdAt: Date(),
+                            stats: DayStats(calls: diary == nil ? 0 : 1, seconds: 6, dropped: 0))
+            let url = DayFile.url(library: AppPaths.library, date: key)
+            try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try? f.encoded().write(to: url)
+        }
+        let today = onDay(0)
+        // 人：照段摘要收集，不合并写法
+        var people: [DiaryName] = []
+        for (r, c) in today {
+            for n in c.summary?.people ?? [] {
+                let ref = ConversationRef(recording: r.id, index: c.index)
+                if let i = people.firstIndex(where: { $0.name == n }) { people[i].refs.append(ref) } else { people.append(DiaryName(name: n, refs: [ref])) }
+            }
+        }
+        write(0, .diary, Diary(
+            overview: "上午过了 Q4 路线图，确定同步重写优先；午后看了激活率专项。傍晚连着三段：站会、和刘经理的咖啡袋报价电话，以及和 Priya 的 1:1，她会牵头团队版的权限管理。",
+            decisions: [DiaryItem(text: "同步重写优先，批量导出顺延到一月", refs: ref(today, "Q4 路线图评审")),
+                        DiaryItem(text: "定价页采用 B 版结构，团队版入口放回导航栏", refs: ref(today, "Q4 路线图评审")),
+                        DiaryItem(text: "Priya 牵头团队版的权限管理", refs: ref(today, "1:1 · Priya"))],
+            todos: [DiaryItem(text: "下周一前回复刘经理，确认起订量和设计稿", owner: "我", refs: ref(today, "供应商电话：咖啡袋报价")),
+                    DiaryItem(text: "Priya：下周一前发一页提案", owner: "Priya", refs: ref(today, "1:1 · Priya")),
+                    DiaryItem(text: "十二月初前把同步重写合进主干", owner: "Alex", refs: ref(today, "Q4 路线图评审"))],
+            people: people,
+            things: [DiaryName(name: "Q4 路线图", refs: ref(today, "Q4 路线图评审"))]))
+        write(4, .brief, nil)
+    }
+
+    /// 段摘要（假的）：标题和段摘要、要点、定了的事、待办、提到的人；第二项是段的种类
+    static let conversationSummaries: [String: (ConversationSummary, String)] = {
+        var out: [String: (ConversationSummary, String)] = [:]
+        let people: [String: [String]] = ["roadmap": ["Alex", "Priya", "陈默"], "supplier": ["刘经理"], "oneonone": ["Priya"],
+                                          "standup": [], "growth2": [], "reading": [], "interview": [], "crit": [], "podcast": ["小周", "阿岚", "Tom"],
+                                          "growth": [], "supplier2": [], "retro": []]
+        for (k, s) in summaries {
+            out[k] = (ConversationSummary(title: s.title, summary: s.summary, keyPoints: s.keyPoints, todos: Array(s.actionItems.prefix(3)),
+                                          people: people[k] ?? []), k == "podcast" ? "media" : "conversation")
+        }
+        out["roadmap"]?.0.decisions = ["同步重写优先，批量导出顺延到一月", "定价页采用 B 版结构，团队版入口放回导航栏"]
+        out["oneonone"]?.0.decisions = ["Priya 牵头团队版的权限管理"]
+        out["standup"] = (ConversationSummary(title: "站会", summary: "上传重试已完成，同步测试不稳定；测试环境数据库磁盘又满了，会后扩容。新版设置页的稿子下午发出。",
+                                              todos: ["会后给测试数据库扩容"]), "conversation")
+        out["errands2"] = (ConversationSummary(title: "牙医复诊提醒", summary: "提醒自己下周二上午十点牙医复诊，带上次的片子。",
+                                               todos: ["下周二上午十点牙医复诊，带片子"]), "monologue")
+        return out
+    }()
 
     /// 像说话的波形：一句一句的起伏，句间低谷
     static func peaks(_ rng: inout RNG, seconds: Double) -> [Float] {

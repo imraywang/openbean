@@ -99,6 +99,19 @@ public struct RecordingLibrary: Sendable {
         }.value
     }
 
+    /// 这条录音按停顿切成的对话段（segments.json）。文件和现在的转写对不上（转写刚变、App 还没重算）就当作没有
+    public func conversations(_ id: UInt32) -> [Conversation] {
+        guard let f = ConversationFile.read(file(id, "segments.json")), let segs = transcript(id).value else { return [] }
+        let lines = segs.map { ConversationFile.Line(start: $0.start, end: $0.end, text: $0.text) }
+        guard f.transcriptHash == ConversationFile.fingerprint(lines) else { return [] }
+        return f.segments.filter { $0.to <= segs.count }
+    }
+
+    /// 某天（yyyy-MM-dd）的日文件 days/<日期>/day.json；没有或读不了返回 nil
+    public func day(_ key: String) -> DayFile? {
+        DayFile.read(DayFile.url(library: folder, date: key))
+    }
+
     /// 有没有转写：以文件为准（index 里的 transcribed 可能和文件不同步）
     public func hasTranscript(_ id: UInt32) -> Bool {
         FileManager.default.fileExists(atPath: file(id, "transcript.json").path)
