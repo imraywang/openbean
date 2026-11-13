@@ -50,9 +50,13 @@ final class NoteService {
     @ObservationIgnored weak var library: LibraryStore?
     @ObservationIgnored private let settings: Settings
     @ObservationIgnored private var queue: Task<Void, Never>?
+    /// 每日日记（段摘要、当天日记、日记笔记），和摘要共用这一个队列
+    @ObservationIgnored let diary: DiaryService
 
     init(settings: Settings) {
         self.settings = settings
+        diary = DiaryService(settings: settings)
+        diary.notes = self
     }
 
     // MARK: 存取
@@ -156,6 +160,7 @@ final class NoteService {
 
     /// 删除本机副本时调用（summary.json / note.json 跟着录音文件夹一起删了；知识库里的笔记不动）
     func forget(_ id: UInt32) {
+        diary.recordingRemoved(id)
         summaries[id] = nil
         todoDone[id] = nil
         noSummary.remove(id)
@@ -171,7 +176,7 @@ final class NoteService {
         return URL(fileURLWithPath: p, isDirectory: true)
     }
 
-    private var service: LLMService? {
+    var service: LLMService? {
         URL(string: settings.polishEndpoint).map { LLMService(endpoint: $0, apiKey: settings.polishAPIKey, model: settings.polishModel) }
     }
 
@@ -181,7 +186,7 @@ final class NoteService {
 
     // MARK: 队列
 
-    private func enqueue(_ job: @escaping @MainActor () async -> Void) {
+    func enqueue(_ job: @escaping @MainActor () async -> Void) {
         let prev = queue
         queue = Task { @MainActor in
             await prev?.value
@@ -189,21 +194,31 @@ final class NoteService {
         }
     }
 
-    /// 转写完成后：按设置自动摘要、写笔记（语音输入片段不处理）
+    /// 转写完成后：按设置自动摘要、写笔记（语音输入片段不处理）。
+    /// 开着每日日记时：先给各段写段摘要（开着摘要时整条的摘要由段摘要合成，不再另读一遍转写），最后更新涉及的那几天的日记
     func afterTranscription(_ id: UInt32) {
         guard let r = library?.recordings.first(where: { $0.id == id }), !r.isDictation else { return }
-        guard settings.summarizeRecordings || settings.notesEnabled else { return }
+        guard settings.summarizeRecordings || settings.notesEnabled || settings.dailyDiary else { return }
         enqueue { [weak self] in
             guard let self else { return }
             if self.settings.summarizeRecordings { await self.runSummary(id, manual: false) }
+            else if self.settings.dailyDiary { _ = await self.diary.summarizeConversations(id, force: false) }
             if self.settings.notesEnabled { _ = self.writeNote(id, mode: .auto) }
+            if self.settings.dailyDiary { await self.diary.refreshDays(touching: id) }
         }
     }
 
-    /// 转写文字变了（词表回填）：写过的笔记、用户没改过就重写；没写过、或改过的都不动。不重新摘要
+    /// 转写文字变了（词表回填）：写过的笔记、用户没改过就重写；没写过、或改过的都不动。不重新摘要整条录音；
+    /// 开着每日日记时，文字变了的那几段重写段摘要（没变的段留着），再更新那几天的日记
     func transcriptChanged(_ id: UInt32) {
-        guard noteRecord(id) != nil else { return }
-        enqueue { [weak self] in _ = self?.writeNote(id, mode: .refresh) }
+        let hasNote = noteRecord(id) != nil
+        guard hasNote || settings.dailyDiary else { return }
+        enqueue { [weak self] in
+            guard let self else { return }
+            if self.settings.dailyDiary { _ = await self.diary.summarizeConversations(id, force: false) }
+            if hasNote { _ = self.writeNote(id, mode: .refresh) }
+            if self.settings.dailyDiary { await self.diary.refreshDays(touching: id) }
+        }
     }
 
     /// 「摘要」/「重新摘要」；写过笔记（或开着自动笔记）就顺手更新笔记
@@ -215,6 +230,7 @@ final class NoteService {
             guard let self else { return }
             await self.runSummary(id, manual: true)
             if self.settings.notesEnabled || self.noteRecord(id) != nil { _ = self.writeNote(id, mode: .auto) }
+            if self.settings.dailyDiary { await self.diary.refreshDays(touching: id) }
         }
     }
 
@@ -238,9 +254,15 @@ final class NoteService {
         summarizing[id] = 0.02
         let t0 = Date()
         do {
-            let s = try await Summarizer(service: service, glossary: AppPaths.readGlossary()).summarize(lines) { p in
-                Task { @MainActor [weak self] in
-                    if self?.summarizing[id] != nil { self?.summarizing[id] = max(p, 0.02) }
+            let s: RecordingSummary
+            if settings.dailyDiary {
+                // 开着每日日记：以段摘要为准，整条的摘要由它们合成（一段时直接用，多段时合并一次）
+                s = try await diary.recordingSummary(id, force: manual)
+            } else {
+                s = try await Summarizer(service: service, glossary: AppPaths.readGlossary()).summarize(lines) { p in
+                    Task { @MainActor [weak self] in
+                        if self?.summarizing[id] != nil { self?.summarizing[id] = max(p, 0.02) }
+                    }
                 }
             }
             let old = stored(id)
@@ -574,6 +596,25 @@ struct NoteSettingsSections: View {
             }
         } header: {
             Text("Summaries")
+        }
+
+        Section {
+            Toggle(isOn: $settings.dailyDiary) {
+                Text("Write a diary for each day")
+                Text("Each conversation gets a short summary, and each day a diary: overview, decisions, to-dos and the people mentioned, each pointing back to its conversation. Uses the same LLM service, with several more requests per recording.")
+            }
+            .onChange(of: settings.dailyDiary) { _, on in if on { notes.diary.catchUp() } }
+            if settings.dailyDiary {
+                LabeledContent("Diary subfolder") {
+                    TextField("Diary subfolder", text: $settings.diaryFolder, prompt: Text("Diary"))
+                        .labelsHidden().frame(maxWidth: 180)
+                }
+            }
+        } header: {
+            Text("Daily diary")
+        } footer: {
+            Text("Recordings are split into conversations at long pauses either way; this only adds the summaries. With a notes folder, one Markdown file per day goes into the subfolder.")
+                .font(.caption).foregroundStyle(.secondary)
         }
 
         Section {

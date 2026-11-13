@@ -234,22 +234,25 @@ public struct Conversation: Codable, Sendable, Hashable, Identifiable {
 public struct ConversationSummary: Codable, Sendable, Hashable {
     public var title: String
     public var summary: String
+    /// 要点：整条录音的摘要由各段合成时用
+    public var keyPoints: [String]
     public var decisions: [String]
     public var todos: [String]
     public var people: [String]
     public var things: [String]
 
-    public init(title: String = "", summary: String = "", decisions: [String] = [], todos: [String] = [],
-                people: [String] = [], things: [String] = []) {
+    public init(title: String = "", summary: String = "", keyPoints: [String] = [], decisions: [String] = [],
+                todos: [String] = [], people: [String] = [], things: [String] = []) {
         self.title = title
         self.summary = summary
+        self.keyPoints = keyPoints
         self.decisions = decisions
         self.todos = todos
         self.people = people
         self.things = things
     }
 
-    enum Keys: String, CodingKey { case title, summary, decisions, todos, people, things }
+    enum Keys: String, CodingKey { case title, summary, keyPoints, decisions, todos, people, things }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: Keys.self)
@@ -258,6 +261,7 @@ public struct ConversationSummary: Codable, Sendable, Hashable {
         }
         title = (try? c.decodeIfPresent(String.self, forKey: .title)) ?? ""
         summary = (try? c.decodeIfPresent(String.self, forKey: .summary)) ?? ""
+        keyPoints = strings(.keyPoints)
         decisions = strings(.decisions)
         todos = strings(.todos)
         people = strings(.people)

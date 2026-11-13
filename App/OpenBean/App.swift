@@ -64,6 +64,8 @@ final class AppModel {
         glossaryBackfill.start()
         // 已转写的录音补算对话段（后台，缺了或过时了才算）
         library.conversations.backfill()
+        // 开着每日日记：今天和昨天的日记补一遍（等补算完；没变就不调用大模型）
+        library.notes.diary.catchUp()
         _ = updater
     }
 

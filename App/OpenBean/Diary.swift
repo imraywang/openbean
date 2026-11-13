@@ -1,0 +1,282 @@
+// SPDX-License-Identifier: Apache-2.0
+
+import Foundation
+import Observation
+import OpenBeanLibrary
+import OpenBeanVoice
+
+/// 每日日记：段摘要（写回 segments.json）→ 当天日记（Library/days/<日期>/day.json）→ 日记笔记（笔记文件夹/日记/<日期>.md）。
+///
+/// - 只在设置「每天写一篇日记」开着时做；切段（ConversationStore）不管开关、不花钱，照常做。
+/// - 所有大模型调用排在 NoteService 的队列里，和整条录音的摘要一个一个来。
+/// - 增量：段摘要只给还没有的段写（转写改了只有文字变了的段会丢掉旧摘要）；一天的输入（段的指纹和段摘要）
+///   没变就不重算日记，所以过去的日子不会反复调用大模型。什么时候算：一条录音转写完 / 重新摘要 / 词表改了字之后，
+///   算它涉及的那几天；App 启动和打开开关时算今天和昨天；「今天」页可以手动算某一天。
+/// - 失败（服务没开、超时、回复不可用）：已经写好的段摘要留着（每段是完整的），当天日记不写半成品，写日志，下次再试。
+@MainActor @Observable
+final class DiaryService {
+    @ObservationIgnored weak var notes: NoteService?
+    @ObservationIgnored private let settings: Settings
+    /// 日文件变了就加 1
+    private(set) var revision = 0
+    /// 正在写日记的天（yyyy-MM-dd）
+    private(set) var working: Set<String> = []
+    @ObservationIgnored private var cache: [String: DayFile] = [:]
+    @ObservationIgnored private var missing: Set<String> = []
+
+    init(settings: Settings) {
+        self.settings = settings
+    }
+
+    private var library: LibraryStore? { notes?.library }
+    var boundary: DayBoundary { DayBoundary(startHour: settings.dayStartHour) }
+    func key(_ day: Date) -> String { DayFile.key(day, calendar: boundary.calendar) }
+
+    // MARK: 读
+
+    /// 某一天（DayBoundary.day(of:) 给的那天 0 点）的日文件。「一天从几点开始」改过之后写的旧文件不算
+    func day(_ day: Date) -> DayFile? {
+        _ = revision
+        let k = key(day)
+        let f: DayFile?
+        if let c = cache[k] { f = c } else if missing.contains(k) { f = nil } else {
+            f = DayFile.read(DayFile.url(library: AppPaths.library, date: k))
+            if let f { cache[k] = f } else { missing.insert(k) }
+        }
+        guard let f, f.dayStartHour == settings.dayStartHour else { return nil }
+        return f
+    }
+
+    // MARK: 段摘要
+
+    /// 给这条录音还没有段摘要的段写段摘要（force：全部重写）。全部写完返回 true；服务不可用或出错返回 false（写日志）
+    @discardableResult
+    func summarizeConversations(_ id: UInt32, force: Bool) async -> Bool {
+        do { try await summarize(id, force: force); return true } catch {
+            Log.write("段摘要 \(id) 没写完：\(error)，下次再试")
+            return false
+        }
+    }
+
+    private func summarize(_ id: UInt32, force: Bool) async throws {
+        guard let library, let notes, let r = library.recordings.first(where: { $0.id == id }), r.transcribed, !r.isDictation else { return }
+        let todo = library.conversations.conversations(id).filter { force || $0.kind == nil }
+        guard !todo.isEmpty else { return }
+        guard let service = notes.service else { throw URLError(.badURL) }
+        guard await service.check() == .ok else { throw URLError(.cannotConnectToHost) }
+        let segs = library.transcript(id)
+        let summarizer = ConversationSummarizer(Summarizer(service: service, glossary: AppPaths.readGlossary()))
+        let t0 = Date()
+        var calls = 0, dropped = 0
+        for c in todo where c.to <= segs.count {
+            let res = try await summarizer.summarize(segs[c.lines].map { TimedLine(start: $0.start, text: $0.text) })
+            calls += res.calls
+            dropped += res.droppedNames
+            library.conversations.setSummary(id, index: c.index, hash: c.hash, kind: res.kind, summary: res.summary,
+                                             model: settings.polishModel)
+        }
+        Log.write(String(format: "段摘要 %u：%d 段，%d 次调用，%.0f 秒，丢掉转写里找不到的名字 %d 个",
+                         id, todo.count, calls, Date().timeIntervalSince(t0), dropped))
+    }
+
+    /// 开着日记时整条录音的摘要：以段摘要为准。一段直接用；多段时用合并提示词合成一份（一次调用）
+    func recordingSummary(_ id: UInt32, force: Bool) async throws -> RecordingSummary {
+        try await summarize(id, force: force)
+        guard let library, let service = notes?.service else { throw URLError(.badURL) }
+        let parts = library.conversations.conversations(id).compactMap(\.summary)
+            .map { RecordingSummary(title: $0.title, summary: $0.summary, keyPoints: $0.keyPoints, actionItems: $0.todos) }
+        guard !parts.isEmpty else { throw Summarizer.Failure.tooShort }
+        let sample = String(library.transcript(id).map(\.text).joined().prefix(4000))
+        return try await Summarizer(service: service, glossary: AppPaths.readGlossary()).merge(parts, languageSample: sample).0
+    }
+
+    // MARK: 日
+
+    /// 这条录音涉及的那几天（按段归天，再加上以前的日文件里引用过它的天）重算日记
+    func refreshDays(touching id: UInt32) async {
+        guard settings.dailyDiary, let library else { return }
+        var keys = Set(DayAssignment.days(of: library.conversations.conversations(id), boundary: boundary).keys)
+        keys.formUnion(daysReferencing(id))
+        for k in keys.sorted() { await refreshDay(k) }
+    }
+
+    /// 启动、打开开关时：今天和昨天（排进队列；先等切段补算跑完）
+    func catchUp() {
+        guard settings.dailyDiary, let notes, let library else { return }
+        let today = boundary.day(of: Date())
+        let keys = [key(boundary.day(today, offsetBy: -1)), key(today)]
+        notes.enqueue { [weak self] in
+            await library.conversations.waitForBackfill()
+            for k in keys { await self?.refreshDay(k) }
+        }
+    }
+
+    /// 「今天」页手动：重算某一天（排进队列）
+    func requestDay(_ day: Date) {
+        let k = key(day)
+        notes?.enqueue { [weak self] in await self?.refreshDay(k, force: true) }
+    }
+
+    /// 删了某条录音的本机副本：引用过它的那几天重算
+    func recordingRemoved(_ id: UInt32) {
+        guard settings.dailyDiary else { return }
+        let keys = daysReferencing(id)
+        guard !keys.isEmpty else { return }
+        notes?.enqueue { [weak self] in for k in keys.sorted() { await self?.refreshDay(k) } }
+    }
+
+    private func daysReferencing(_ id: UInt32) -> Set<String> {
+        let dir = AppPaths.library.appendingPathComponent("days")
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: dir.path)) ?? []
+        return Set(names.filter { name in
+            let f = cache[name] ?? DayFile.read(DayFile.url(library: AppPaths.library, date: name))
+            return f?.conversations.contains { $0.ref.recording == id } ?? false
+        })
+    }
+
+    /// 当天的段：开始时刻落在这一天里的（录音最早可以从前一天开始）
+    private func gather(_ interval: DateInterval) -> [(Recording, Conversation)] {
+        guard let library else { return [] }
+        var out: [(Recording, Conversation)] = []
+        for r in library.recordings where r.transcribed && !r.isDictation
+            && r.start < interval.end && r.start >= interval.start.addingTimeInterval(-86_400) {
+            for c in library.conversations.conversations(r.id) where c.wallStart >= interval.start && c.wallStart < interval.end {
+                out.append((r, c))
+            }
+        }
+        return out.sorted { $0.1.wallStart < $1.1.wallStart }
+    }
+
+    func refreshDay(_ key: String, force: Bool = false) async {
+        guard settings.dailyDiary, let library, let notes, let day0 = DayFile.day(key, calendar: boundary.calendar) else { return }
+        let url = DayFile.url(library: AppPaths.library, date: key)
+        var included = gather(boundary.interval(of: day0))
+        guard !included.isEmpty else {
+            // 这天的录音都删了：日文件跟着去掉（知识库里的日记笔记不动）
+            if FileManager.default.fileExists(atPath: url.path) {
+                try? FileManager.default.removeItem(at: url)
+                Log.write("日记 \(key)：已经没有录音，去掉日文件")
+            }
+            cache[key] = nil
+            missing.insert(key)
+            revision += 1
+            return
+        }
+        // 先把段摘要补齐；没补齐就不写（不写半成品）
+        for id in Set(included.filter { $0.1.kind == nil }.map(\.0.id)).sorted() {
+            guard await summarizeConversations(id, force: false) else {
+                Log.write("日记 \(key)：段摘要没写完，下次再试")
+                return
+            }
+        }
+        included = gather(boundary.interval(of: day0))
+        let sig = DayFile.signature(included.map { r, c in
+            let s = (try? JSONEncoder().encode(c.summary)).map { String(decoding: $0, as: UTF8.self) } ?? ""
+            return "\(r.id)#\(c.index)|\(c.hash)|\(c.kind ?? "")|\(s)"
+        } + ["diary-v1", "start=\(settings.dayStartHour)", "tz=\(TimeZone.current.identifier)"])
+        if !force, let old = DayFile.read(url), old.version == DayFile.currentVersion, old.signature == sig {
+            if notes.notesFolder != nil, noteRecord(key) == nil { writeNote(old) }
+            return
+        }
+        guard let service = notes.service, await service.check() == .ok else {
+            Log.write("日记 \(key)：服务不可用，下次再试")
+            return
+        }
+        working.insert(key)
+        defer { working.remove(key) }
+        let t0 = Date()
+        let inputs = included.map { r, c in
+            DiaryWriter.Input(ref: ConversationRef(recording: r.id, index: c.index), wallStart: c.wallStart, wallEnd: c.wallEnd,
+                              kind: c.kind, summary: c.summary,
+                              chars: library.transcript(r.id)[c.lines.clamped(to: 0..<library.transcript(r.id).count)].reduce(0) { $0 + $1.text.count })
+        }
+        let sample = String(included.flatMap { r, c in
+            let t = library.transcript(r.id)
+            return t[c.lines.clamped(to: 0..<t.count)].map(\.text)
+        }.joined().prefix(4000))
+        let out: DiaryWriter.Output
+        do {
+            out = try await DiaryWriter(Summarizer(service: service, glossary: AppPaths.readGlossary())).write(inputs, languageSample: sample)
+        } catch {
+            Log.write("日记 \(key) 没写成：\(error)，下次再试")
+            return
+        }
+        let secs = Date().timeIntervalSince(t0)
+        let day = DayFile(date: key, timeZone: TimeZone.current.identifier, dayStartHour: settings.dayStartHour, signature: sig,
+                          status: out.status,
+                          conversations: included.map { r, c in
+                              DayConversation(ref: ConversationRef(recording: r.id, index: c.index), wallStart: c.wallStart,
+                                              wallEnd: c.wallEnd, wallApprox: c.wallApprox, kind: c.kind,
+                                              title: c.summary?.title, summary: c.summary?.summary)
+                          },
+                          diary: out.diary, model: settings.polishModel, createdAt: Date(),
+                          stats: DayStats(calls: out.calls, seconds: secs, dropped: out.dropped))
+        do {
+            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try day.encoded().write(to: url, options: .atomic)
+        } catch {
+            Log.write("写日文件失败 \(key)：\(error)")
+            return
+        }
+        cache[key] = day
+        missing.remove(key)
+        revision += 1
+        Log.write(String(format: "已写日记 %@：%d 段，%@，%d 次调用，%.0f 秒，丢掉出处对不上的 %d 条",
+                         key, included.count, out.status.rawValue, out.calls, secs, out.dropped))
+        writeNote(day)
+    }
+
+    // MARK: 日记笔记
+
+    private func noteRecordURL(_ key: String) -> URL { DayFile.folder(library: AppPaths.library, date: key).appendingPathComponent("note.json") }
+
+    private func noteRecord(_ key: String) -> NoteRecord? {
+        guard let d = try? Data(contentsOf: noteRecordURL(key)) else { return nil }
+        return try? JSONDecoder().decode(NoteRecord.self, from: d)
+    }
+
+    /// 日记笔记所在的子文件夹
+    var noteFolder: URL? {
+        guard let dir = notes?.notesFolder else { return nil }
+        let name = settings.diaryFolder.trimmingCharacters(in: .whitespacesAndNewlines)
+        return dir.appendingPathComponent(name.isEmpty ? String(localized: "Diary") : NoteTemplate.sanitize(name), isDirectory: true)
+    }
+
+    /// 写（或重写）某天的日记笔记。规则同逐条笔记：没被改过就原地覆盖；用户改过就不动它，另写一份
+    func writeNote(_ day: DayFile) {
+        guard settings.dailyDiary, let notes, let folder = noteFolder else { return }
+        let fm = FileManager.default
+        try? fm.createDirectory(at: folder, withIntermediateDirectories: true)
+        var target: URL?
+        if let rec = noteRecord(day.date) {
+            let old = URL(fileURLWithPath: rec.path)
+            if old.deletingLastPathComponent().standardizedFileURL.path == folder.standardizedFileURL.path, fm.fileExists(atPath: old.path) {
+                let mod = (try? fm.attributesOfItem(atPath: old.path)[.modificationDate] as? Date) ?? .distantPast
+                if mod.timeIntervalSince(rec.writtenAt) > 2 { Log.write("日记笔记被改过，另写一份：\(old.lastPathComponent)") } else { target = old }
+            }
+        }
+        if target == nil {
+            var name = "\(day.date).md", n = 2
+            while fm.fileExists(atPath: folder.appendingPathComponent(name).path) { name = "\(day.date)-\(n).md"; n += 1 }
+            target = folder.appendingPathComponent(name)
+        }
+        guard let url = target else { return }
+        var links: [ConversationRef: String] = [:]
+        for c in day.conversations {
+            links[c.ref] = notes.noteURL(c.ref.recording).map { DiaryNote.siblingLink($0.lastPathComponent) } ?? "openbean://open/\(c.ref.recording)"
+        }
+        let ids = Array(Set(day.conversations.map(\.ref.recording))).sorted()
+        let spoken = day.conversations.reduce(0.0) { $0 + max($1.wallEnd.timeIntervalSince($1.wallStart), 0) }
+        let frozen = links
+        let text = DiaryNote.render(.init(day: day, recordedSeconds: spoken, recordings: ids) { frozen[$0] ?? "openbean://open/\($0.recording)" })
+        do {
+            try text.write(to: url, atomically: true, encoding: .utf8)
+        } catch {
+            Log.write("写日记笔记失败 \(day.date)：\(error)")
+            return
+        }
+        let mod = (try? fm.attributesOfItem(atPath: url.path)[.modificationDate] as? Date) ?? Date()
+        if let d = try? JSONEncoder().encode(NoteRecord(path: url.path, writtenAt: mod)) { try? d.write(to: noteRecordURL(day.date), options: .atomic) }
+        Log.write("已写日记笔记 \(day.date)：\(url.lastPathComponent)")
+    }
+}

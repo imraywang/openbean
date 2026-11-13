@@ -264,11 +264,11 @@ public struct Summarizer: Sendable {
                                 actionItems: list("action_items", "actionItems", "Action items", "待办"))
     }
 
-    private static func clean(_ s: String) -> String {
+    static func clean(_ s: String) -> String {
         s.replacingOccurrences(of: "\r", with: "").trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    private static func stripBullet(_ s: String) -> String {
+    static func stripBullet(_ s: String) -> String {
         var t = s
         for p in ["- [ ] ", "- ", "* ", "• ", "· "] where t.hasPrefix(p) { t.removeFirst(p.count) }
         // 模型把「没有负责人」写成结尾的 [无]、(none) 之类，去掉
@@ -277,12 +277,12 @@ public struct Summarizer: Sendable {
         return t.trimmingCharacters(in: .whitespaces)
     }
 
-    private static func isNone(_ s: String) -> Bool {
+    static func isNone(_ s: String) -> Bool {
         ["none", "n/a", "无", "没有", "暂无", "（无）", "(none)"].contains(s.lowercased())
     }
 
     /// 模型把提示里的示例原样抄回来
-    private static func looksLikePlaceholder(_ s: String) -> Bool {
+    static func looksLikePlaceholder(_ s: String) -> Bool {
         s == "..." || s == "…" || s.allSatisfy { $0 == "." || $0 == "…" }
     }
 
@@ -354,6 +354,31 @@ public struct Summarizer: Sendable {
             if merged.count == 1 { progress?(1); return Self.corrected(Self.capped(merged[0]), with: corrector) }
             parts = merged
         }
+    }
+
+    /// 把几份已有的摘要（例如一条录音各段对话的摘要）合并成整条录音的一份，用和长录音分块时同一个合并提示词。
+    /// 只有一份时原样返回、不调用大模型。languageSample：判断输出语言用的原文（转写），不要传摘要
+    public func merge(_ parts: [RecordingSummary], languageSample: String) async throws -> (RecordingSummary, calls: Int) {
+        var level = parts
+        guard !level.isEmpty else { throw Failure.empty }
+        if level.count == 1 { return (level[0], 0) }
+        let lang = Self.languageLine(for: languageSample) + Self.termsLine(glossary)
+        let corrector = GlossaryCorrector(terms: glossary)
+        let session = service.makeSession(timeout: timeout)
+        var calls = 0
+        while level.count > 1 {
+            var next: [RecordingSummary] = []
+            let groups = Self.group(level, budget: budget)
+            for g in groups {
+                if g.count == 1 && groups.count > 1 { next.append(g[0]); continue }
+                let user = "Partial summaries, in order:\n\n" + g.enumerated().map { Self.render($0.element, index: $0.offset + 1) }
+                    .joined(separator: "\n\n")
+                calls += 1
+                next.append(try await ask(Self.mergePrompt + "\n" + lang, user, session: session))
+            }
+            level = next
+        }
+        return (Self.corrected(Self.capped(level[0]), with: corrector), calls)
     }
 
     /// 局部摘要按预算分组（每组至少两份，保证每轮都在变少）

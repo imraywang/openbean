@@ -146,6 +146,10 @@ final class Settings {
     var keepHistory: Bool { didSet { d.set(keepHistory, forKey: "keepHistory") } }
     /// 转写完用大模型（润色那个服务）写摘要
     var summarizeRecordings: Bool { didSet { d.set(summarizeRecordings, forKey: "summarizeRecordings") } }
+    /// 每天写一篇日记：给每段对话写段摘要、合成当天的日记（会多调用大模型）；切段本身不受影响
+    var dailyDiary: Bool { didSet { d.set(dailyDiary, forKey: "dailyDiary") } }
+    /// 日记笔记放在笔记文件夹的哪个子文件夹；空 = 默认（按 App 语言，「日记」或 Diary）
+    var diaryFolder: String { didSet { d.set(diaryFolder, forKey: "diaryFolder") } }
     /// 每条录音在下面这个文件夹里写一份 Markdown 笔记
     var notesEnabled: Bool { didSet { d.set(notesEnabled, forKey: "notesEnabled") } }
     /// 笔记文件夹（如 Obsidian 库里的某个文件夹）；空 = 没选
@@ -165,6 +169,7 @@ final class Settings {
                               "onboardingDone": false, "buttonDictates": true, "readySound": true,
                               "keepHistory": true, "autoSync": true, "summarizeRecordings": false,
                               "notesEnabled": false, "notesFolder": "", "dayStartHour": 4,
+                              "dailyDiary": false, "diaryFolder": "",
                               "deleteDictationAudio": Self.deleteDictationAudioDefault])
         typeIntoApp = d.bool(forKey: "typeIntoApp")
         polishEnabled = d.bool(forKey: "polishEnabled")
@@ -184,6 +189,8 @@ final class Settings {
         dayStartHour = d.integer(forKey: "dayStartHour")
         summarizeRecordings = d.bool(forKey: "summarizeRecordings")
         notesEnabled = d.bool(forKey: "notesEnabled")
+        dailyDiary = d.bool(forKey: "dailyDiary")
+        diaryFolder = d.string(forKey: "diaryFolder") ?? ""
         notesFolder = d.string(forKey: "notesFolder") ?? ""
         deleteDictationAudio = d.bool(forKey: "deleteDictationAudio")
     }

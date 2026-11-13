@@ -22,7 +22,8 @@ let package = Package(
         .systemLibrary(name: "CSherpaOnnx", path: "Sources/CSherpaOnnx"),
         .target(
             name: "OpenBeanVoice",
-            dependencies: ["OpenBeanKit", "CSherpaOnnx"],
+            // OpenBeanLibrary：对话段和日记的数据格式（段摘要、日记合成写的就是它们）
+            dependencies: ["OpenBeanKit", "OpenBeanLibrary", "CSherpaOnnx"],
             linkerSettings: [
                 // 绝对路径：Xcode 工程（App/）编译这个包时工作目录不是包根目录
                 .unsafeFlags(["-L\(Context.packageDirectory)/Vendor/sherpa-onnx/lib",
