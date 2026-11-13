@@ -15,6 +15,12 @@ struct StoredSummary: Codable, Sendable {
     var appliedTitle: String?
 }
 
+/// <录音>/todos.json：勾掉的待办（按原文记，重新摘要后文字变了的就算没勾）。不改 summary.json，
+/// MCP 读的只读库（OpenBeanLibrary）也不看它
+struct TodoState: Codable, Sendable {
+    var done: [String] = []
+}
+
 /// 这条录音写到知识库里的笔记（note.json）：路径和写入后的修改时间
 struct NoteRecord: Codable {
     var path: String
@@ -68,6 +74,42 @@ final class NoteService {
         return s
     }
 
+    // MARK: 待办的勾选状态
+
+    private func todosURL(_ id: UInt32) -> URL { AppPaths.library.appendingPathComponent(String(id)).appendingPathComponent("todos.json") }
+
+    private func doneSet(_ id: UInt32) -> Set<String> {
+        if let s = todoDone[id] { return s }
+        let s = (try? Data(contentsOf: todosURL(id))).flatMap { try? JSONDecoder().decode(TodoState.self, from: $0) }.map { Set($0.done) } ?? []
+        todoDone[id] = s
+        return s
+    }
+
+    func isDone(_ id: UInt32, _ item: String) -> Bool {
+        _ = revision
+        return doneSet(id).contains(item)
+    }
+
+    func setDone(_ id: UInt32, _ item: String, _ done: Bool) {
+        var s = doneSet(id)
+        if done { s.insert(item) } else { s.remove(item) }
+        todoDone[id] = s
+        // 只记还在摘要里的待办，免得越存越多
+        let current = summaries[id]?.summary.actionItems ?? []
+        let state = TodoState(done: current.filter { s.contains($0) })
+        if let d = try? JSONEncoder().encode(state) { try? d.write(to: todosURL(id), options: .atomic) }
+        revision += 1
+    }
+
+    /// 这条录音还没勾掉的待办（只看缓存里的摘要）
+    func openTodos(_ id: UInt32) -> [String] {
+        guard let items = cachedSummary(id)?.actionItems, !items.isEmpty else { return [] }
+        let done = todoDone[id] ?? []
+        return items.filter { !done.contains($0) }
+    }
+
+    @ObservationIgnored private var todoDone: [UInt32: Set<String>] = [:]
+
     /// 只看缓存，不读盘（侧栏数字、「今天」这类一次要看很多条的地方用；配合 preload）
     func cachedSummary(_ id: UInt32) -> RecordingSummary? {
         _ = revision
@@ -82,13 +124,20 @@ final class NoteService {
         let root = AppPaths.library
         Task.detached(priority: .utility) {
             var found: [UInt32: StoredSummary] = [:]
+            var done: [UInt32: Set<String>] = [:]
             for id in todo {
-                let url = root.appendingPathComponent(String(id)).appendingPathComponent("summary.json")
-                if let d = try? Data(contentsOf: url), let s = try? JSONDecoder().decode(StoredSummary.self, from: d) { found[id] = s }
+                let dir = root.appendingPathComponent(String(id))
+                if let d = try? Data(contentsOf: dir.appendingPathComponent("summary.json")),
+                   let s = try? JSONDecoder().decode(StoredSummary.self, from: d) {
+                    found[id] = s
+                    if let t = try? Data(contentsOf: dir.appendingPathComponent("todos.json")),
+                       let state = try? JSONDecoder().decode(TodoState.self, from: t) { done[id] = Set(state.done) }
+                }
             }
             await MainActor.run {
                 for id in todo {
                     self.preloading.remove(id)
+                    if self.todoDone[id] == nil, found[id] != nil { self.todoDone[id] = done[id] ?? [] }
                     // 读盘期间刚生成的新摘要优先
                     if self.summaries[id] == nil {
                         if let s = found[id] { self.summaries[id] = s } else { self.noSummary.insert(id) }
@@ -108,6 +157,7 @@ final class NoteService {
     /// 删除本机副本时调用（summary.json / note.json 跟着录音文件夹一起删了；知识库里的笔记不动）
     func forget(_ id: UInt32) {
         summaries[id] = nil
+        todoDone[id] = nil
         noSummary.remove(id)
         errors[id] = nil
         revision += 1
@@ -365,7 +415,7 @@ final class NoteService {
 
 // MARK: - 界面
 
-/// 详情页转写上方的摘要卡片
+/// 详情页标题下面的摘要：摘要做导语，接着是能勾选的待办和要点（按文档排，不再放在灰底卡片里）
 struct SummaryCard: View {
     let recording: Recording
     let notes: NoteService
@@ -375,7 +425,7 @@ struct SummaryCard: View {
         let s = notes.summary(recording.id)
         let error = notes.errors[recording.id]
         if progress != nil || s != nil || error != nil {
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 16) {
                 if let progress {
                     HStack(spacing: 10) {
                         ProgressView(value: progress).frame(width: 120)
@@ -383,35 +433,59 @@ struct SummaryCard: View {
                     }
                 }
                 if let s {
-                    Text(s.summary).font(.system(size: 15)).lineSpacing(4).textSelection(.enabled)
-                    if !s.keyPoints.isEmpty {
-                        section("Key points", items: s.keyPoints, symbol: "circle.fill", size: 5)
-                    }
+                    Text(s.summary)
+                        .font(.system(size: 17)).lineSpacing(5)
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
                     if !s.actionItems.isEmpty {
-                        section("Action items", items: s.actionItems, symbol: "square", size: 11)
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Action items").font(.headline)
+                            ForEach(Array(s.actionItems.enumerated()), id: \.offset) { _, t in
+                                TodoRow(text: t, done: Binding(get: { notes.isDone(recording.id, t) },
+                                                               set: { notes.setDone(recording.id, t, $0) }))
+                            }
+                        }
+                    }
+                    if !s.keyPoints.isEmpty {
+                        VStack(alignment: .leading, spacing: 5) {
+                            Text("Key points").font(.headline)
+                            ForEach(Array(s.keyPoints.enumerated()), id: \.offset) { _, t in
+                                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                                    Text(verbatim: "•").foregroundStyle(.secondary)
+                                    Text(t).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
+                                }
+                            }
+                        }
                     }
                 }
                 if let error {
                     Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(.orange).font(.callout)
                 }
             }
-            .padding(16)
-            .frame(maxWidth: 700, alignment: .leading)
-            .background(RoundedRectangle(cornerRadius: 10).fill(Color.secondary.opacity(0.08)))
-            .padding(.bottom, 8)
+            .frame(maxWidth: 680, alignment: .leading)
         }
     }
+}
 
-    private func section(_ title: LocalizedStringKey, items: [String], symbol: String, size: CGFloat) -> some View {
-        VStack(alignment: .leading, spacing: 5) {
-            Text(title).font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
-            ForEach(Array(items.enumerated()), id: \.offset) { _, t in
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Image(systemName: symbol).font(.system(size: size)).foregroundStyle(.secondary)
-                    Text(t).textSelection(.enabled)
-                }
+/// 一条能勾选的待办（详情页和「今天」共用）。勾掉的划线变灰，状态存在本机
+struct TodoRow: View {
+    let text: String
+    @Binding var done: Bool
+    var source: String? = nil
+
+    var body: some View {
+        Toggle(isOn: $done) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(text)
+                    .strikethrough(done)
+                    .foregroundStyle(done ? .secondary : .primary)
+                    .fixedSize(horizontal: false, vertical: true)
+                if let source { Text(verbatim: "— \(source)").foregroundStyle(.secondary).lineLimit(1) }
             }
         }
+        .toggleStyle(.checkbox)
+        .accessibilityLabel(Text(text))
+        .accessibilityValue(Text(done ? "Done" : "Not done"))
     }
 }
 

@@ -126,14 +126,14 @@ final class LibraryStore {
     /// 某个筛选下有几条（侧栏的数字）
     func count(_ f: Filter) -> Int { recordings.reduce(0) { $0 + (includes($1, in: f) ? 1 : 0) } }
 
-    /// 语音输入片段不进录音库；「有待办」只看已经在缓存里的摘要（NoteService.preload 在后台读盘）
+    /// 语音输入片段不进录音库；「有待办」= 还有没勾掉的待办，只看已经在缓存里的摘要（NoteService.preload 在后台读盘）
     func includes(_ r: Recording, in f: Filter) -> Bool {
         guard !r.isDictation else { return false }
         switch f {
         case .all: return true
         case .onRecorder: return !r.downloaded
         case .untranscribed: return r.downloaded && !r.transcribed
-        case .todos: return notes.cachedSummary(r.id)?.actionItems.isEmpty == false
+        case .todos: return !notes.openTodos(r.id).isEmpty
         }
     }
 

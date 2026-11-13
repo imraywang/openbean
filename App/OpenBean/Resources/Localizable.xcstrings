@@ -382,16 +382,6 @@
         }
       }
     },
-    "All recordings": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "全部录音"
-          }
-        }
-      }
-    },
     "All synced": {
       "localizations": {
         "zh-Hans": {
@@ -458,16 +448,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "正在让录音豆开启 Wi‑Fi…"
-          }
-        }
-      }
-    },
-    "Audio (Ogg Opus)…": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "音频（Ogg Opus）…"
           }
         }
       }
@@ -728,6 +708,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "清除记录…"
+          }
+        }
+      }
+    },
+    "Click a sentence to play from there": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "点一句从那里开始播放"
           }
         }
       }
@@ -1052,22 +1042,22 @@
         }
       }
     },
-    "Dictation clips": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "听写片段"
-          }
-        }
-      }
-    },
     "Done": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "完成"
+            "value": "已完成"
+          }
+        }
+      }
+    },
+    "Double-click to rename": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "双击重命名"
           }
         }
       }
@@ -1242,16 +1232,6 @@
         }
       }
     },
-    "Export": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "导出"
-          }
-        }
-      }
-    },
     "Export audio (Ogg Opus)…": {
       "localizations": {
         "zh-Hans": {
@@ -1268,26 +1248,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "导出转写（Markdown）…"
-          }
-        }
-      }
-    },
-    "Filter": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "筛选"
-          }
-        }
-      }
-    },
-    "Filter recordings": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "筛选录音"
           }
         }
       }
@@ -1612,16 +1572,6 @@
         }
       }
     },
-    "No matches": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "没有匹配的录音"
-          }
-        }
-      }
-    },
     "No recordings": {
       "localizations": {
         "zh-Hans": {
@@ -1738,6 +1688,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "未连接：%@"
+          }
+        }
+      }
+    },
+    "Not done": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未完成"
           }
         }
       }
@@ -1908,16 +1868,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "仅云端服务需要"
-          }
-        }
-      }
-    },
-    "Only on recorder": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "只在录音豆上"
           }
         }
       }
@@ -2328,6 +2278,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "去掉口头禅，按个人词表纠正同音字，保留你的说法。"
+          }
+        }
+      }
+    },
+    "Rename": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重命名"
           }
         }
       }
@@ -3332,12 +3292,12 @@
         }
       }
     },
-    "Transcript as Markdown…": {
+    "Transcript": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "转写文字（Markdown）…"
+            "value": "全文"
           }
         }
       }
@@ -3358,16 +3318,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "触发"
-          }
-        }
-      }
-    },
-    "Try another word.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "换个词试试。"
           }
         }
       }

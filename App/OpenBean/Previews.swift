@@ -18,6 +18,7 @@ enum PreviewFixtures {
         // 不在 Xcode 预览里（例如单元测试里误用）就停下，免得读到真实数据目录
         precondition(Flavor.isFake, "PreviewFixtures 只能在 Xcode 预览里用")
         DemoState.trustedValue = trusted
+        DemoState.shared.playAt = nil
         let m = AppModel()
         m.models.demoSet(models)
         DemoController.apply(state: state, to: m)
@@ -112,6 +113,13 @@ private struct PreviewFrame<Content: View>: View {
     PreviewFrame(dark: true, width: 860) {
         RecordingDetail(recording: PreviewFixtures.recording("summary", in: m), library: m.library, device: m.device)
     }
+}
+#Preview("录音详情 · 勾了一条待办 · 正在播放") {
+    let m = PreviewFixtures.model()
+    let r = PreviewFixtures.recording("summary", in: m)
+    let _ = m.library.notes.summary(r.id).map { m.library.notes.setDone(r.id, $0.actionItems[0], true) }
+    let _ = DemoState.shared.playAt = 75
+    PreviewFrame(width: 860) { RecordingDetail(recording: r, library: m.library, device: m.device) }
 }
 #Preview("录音详情 · 没转写") {
     let m = PreviewFixtures.model()

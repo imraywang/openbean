@@ -9,7 +9,7 @@
 //   hud/hidden|starting|listening|polishing|wrapping|typed|copied|nothing|error
 //   page/overview|library|dictation|recorder   settings/voice|polish|library|agent|about（设置窗口）
 //   select/summary|untranscribed|ondevice|long|none   search/<词>   filter/all|onRecorder|untranscribed|todos
-//   onboarding/<0–4>   close/onboarding|main|settings   window/main|onboarding/<宽>x<高>   appearance/light|dark|auto
+//   play/<秒>|off   todo/check|clear   onboarding/<0–4>   close/onboarding|main|settings   window/main|onboarding/<宽>x<高>   appearance/light|dark|auto
 //   trusted/yes|no   models/ready|missing|downloading   menu/open   ping   quit
 // 数据档：启动参数 -demoProfile empty 用空数据目录 openbean-demo-empty（第一次用：空库、没连过设备、向导未完成）。
 // Debug 构建里也编进来：Xcode 预览（Previews.swift）用同一套假数据，见 Flavor.isPreview。
@@ -28,6 +28,8 @@ final class DemoState {
     var query = ""
     /// 向导停在第几步
     var onboardingStep = 0
+    /// 详情页假装正在播放到第几秒（nil：没在播放）
+    var playAt: Double?
     /// 假装已经有辅助功能权限
     nonisolated(unsafe) static var trustedValue = true
     var trusted: Bool { get { access(keyPath: \.trusted); return Self.trustedValue }
@@ -167,17 +169,32 @@ enum DemoData {
         return out
     }
 
-    /// 把一段台词铺满录音时长：短录音一句接一句，长录音句子间隔拉开、台词循环
+    /// 把一段台词铺满录音时长，像真的说话一样：两三句连着说（句间停顿不到一秒），然后停一下换个话头。
+    /// 长录音台词循环；话头之间的停顿按剩余时长拉开
     static func transcript(_ lines: [String], seconds: Double, rng: inout RNG) -> [TranscriptSegment] {
         guard !lines.isEmpty else { return [] }
         let n = min(240, max(lines.count, Int(seconds / 14)))
-        let step = max((seconds - 2) / Double(n), 2)
-        return (0..<n).map { i in
-            let text = lines[i % lines.count]
-            let start = 1.2 + Double(i) * step + rng.range(0, min(step * 0.3, 2))
-            let len = min(Double(text.count) * 0.22 + 1, step * 0.9)
-            return TranscriptSegment(start: start, end: min(start + len, seconds), text: text)
+        let lens = (0..<n).map { i in Double(lines[i % lines.count].count) * 0.22 + 1 }
+        // 先分组：每组 2–4 句
+        var groups: [Int] = []
+        var left = n
+        while left > 0 { let g = min(left, 2 + Int(rng.next() % 3)); groups.append(g); left -= g }
+        let talk = lens.reduce(0, +) + Double(n) * 0.6
+        let pause = max((seconds - 2 - talk) / Double(max(groups.count, 1)), 2.6)
+        var out: [TranscriptSegment] = []
+        var t = 1.2
+        var i = 0
+        for g in groups {
+            for _ in 0..<g {
+                let len = lens[i]
+                let end = min(t + len, seconds)
+                out.append(TranscriptSegment(start: t, end: end, text: lines[i % lines.count]))
+                t = end + rng.range(0.3, 0.9)
+                i += 1
+            }
+            t += pause
         }
+        return out
     }
 
     static func dictationEntries(_ today: Date) -> [DictationEntry] {
@@ -476,6 +493,15 @@ final class DemoController {
             if let f = LibraryStore.Filter(rawValue: arg) { m.library.filter = f }
             m.library.selection = m.library.visible.first?.id
             m.nav.section = .library
+        case "play":
+            // play/<秒>：详情页假装播放到这里（看跟随高亮）；play/off 停
+            DemoState.shared.playAt = Double(arg)
+            m.library.selection = m.library.selection // 重新出现时读
+        case "todo":
+            // todo/check：把选中录音的第一条待办勾上；todo/clear：全部取消
+            if let id = m.library.selection, let items = m.library.notes.summary(id)?.actionItems {
+                for (i, t) in items.enumerated() { m.library.notes.setDone(id, t, arg == "check" && i == 0) }
+            }
         case "onboarding":
             DemoState.shared.onboardingStep = Int(arg) ?? 0
             openWindow?(id: "onboarding")

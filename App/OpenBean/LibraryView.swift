@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import AVFoundation
+import OpenBeanVoice
 import Observation
 import SwiftUI
 
@@ -220,20 +221,23 @@ struct RecordingDetail: View {
     @State private var player = PlayerModel()
     @State private var confirmWifi = false
     @State private var saveNote = false
+    @State private var editingTitle = false
     @FocusState private var titleFocused: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            header.padding(.horizontal, 28).padding(.top, 20).padding(.bottom, 14)
+        Group {
             if recording.downloaded {
-                PlayerStrip(player: player, peaks: library.peaks(recording.id))
-                    .padding(.horizontal, 28).padding(.bottom, 12)
-                Divider()
-                transcript
+                document
             } else {
-                Divider()
-                notDownloaded.padding(28)
-                Spacer()
+                VStack(alignment: .leading, spacing: 16) {
+                    header
+                    Divider()
+                    notDownloaded
+                    Spacer()
+                }
+                .frame(maxWidth: 680, alignment: .leading)
+                .padding(.horizontal, 32).padding(.top, 20)
+                .frame(maxWidth: .infinity)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -242,14 +246,17 @@ struct RecordingDetail: View {
             title = recording.title ?? ""
             if recording.downloaded { player.load(library.audioURL(recording.id)) }
             #if DEMO || DEBUG
-            if Flavor.isFake { player.demoDuration(recording.duration) } // 演示版、预览没有音频，时长按录音算
+            if Flavor.isFake {
+                player.demoDuration(recording.duration) // 演示版、预览没有音频，时长按录音算
+                if let t = DemoState.shared.playAt { player.demoPlaying(at: t) } // 看「正在播放」的高亮
+            }
             #endif
         }
         .task(id: recording.downloaded) { await library.loadPeaks(recording.id) }
         .onChange(of: recording.downloaded) { _, now in if now { player.load(library.audioURL(recording.id)) } }
         .onDisappear { player.stop() }
-        // 摘要可能给录音起了标题：没在编辑时跟着更新输入框，免得失焦时把它改回空
-        .onChange(of: recording.title) { _, t in if !titleFocused { title = t ?? "" } }
+        // 摘要可能给录音起了标题：没在编辑时跟着更新，免得把它改回空
+        .onChange(of: recording.title) { _, t in if !editingTitle { title = t ?? "" } }
         .modifier(SaveNoteModifier(recording: recording, notes: library.notes, request: $saveNote))
         .confirmationDialog("Download over Wi‑Fi?", isPresented: $confirmWifi) {
             Button("Download over Wi‑Fi") { Task { await library.syncViaWifi(ids: [recording.id]) } }
@@ -258,20 +265,99 @@ struct RecordingDetail: View {
         }
     }
 
-    private var header: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            TextField("Title", text: $title, prompt: Text(recording.displayTitle))
-                .textFieldStyle(.plain)
-                .font(.system(size: 22, weight: .semibold))
-                .focused($titleFocused)
-                .onSubmit { library.rename(recording.id, to: title) }
-                .onChange(of: titleFocused) { _, f in if !f { library.rename(recording.id, to: title) } }
-            // 没有自定义标题时，大标题已经是日期，这里只补星期和时长
-            Text(recording.title?.isEmpty == false
-                 ? "\(recording.start.formatted(date: .complete, time: .shortened)) · \(LibraryStore.clock(recording.duration))"
-                 : "\(recording.start.formatted(.dateTime.weekday(.wide))) · \(LibraryStore.clock(recording.duration))")
-                .font(.callout).foregroundStyle(.secondary)
+    /// 按文档排：标题、摘要导语、待办、要点、全文（按停顿并成段落）；播放条浮在底部
+    private var document: some View {
+        let segs = library.transcript(recording.id)
+        let paras = TranscriptParagraphs.group(segs)
+        let current = player.playing ? segs.firstIndex { player.time >= $0.start && player.time < $0.end + 0.3 } : nil
+        return ScrollViewReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 22) {
+                    header
+                    SummaryCard(recording: recording, notes: library.notes)
+                    transcript(segs, paras: paras, current: current)
+                }
+                .frame(maxWidth: 680, alignment: .leading)
+                .padding(.horizontal, 32).padding(.top, 20)
+                .padding(.bottom, 96) // 给浮动播放条留位置
+                .frame(maxWidth: .infinity)
+            }
+            .onChange(of: current) { _, i in
+                guard let i, let p = paras.firstIndex(where: { $0.contains(i) }) else { return }
+                withAnimation { proxy.scrollTo(p, anchor: .center) }
+            }
         }
+        // 点一句从那里播放：每句是一个 openbean-seek://<下标> 链接
+        .environment(\.openURL, OpenURLAction { url in
+            if url.scheme == "openbean-seek", let i = Int(url.host ?? ""), segs.indices.contains(i) {
+                player.play(from: segs[i].start)
+            }
+            return .handled
+        })
+        .overlay(alignment: .bottom) {
+            PlayerStrip(player: player, peaks: library.peaks(recording.id))
+                .padding(.leading, 8).padding(.trailing, 18).padding(.vertical, 8)
+                // 玻璃染上窗口底色：转写文字从下面滚过时，波形和时间也看得清（系统设置里把玻璃调到最透时也一样）
+                .glassEffect(.regular.tint(Color(nsColor: .windowBackgroundColor).opacity(0.92)), in: .capsule)
+                .shadow(color: .black.opacity(0.08), radius: 10, y: 3)
+                .frame(maxWidth: 680)
+                .padding(.horizontal, 32).padding(.bottom, 16)
+        }
+    }
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(meta).font(.callout).foregroundStyle(.secondary)
+            if editingTitle {
+                TextField("Title", text: $title, prompt: Text(recording.displayTitle))
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 26, weight: .bold))
+                    .focused($titleFocused)
+                    .onSubmit { commitTitle() }
+                    .onExitCommand { title = recording.title ?? ""; editingTitle = false }
+                    .onChange(of: titleFocused) { _, f in if !f && editingTitle { commitTitle() } }
+            } else {
+                // 平时是文字：双击、回车或右键「重命名」才变成输入框
+                Text(recording.displayTitle)
+                    .font(.system(size: 26, weight: .bold))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .onTapGesture(count: 2) { startEditing() }
+                    .contextMenu { Button("Rename") { startEditing() } }
+                    .help("Double-click to rename")
+                    .accessibilityAddTraits(.isHeader)
+                    .accessibilityAction(named: Text("Rename")) { startEditing() }
+            }
+        }
+        .background {
+            Button("Rename") { startEditing() }
+                .keyboardShortcut(.return, modifiers: [])
+                .disabled(editingTitle)
+                .opacity(0).frame(width: 0, height: 0).accessibilityHidden(true)
+        }
+    }
+
+    /// 「2026年11月13日 星期五 上午10:00 · 58:06 · 已转写」
+    private var meta: String {
+        // 没有自定义标题时，大标题已经是日期和时间，这里只补星期
+        let when = recording.title?.isEmpty == false
+            ? recording.start.formatted(date: .complete, time: .shortened)
+            : recording.start.formatted(.dateTime.weekday(.wide))
+        var parts = [when, LibraryStore.clock(recording.duration)]
+        if library.transcribing[recording.id] != nil { parts.append(String(localized: "Transcribing…")) }
+        else if !recording.downloaded { parts.append(String(localized: "On your recorder")) }
+        else if !recording.transcribed { parts.append(String(localized: "Not transcribed")) }
+        return parts.joined(separator: " · ")
+    }
+
+    private func startEditing() {
+        title = recording.title ?? ""
+        editingTitle = true
+        DispatchQueue.main.async { titleFocused = true }
+    }
+
+    private func commitTitle() {
+        library.rename(recording.id, to: title)
+        editingTitle = false
     }
 
     @ToolbarContentBuilder private var toolbar: some ToolbarContent {
@@ -314,8 +400,7 @@ struct RecordingDetail: View {
         }
     }
 
-    @ViewBuilder private var transcript: some View {
-        let segs = library.transcript(recording.id)
+    @ViewBuilder private func transcript(_ segs: [TranscriptSegment], paras: [Range<Int>], current: Int?) -> some View {
         if segs.isEmpty {
             VStack(alignment: .leading, spacing: 10) {
                 if library.transcribing[recording.id] != nil {
@@ -327,37 +412,16 @@ struct RecordingDetail: View {
                     }
                 }
             }
-            .padding(28)
-            Spacer()
         } else {
-            ScrollViewReader { proxy in
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 10) {
-                        SummaryCard(recording: recording, notes: library.notes)
-                        ForEach(Array(segs.enumerated()), id: \.offset) { i, s in
-                            let current = player.playing && player.time >= s.start && player.time < s.end + 0.3
-                            HStack(alignment: .firstTextBaseline, spacing: 14) {
-                                Text(LibraryStore.clock(s.start))
-                                    .font(.caption.monospacedDigit()).foregroundStyle(.tertiary)
-                                    .frame(width: 46, alignment: .trailing)
-                                Text(s.text)
-                                    .font(.system(size: 15))
-                                    .lineSpacing(4)
-                                    .textSelection(.enabled)
-                                    .foregroundStyle(current ? Color.accentColor : .primary)
-                                    .frame(maxWidth: 640, alignment: .leading)
-                            }
-                            .padding(.vertical, 2)
-                            .contentShape(Rectangle())
-                            .onTapGesture { player.play(from: s.start) }
-                            .id(i)
-                        }
-                    }
-                    .padding(.horizontal, 28).padding(.vertical, 18)
-                }
-                .onChange(of: player.time) { _, t in
-                    if player.playing, let i = segs.firstIndex(where: { t >= $0.start && t < $0.end + 0.3 }) {
-                        withAnimation { proxy.scrollTo(i, anchor: .center) }
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Transcript").font(.headline)
+                LazyVStack(alignment: .leading, spacing: 14) {
+                    ForEach(paras.indices, id: \.self) { p in
+                        let r = paras[p]
+                        TranscriptParagraph(segments: Array(segs[r]), first: r.lowerBound,
+                                            current: current.flatMap { r.contains($0) ? $0 : nil })
+                            .equatable()
+                            .id(p)
                     }
                 }
             }
@@ -380,6 +444,51 @@ struct RecordingDetail: View {
                     .disabled(!device.isReady || device.activity != .idle)
             }
         }
+    }
+}
+
+/// 转写的一段：左边是这段第一句的时间，右边是连在一起的句子。每句是一个链接，点了从那句播放；正在播的那句标亮
+struct TranscriptParagraph: View, Equatable {
+    let segments: [TranscriptSegment]
+    /// segments[0] 在整份转写里的下标
+    let first: Int
+    let current: Int?
+
+    static func == (a: Self, b: Self) -> Bool {
+        a.first == b.first && a.current == b.current && a.segments == b.segments
+    }
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 14) {
+            Text(LibraryStore.clock(segments.first?.start ?? 0))
+                .font(.caption.monospacedDigit()).foregroundStyle(.tertiary)
+                .frame(width: 46, alignment: .trailing)
+                .accessibilityHidden(true)
+            Text(attributed)
+                .font(.system(size: 15))
+                .lineSpacing(5)
+                .tint(.primary)
+                .textSelection(.enabled)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .help("Click a sentence to play from there")
+    }
+
+    private var attributed: AttributedString {
+        var out = AttributedString()
+        for (k, seg) in segments.enumerated() {
+            if k > 0 { out += AttributedString(TranscriptParagraphs.joiner(after: segments[k - 1].text, before: seg.text)) }
+            // 显示用 text（过了词表的），不用 raw
+            var piece = AttributedString(seg.text)
+            piece.link = URL(string: "openbean-seek://\(first + k)")
+            if first + k == current {
+                piece.foregroundColor = .accentColor
+                piece.backgroundColor = Color.accentColor.opacity(0.14)
+            }
+            out += piece
+        }
+        return out
     }
 }
 
@@ -420,6 +529,8 @@ final class PlayerModel {
 
     #if DEMO || DEBUG
     func demoDuration(_ d: Double) { if audio == nil { duration = d } }
+    /// 假装正在播放到 t 秒（没有音频，不会走动）
+    func demoPlaying(at t: Double) { time = t; playing = true }
     #endif
 
     func toggle() { playing ? pause() : play(from: nil) }
