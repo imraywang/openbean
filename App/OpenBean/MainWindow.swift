@@ -238,6 +238,7 @@ struct SyncStatus: View {
                 } else {
                     Text("Downloading \(done + 1) of \(total)…").font(.caption2).foregroundStyle(.secondary)
                 }
+                WifiSuggestion(device: device, library: library)
             }
         case let .wifi(msg):
             Text(msg).font(.caption2).foregroundStyle(.secondary).lineLimit(2)

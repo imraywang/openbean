@@ -8,7 +8,9 @@ import OpenBeanKit
 /// 触发：读到设备文件列表、发现有没下载的录音（连上时和每次刷新列表后）；录音豆放回充电盒（01/04 录音豆在充电）。
 /// 不触发：正在语音输入或同步、录音豆正在录音（包括只录音）。
 /// 防抖：触发后等 3 秒再开始，期间的重复触发合并成一次；同一时间只跑一次。
-/// 失败（同步报错、或跑完仍有没下下来的）后退避：1、2、4…最多 30 分钟后再试，成功一次就清零。
+/// 失败后退避（SyncPolicy.retryDelay）：连接断开 / Mac 睡眠这类中断，第一次重连就试；
+/// 下不完或出错，短文件 1、2、4…分钟、长文件 5、10、20…分钟后再试，最多 30 分钟；成功一次就清零。
+/// 没有断点续传时每次重试都从头请求，所以长文件不要狂试（收过的片留在临时文件里，不会白收）。
 @MainActor
 final class AutoSync {
     private let device: DeviceController
@@ -28,12 +30,6 @@ final class AutoSync {
         self.device = device
         self.library = library
         self.settings = settings
-    }
-
-    /// 失败后等多久再试：60 秒起翻倍，最多 30 分钟
-    static func backoff(failures: Int) -> TimeInterval {
-        guard failures > 0 else { return 0 }
-        return min(60 * pow(2, Double(failures - 1)), 1800)
     }
 
     // MARK: 触发
@@ -113,10 +109,11 @@ final class AutoSync {
         // 让给了语音输入：听写结束后 LibraryStore 自己会接着同步，不算失败
         if library.sync == .paused || device.activity == .dictating { return }
         let left = before.intersection(library.pendingDownloads().map(\.id))
+        let kind = library.lastFailure ?? .failed
         if case .failed = library.sync {
-            failed("同步出错")
+            failed(kind == .interrupted ? "连接中断" : "同步出错", kind: kind, long: library.lastFailureLong)
         } else if !left.isEmpty {
-            failed("还有 \(left.count) 条没下载完")
+            failed("还有 \(left.count) 条没下载完", kind: kind, long: library.lastFailureLong)
         } else {
             failures = 0
             notBefore = .distantPast
@@ -137,11 +134,13 @@ final class AutoSync {
         }
     }
 
-    private func failed(_ why: String) {
+    private func failed(_ why: String, kind: SyncPolicy.Failure, long: Bool) {
         failures += 1
-        let wait = Self.backoff(failures: failures)
+        let wait = SyncPolicy.retryDelay(failures: failures, kind: kind, longFile: long)
         notBefore = Date().addingTimeInterval(wait)
-        Log.write("自动同步没完成（\(why)），\(Int(wait)) 秒后再试")
-        schedule("重试", refresh: true, after: wait)
+        // 等 0 秒的（中断）：重连时列表刷新会触发；没断开的话 30 秒后自己再试一次
+        let after = max(wait, 30)
+        Log.write("自动同步没完成（\(why)，第 \(failures) 次\(long ? "，长文件" : "")），\(Int(after)) 秒后再试")
+        schedule("重试", refresh: true, after: after)
     }
 }

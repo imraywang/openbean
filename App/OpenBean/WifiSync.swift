@@ -10,8 +10,10 @@ enum WifiSync {
     static let ssid = "WiFi-openbean"
     static let password = "1762900000000"
 
+    /// 每个文件边收边写进 `spool(id)` 给的临时文件；返回每个文件的下载结果（完整性由调用方按结果处理）
     static func run(session: D3200Session, link: Link, files: [RecordingFile],
-                    status: @escaping (String) async -> Void) async throws -> [(UInt32, [UInt8])] {
+                    spool: (UInt32) async throws -> FrameSpool,
+                    status: @escaping (String) async -> Void) async throws -> [(UInt32, DownloadResult, FrameSpool)] {
         let ifc = wifiInterface()
         await status(String(localized: "Asking the recorder to start its Wi‑Fi…"))
         let ack = try await link.request(Cmd.openSoftAP(ssid: ssid, password: password), timeout: 45,
@@ -20,7 +22,7 @@ enum WifiSync {
         Log.write("设备热点 \(ep)")
         try await Task.sleep(nanoseconds: 10_000_000_000)
 
-        var results: [(UInt32, [UInt8])] = []
+        var results: [(UInt32, DownloadResult, FrameSpool)] = []
         var failure: Error?
         do {
             await status(String(localized: "Joining the recorder's Wi‑Fi (your Mac is offline for a moment)…"))
@@ -29,11 +31,12 @@ enum WifiSync {
             w.log = { Log.write("Wi‑Fi: \($0)") }
             try await w.connect()
             for (n, f) in files.enumerated() {
-                let t = try await w.pull(f) { got, expected, _ in
-                    let pct = expected > 0 ? Int(Double(got) / Double(expected) * 100) : 0
+                let sp = try await spool(f.id)
+                let r = try await w.download(f, spool: sp) { p in
+                    let pct = p.expected > 0 ? min(100, Int(Double(p.received) / Double(p.expected) * 100)) : 0
                     await status(String(localized: "Downloading \(n + 1) of \(files.count) over Wi‑Fi… \(pct)%"))
                 }
-                if t.decrypted, !t.audio.isEmpty { results.append((f.id, t.audio)) }
+                results.append((f.id, r, sp))
             }
             await w.close()
         } catch {

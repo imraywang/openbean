@@ -19,6 +19,12 @@ public struct Transfer {
     /// 每个通知包到达的时间和其中的帧数。
     public let packets: [(at: Date, frames: Int)]
     public let newFileAt: Date?
+    /// 这次收到的所有 1A/07 文件头（按到达顺序；正常只有一个）
+    public let heads: [FileHead]
+    /// 请求里的 offset（1A/07 的「已传字节数」字段）
+    public let requestedOffset: UInt32
+    /// 排查记录（只在请求时打开）
+    public let diagnostics: TransferDiagnostics?
 
     /// 解密正确时，Opus 帧的 TOC 字节（第一个字节）几乎全一样；解错了会是随机值。
     public var tocConsistency: Double {
@@ -48,11 +54,23 @@ final class TransferState {
     var arrivals: [UInt32: Date] = [:]
     var packets: [(at: Date, frames: Int)] = []
     var newFileAt: Date?
+    var heads: [FileHead] = []
+    var requestedOffset: UInt32 = 0
+    var diagnostics: TransferDiagnostics?
+    /// 落盘模式（App 下载用）：解密后的帧写进 spool，不在内存里攒，也不记逐片的到达时间
+    var spool: FrameSpool?
+    /// 收到的文件头不是请求的文件（fileId 为 0 时不查：实时录音一开始还不知道 id）
+    var wrongHead: FileHead?
+    /// 这次新收到（spool 里原来没有）的片数
+    var newFrames = 0
+    let created = Date()
+    /// 收到的分片包个数（1A/08 和 1A/12 一起数）
+    var sliceFrames = 0
     /// 每个新帧（解密后）到达时在 BLE 队列上回调
     var onFrame: ((UInt32, [UInt8]) -> Void)?
 
     init(fileId: UInt32) { self.fileId = fileId }
-    var bytes: Int { chunks.count * OggOpus.frameSize }
+    var bytes: Int { (spool?.count ?? chunks.count) * OggOpus.frameSize }
 }
 
 public final class D3200Session {
@@ -111,6 +129,12 @@ public final class D3200Session {
         case Rx.fileHead:
             st.lastActivity = Date()
             guard let head = FileHead(frame: p.raw) else { return }
+            st.heads.append(head)
+            if st.fileId != 0, head.fileId != st.fileId {
+                st.wrongHead = head
+                // 落盘下载不信别的文件的头：不装解密器，后面的片一片也不写
+                if st.spool != nil { return }
+            }
             st.head = head
             do { st.decryptor = try crypto.fileDecryptor(for: head) } catch {
                 st.decryptError = "\(error)"
@@ -119,7 +143,23 @@ public final class D3200Session {
             let now = Date()
             st.lastActivity = now
             let slices = parseSlices(frame: p.raw)
+            if let spool = st.spool {
+                st.diagnostics?.note(frame: p, slices: slices, packetIndex: st.sliceFrames,
+                                     elapsed: now.timeIntervalSince(st.created))
+                st.sliceFrames += 1
+                st.slices += slices.count
+                // 没有解密器（没收到头、头不对、密钥解不开）的片存了也没用
+                guard st.wrongHead == nil, let d = st.decryptor else { return }
+                for s in slices {
+                    guard let plain = try? d.decrypt(seq: s.seq, data: s.data) else { continue }
+                    if spool.put(seq: s.seq, frame: plain) { st.newFrames += 1 }
+                }
+                return
+            }
             st.packets.append((now, slices.count))
+            st.diagnostics?.note(frame: p, slices: slices, packetIndex: st.sliceFrames,
+                                 elapsed: now.timeIntervalSince(st.created))
+            st.sliceFrames += 1
             for s in slices {
                 let isNew = st.arrivals[s.seq] == nil
                 if isNew { st.arrivals[s.seq] = now }
@@ -145,7 +185,8 @@ public final class D3200Session {
                         lastSeq: seqs.last, missingSeqs: missing, gotDone: st.done,
                         seconds: Date().timeIntervalSince(started),
                         arrivals: seqs.compactMap { q in st.arrivals[q].map { (q, $0) } },
-                        packets: st.packets, newFileAt: st.newFileAt)
+                        packets: st.packets, newFileAt: st.newFileAt, heads: st.heads,
+                        requestedOffset: st.requestedOffset, diagnostics: st.diagnostics)
     }
 
     private func finish(_ st: TransferState, started: Date) -> Transfer {
@@ -156,13 +197,18 @@ public final class D3200Session {
     }
 
     /// 离线拉一个文件（BLE 通道）。`idle` 是多久没有新数据就放弃，不是总时长上限。
-    public func pull(_ file: RecordingFile, idle: Double = 20, maxSeconds: Double? = nil,
+    /// `offset` 原样放进 1A/07 请求（设备认不认、单位是什么还没实测，见 `pull --resume-test`）。
+    /// `diagnostics` 不为 nil 时记下 1A/12、flags 和文件头（排查用）。
+    public func pull(_ file: RecordingFile, offset: UInt32 = 0, idle: Double = 20, maxSeconds: Double? = nil,
+                     diagnostics: TransferDiagnostics? = nil,
                      shouldCancel: () async -> Bool = { false },
                      progress: (Int, Int, Double) async -> Void) async throws -> Transfer {
         let st = TransferState(fileId: file.id)
+        st.requestedOffset = offset
+        st.diagnostics = diagnostics
         let started = Date()
         link.sync { install(st) }
-        try link.send(Cmd.transferFile(id: file.id, realtime: false))
+        try link.send(Cmd.transferFile(id: file.id, offset: offset, realtime: false))
         while true {
             try await Task.sleep(nanoseconds: 500_000_000)
             // 文件头里的 size 是线上字节（每片 166），换算成解密后字节（每片 160）
@@ -179,13 +225,39 @@ public final class D3200Session {
         return finish(st, started: started)
     }
 
+    /// 不再收的传输：设备可能还在发（我们没有「停止传输」的命令）。只数不存，
+    /// 直到 `quiet` 秒没有传输帧或满 `maxSeconds` 秒。返回期间收到的分片数和有没有 1A/0A。
+    public func drain(quiet: Double = 3, maxSeconds: Double = 120) async -> (slices: Int, gotDone: Bool, seconds: Double) {
+        final class Counter { var slices = 0; var done = false; var last = Date() }
+        let c = Counter()
+        let started = Date()
+        link.sync {
+            link.onPacket = { p in
+                guard Rx.isTransport(p) else { return }
+                c.last = Date()
+                if p.id == Rx.fileSlice || p.id == Rx.fileSliceMark { c.slices += parseSlices(frame: p.raw).count }
+                if p.id == Rx.fileDone { c.done = true }
+            }
+        }
+        while Date().timeIntervalSince(started) < maxSeconds {
+            try? await Task.sleep(nanoseconds: 250_000_000)
+            if link.sync({ Date().timeIntervalSince(c.last) }) >= quiet { break }
+        }
+        return link.sync {
+            link.onPacket = nil
+            return (c.slices, c.done, Date().timeIntervalSince(started))
+        }
+    }
+
     /// 开始录音 → 等设备报新文件 id → 用实时模式拉流 `seconds` 秒 → 暂停录音 → 结束录音（收尾文件）。
     /// `finish` 为 false 时只暂停、不结束（排查用：文件还开着，下次开始会续写）。
-    public func live(seconds: Double, finish: Bool = true, onFrame: ((UInt32, [UInt8]) -> Void)? = nil,
+    public func live(seconds: Double, finish: Bool = true, diagnostics: TransferDiagnostics? = nil,
+                     onFrame: ((UInt32, [UInt8]) -> Void)? = nil,
                      shouldStop: @escaping () -> Bool = { false },
                      progress: (Int, Double) -> Void) async throws -> Transfer {
         let st = TransferState(fileId: 0)
         st.onFrame = onFrame
+        st.diagnostics = diagnostics
         link.sync { install(st) }
         let rec = try await link.request(Cmd.startRecord(), label: "开始录音") { $0.type == 0x18 && $0.id == 0x82 }
         FileHandle.standardError.write(Data("  · 开始录音回包 st=\(String(format: "%02X", rec.status)) payload=\(rec.payload.hex)\n".utf8))

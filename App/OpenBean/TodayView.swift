@@ -361,6 +361,7 @@ struct TodayDeviceLine: View {
                         Text("Syncing \(done + 1) of \(total)")
                     }
                     ProgressView(value: f).controlSize(.small)
+                    WifiSuggestion(device: device, library: library)
                 }
             } action: { EmptyView() }
         } else if !device.isReady {
@@ -385,6 +386,7 @@ struct TodayDeviceLine: View {
                     if let s = library.pendingSyncSeconds {
                         Text("About \(SyncStatus.phrase(s)) over Bluetooth. Use Sync in the toolbar.").foregroundStyle(.secondary)
                     }
+                    WifiSuggestion(device: device, library: library)
                 }
             } action: { EmptyView() }
         } else if let b = device.battery, b <= 20 {

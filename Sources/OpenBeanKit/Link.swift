@@ -36,7 +36,7 @@ public enum UUIDs {
 }
 
 /// CoreBluetooth 薄封装。所有状态只在 `q` 上读写。
-public final class Link: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate, @unchecked Sendable {
+public final class Link: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate, TransferChannel, @unchecked Sendable {
     private let q = DispatchQueue(label: "d3200.ble")
     private var central: CBCentralManager!
     private var peripheral: CBPeripheral?
@@ -221,7 +221,8 @@ public final class Link: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         guard ch.uuid == UUIDs.notify, let v = ch.value else { return }
         rxBytes += v.count
         for pkt in assembler.feed(Array(v)) {
-            if verbose, !(Rx.isTransport(pkt) && (pkt.id == Rx.fileSlice || pkt.id == Rx.fileSliceMark)) {
+            // 普通音频片太多不打印；1A/12（可能是重点标记）照常打印
+            if verbose, !(Rx.isTransport(pkt) && pkt.id == Rx.fileSlice) {
                 log("\(pkt)  \(pkt.raw.prefix(48).hex)\(pkt.raw.count > 48 ? " …" : "")")
             }
             onPacket?(pkt)
@@ -313,6 +314,9 @@ public final class Link: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
 
     /// 在 BLE 队列上执行一段代码（给 onPacket 回调之外的状态读写用）。
     public func sync<T>(_ body: () throws -> T) rethrows -> T { try q.sync(execute: body) }
+
+    /// 连着、通知已打开。只在 `sync` 里读
+    public var isConnected: Bool { established && peripheral?.state == .connected }
 
     public func disconnect() {
         q.sync { if let p = peripheral { central.cancelPeripheralConnection(p) } }
