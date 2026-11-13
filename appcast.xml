@@ -5,5 +5,14 @@
     <link>https://github.com/imraywang/openbean</link>
     <description>OpenBean updates</description>
     <language>en</language>
+    <item>
+      <title>OpenBean 0.3.0</title>
+      <link>https://github.com/imraywang/openbean/releases/tag/v0.3.0</link>
+      <pubDate>Fri, 13 Nov 2026 04:24:25 GMT</pubDate>
+      <sparkle:version>2</sparkle:version>
+      <sparkle:shortVersionString>0.3.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+      <enclosure url="https://github.com/imraywang/openbean/releases/download/v0.3.0/OpenBean-0.3.0.dmg" length="13507712" type="application/octet-stream" sparkle:edSignature="QFMB8QjI9pv+swTO9kMEpekSEla7lHViTGOfvC794q1BwRAP3QntubXrkqfbqPs1hD6us4c3yk2VktixpWwjBA=="/>
+    </item>
   </channel>
 </rss>
