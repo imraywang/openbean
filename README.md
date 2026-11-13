@@ -370,7 +370,7 @@ Done:
    summarised (title, summary, key points, to-dos) by the LLM service you configured, and land as one Markdown note
    each in a folder you choose, for example inside an Obsidian vault. Recordings can be deleted from the recorder
    once a complete copy is on the Mac.
-5. ✅ **For agents** — a read-only MCP server (stdio) over the recording library on your Mac: list recordings by
+5. ✅ **For agents (0.4)** — a read-only MCP server (stdio) over the recording library on your Mac: list recordings by
    date, read transcripts and summaries, search ([details](#for-agents-mcp)). It does not touch Bluetooth and
    nothing runs in the background.
 
