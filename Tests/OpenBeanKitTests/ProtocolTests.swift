@@ -141,6 +141,21 @@ final class ProtocolTests: XCTestCase {
         XCTAssertNil(ev("09 FF 00 00 01 18 82 0C 00 01 9C 4C"))
     }
 
+    /// 结束录音（18/82 载荷 00）和随后的 1A/0A，真机抓到的帧（2026-11-13，固件 04.82）
+    func testStopRecord() throws {
+        XCTAssertEqual(Cmd.stopRecord(), [0x08, 0xEE, 0x00, 0x00, 0x00, 0x18, 0x82, 0x0B, 0x00, 0x00, 0x9B])
+        var f = FrameAssembler()
+        // 结束录音的回包：首字节 00，和按键停止一样当作「停止」事件（之前暂停时已经报过一次，App 里重复无害）
+        let ack = try XCTUnwrap(f.feed(hex("09FF00000118820C00009B4A")).first)
+        XCTAssertEqual(ack.isSuccess, true)
+        if case .recordingStopped? = DeviceEvent(packet: ack) {} else { XCTFail("结束录音回包") }
+        // 紧接着的传输结束通知，带文件 id 1794556654
+        let done = try XCTUnwrap(f.feed(hex("09FF0000011A0A130000301B0000EEC2F66A9B")).first)
+        XCTAssertTrue(Rx.isTransport(done))
+        XCTAssertEqual(done.id, Rx.fileDone)
+        XCTAssertEqual(D3200Session.fileDoneId(done), 1_794_556_654)
+    }
+
     func testOggPageLayout() {
         let ogg = OggOpus.mux(frames: [[0xFC, 1, 2], [0xFC, 3]])
         XCTAssertEqual(Array(ogg.prefix(4)), Array("OggS".utf8))

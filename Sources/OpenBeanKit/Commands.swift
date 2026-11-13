@@ -14,6 +14,9 @@ public enum Cmd {
 
     public static func startRecord() -> [UInt8] { Frame.encode(type: 0x18, id: 0x82, payload: [0x01]) }
     public static func pauseRecord() -> [UInt8] { Frame.encode(type: 0x18, id: 0x82, payload: [0x02]) }
+    /// 结束录音并收尾文件。暂停（02）只是暂停，文件还开着：下次开始会续写，也删不掉。
+    /// 真机（固件 04.82）：暂停之后发 00，设备回 18/82，接着发 1A/0A（带文件 id），之后这个文件能删。
+    public static func stopRecord() -> [UInt8] { Frame.encode(type: 0x18, id: 0x82, payload: [0x00]) }
 
     /// 带结束时间的文件列表（1B/0E），每页最多 10 条。
     public static func listFiles(page: Int) -> [UInt8] { Frame.encode(type: 0x1B, id: 0x0E, payload: u16le(page)) }

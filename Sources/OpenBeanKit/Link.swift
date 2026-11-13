@@ -50,6 +50,8 @@ public final class Link: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     private var found: [UUID: Discovered] = [:]
     private var waiters: [(id: Int, match: (Packet) -> Bool, cont: CheckedContinuation<Packet, Error>)] = []
     private var nextWaiter = 0
+    /// 先登记、后等的帧（见 latch）
+    private var latches: [(match: (Packet) -> Bool, latch: Latch)] = []
 
     /// 每收到一帧都会在 BLE 队列上回调（用于收文件分片这类连续数据）。
     public var onPacket: ((Packet) -> Void)?
@@ -224,6 +226,7 @@ public final class Link: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             }
             onPacket?(pkt)
             onEvent?(pkt)
+            for l in latches where l.latch.packet == nil && l.match(pkt) { l.latch.packet = pkt }
             if let idx = waiters.firstIndex(where: { $0.match(pkt) }) {
                 waiters.remove(at: idx).cont.resume(returning: pkt)
             }
@@ -267,6 +270,34 @@ public final class Link: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                     self.waiters.remove(at: i).cont.resume(throwing: LinkError.timeout(label))
                 }
             }
+        }
+    }
+
+    /// 一个登记好的等待：登记之后到的第一条匹配帧会被记住
+    public final class Latch: @unchecked Sendable {
+        fileprivate var packet: Packet?
+    }
+
+    /// 先登记、后等：发命令之前登记，命令的后续帧（比如结束录音回包之后紧跟的 1A/0A）来得再快也不会错过。
+    /// 登记之后要用 `value(of:timeout:)` 取，取完就注销。
+    public func latch(match: @escaping (Packet) -> Bool) -> Latch {
+        q.sync {
+            let l = Latch()
+            latches.append((match, l))
+            return l
+        }
+    }
+
+    /// 等登记过的帧，最多 `timeout` 秒：到了返回这一帧，超时返回 nil。之后不再记录。
+    public func value(of l: Latch, timeout: Double) async -> Packet? {
+        let end = Date().addingTimeInterval(timeout)
+        while true {
+            let p = q.sync { l.packet }
+            if p != nil || Date() >= end {
+                q.sync { latches.removeAll { $0.latch === l } }
+                return p
+            }
+            try? await Task.sleep(nanoseconds: 50_000_000)
         }
     }
 

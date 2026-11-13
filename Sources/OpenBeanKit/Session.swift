@@ -179,8 +179,9 @@ public final class D3200Session {
         return finish(st, started: started)
     }
 
-    /// 开始录音 → 等设备报新文件 id → 用实时模式拉流 `seconds` 秒 → 暂停录音。
-    public func live(seconds: Double, onFrame: ((UInt32, [UInt8]) -> Void)? = nil,
+    /// 开始录音 → 等设备报新文件 id → 用实时模式拉流 `seconds` 秒 → 暂停录音 → 结束录音（收尾文件）。
+    /// `finish` 为 false 时只暂停、不结束（排查用：文件还开着，下次开始会续写）。
+    public func live(seconds: Double, finish: Bool = true, onFrame: ((UInt32, [UInt8]) -> Void)? = nil,
                      shouldStop: @escaping () -> Bool = { false },
                      progress: (Int, Double) -> Void) async throws -> Transfer {
         let st = TransferState(fileId: 0)
@@ -214,7 +215,16 @@ public final class D3200Session {
         }
         _ = try? await link.request(Cmd.pauseRecord(), label: "暂停录音") { $0.type == 0x18 && $0.id == 0x82 }
         try await Task.sleep(nanoseconds: 3_000_000_000) // 收尾巴
-        return finish(st, started: started)
+        let t = self.finish(st, started: started)
+        if finish {
+            do {
+                let id = try await stopRecording()
+                FileHandle.standardError.write(Data("  · 已结束录音\(id.map { "，1A/0A 文件 id=\($0)" } ?? "（没等到 1A/0A）")\n".utf8))
+            } catch {
+                FileHandle.standardError.write(Data("  · 结束录音失败：\(error)\n".utf8))
+            }
+        }
+        return t
     }
 }
 
@@ -282,6 +292,28 @@ extension D3200Session {
 
     public func pauseRecording() async throws {
         _ = try await link.request(Cmd.pauseRecord(), label: "暂停录音") { $0.type == 0x18 && $0.id == 0x82 }
+    }
+
+    /// 结束录音并收尾文件（18/82 载荷 00）。真机实测的顺序是先 `pauseRecording()` 再调它；
+    /// 不先暂停、录音中直接发还没测过。等到 18/82 回包后，再最多等 `fileDoneTimeout` 秒的 1A/0A
+    /// （传输结束通知，载荷字节 5–8 是文件 id），返回其中的文件 id；没等到返回 nil，不算失败。
+    @discardableResult
+    public func stopRecording(fileDoneTimeout: Double = 3) async throws -> UInt32? {
+        let done = link.latch { Rx.isTransport($0) && $0.id == Rx.fileDone }
+        do {
+            _ = try await link.request(Cmd.stopRecord(), label: "结束录音") { $0.type == 0x18 && $0.id == 0x82 }
+        } catch {
+            _ = await link.value(of: done, timeout: 0)
+            throw error
+        }
+        guard let p = await link.value(of: done, timeout: fileDoneTimeout) else { return nil }
+        return Self.fileDoneId(p)
+    }
+
+    /// 1A/0A 里的文件 id（真机：`00 30 1B 00 00 | EE C2 F6 6A`，前 5 字节含义未记录）
+    static func fileDoneId(_ p: Packet) -> UInt32? {
+        let b = Array(p.payload)
+        return b.count >= 9 ? readU32(b, 5) : nil
     }
 
     /// 对正在录的文件开实时流。`onFrame` 在 BLE 队列上收到每个解密后的 Opus 帧。
