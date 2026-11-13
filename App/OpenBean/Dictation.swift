@@ -27,6 +27,8 @@ final class Dictation {
     private(set) var polishing = 0
     /// 本次结束时的结果：打进了 App，还是拷贝到了剪贴板
     private(set) var deliveredByClipboard = false
+    /// 没开始语音输入时给用户看的提示（悬浮条闲着也要显示）；每次 +1，文字在 lastError
+    private(set) var notice = 0
 
     private let device: DeviceController
     private let settings: Settings
@@ -317,29 +319,29 @@ final class Dictation {
             }
         }
         do {
-            if phase == .idle {
+            if DictationStartPolicy.onToggle(dictating: phase != .idle) == .checkRecorder {
                 // 和文件号无关的准备（识别器等）现在就开始，和下面的查状态、开始命令、等通知并行
                 trace = StartTrace()
                 startPreparing()
                 // 上一次语音输入的设备文件还在删：等它删完再开始（最多 5 秒），免得录音豆续写那个文件、然后被删掉
                 for _ in 0..<50 where cleanupRunning() { try? await Task.sleep(nanoseconds: 100_000_000) }
                 if cleanupRunning() { Log.write("语音输入没开始：还在删上一次的设备文件"); return }
-                // 录音豆其实已经在录、App 却不知道（App 重启时错过了开始事件）：这时再发「开始」设备不理，
-                // 语音输入就一直起不来。按键是「语音输入」时这段录音没人要，先停掉再开始；
-                // 按键是「只录音」时可能是正在录的会议，不动它
-                let info = recordOnly == nil ? try? await s.deviceInfo() : nil
+                // 录音豆正在录一段不是这次语音输入的录音（只录音、设备页开始的、或 App 连上之前按键录的会议）：
+                // 不开始，也不发开始 / 暂停 / 结束——结束语音输入时的暂停 + 结束会把那段录音截断。请用户先按键停止
+                let info = try? await s.deviceInfo()
                 trace?.mark("查状态")
-                if let info, info.recording == true {
-                    guard settings.buttonDictates else {
-                        Log.write("语音输入没开始：录音豆正在录音（只录音模式），先按录音豆按键停止")
-                        lastError = String(localized: "The recorder is recording. Stop it first.")
-                        return
-                    }
-                    Log.write("录音豆上有一段 App 不知道的录音，先停掉再开始语音输入")
-                    try await s.pauseRecording()
-                    // 暂停后再结束（真机测过的顺序），这样下面的「开始」会新建文件，而不是续写那段录音
-                    do { try await s.stopRecording() } catch { Log.write("结束那段录音失败：\(error)") }
-                    try? await Task.sleep(nanoseconds: 600_000_000)
+                if case let .refuse(why) = DictationStartPolicy.afterCheck(recordOnlyRunning: recordOnly != nil,
+                                                                           recorderRecording: info?.recording) {
+                    Log.write("语音输入没开始：录音豆正在录音（\(why == .recordOnlyRunning ? "只录音" : "不是 App 开始的录音")，"
+                              + "录音状态=\(DeviceController.field(info?.recording))），先按录音豆按键停止")
+                    lastError = String(localized: "The recorder is already recording. Press its button to stop, then try again.")
+                    notice += 1
+                    return
+                }
+                if recordOnly != nil {
+                    // 记着在只录音、设备却说没在录：错过了停止事件，这条记录作废
+                    Log.write("只录音的记录是旧的（录音豆没在录），清掉")
+                    recordOnly = nil
                 }
                 guessedFile = false
                 // 读不到状态（info 为 nil）或在录，都记下来；只有确定没在录，结束后才可能删设备文件
@@ -615,11 +617,17 @@ final class Dictation {
         let evidence = currentFile == 0 ? nil : DictationDeletePolicy.Evidence(
             fileId: currentFile, startedByApp: appStart != nil, recordingBeforeStart: appStart?.recordingBefore,
             notifiedNew: notifiedNew, startedAt: appStart?.at ?? Date())
+        // App 发的暂停只是暂停、文件还开着：文字已经交付，再发「结束录音」让录音豆收尾（暂停 → 结束，真机测过的顺序）。
+        // 收尾后下次开始会新建文件，这次的文件也才删得掉。等到 1A/0A（最多 3 秒）再往下走，免得和删除抢。失败只写日志。
+        // 只对 App 自己开始、且开始前确认没在录的那段发结束；其余只暂停，绝不收尾别人的录音
+        let mayStop = DictationStartPolicy.mayStopFile(pausedByApp: pausedByApp, startedByApp: appStart != nil,
+                                                       recordingBeforeStart: appStart?.recordingBefore)
+        if pausedByApp, !mayStop {
+            Log.write("只暂停、不结束录音 file=\(currentFile)：\(appStart == nil ? "不是 App 开始的" : "开始前录音状态不明")")
+        }
         appStart = nil
         notifiedNew = []
-        // App 发的暂停只是暂停、文件还开着：文字已经交付，再发「结束录音」让录音豆收尾（暂停 → 结束，真机测过的顺序）。
-        // 收尾后下次开始会新建文件，这次的文件也才删得掉。等到 1A/0A（最多 3 秒）再往下走，免得和删除抢。失败只写日志
-        if pausedByApp, let s = device.session {
+        if mayStop, let s = device.session {
             do {
                 let done = try await s.stopRecording()
                 Log.write("已结束录音 file=\(currentFile)" + (done.map { $0 == currentFile ? "（收到 1A/0A）" : "（1A/0A 说的是 \($0)）" } ?? "（没等到 1A/0A）"))
