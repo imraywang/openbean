@@ -123,7 +123,7 @@ struct OnboardingView: View {
     private var tryIt: some View {
         VStack(alignment: .leading, spacing: 14) {
             header("hand.tap", "Try it",
-                   "Click in the box, press the recorder's button, wait for “Listening”, then speak. Press the button again to finish. The keyboard shortcut \(model.settings.hotkey.label) does the same.")
+                   "Click in the box, press the recorder's button, wait for “Listening”, then speak. Press the button again to finish. The keyboard shortcut \(model.settings.hotkeyLabel) does the same.")
             TextEditor(text: $tryText)
                 .font(.body)
                 .frame(height: 110)

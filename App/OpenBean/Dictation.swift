@@ -142,10 +142,41 @@ final class Dictation {
 
     /// 菜单里的开始/停止：让设备开始或暂停录音，后续由设备事件驱动
     func toggle() async {
-        guard let s = device.session else { return }
+        guard let s = device.session else { Log.write("语音输入没开始：录音豆没连上"); return }
         do {
-            if phase == .idle { try await s.startRecording() } else { try await s.pauseRecording() }
-        } catch { lastError = "\(error)" }
+            if phase == .idle {
+                // 录音豆其实已经在录、App 却不知道（App 重启时错过了开始事件）：这时再发「开始」设备不理，
+                // 语音输入就一直起不来。按键是「语音输入」时这段录音没人要，先停掉再开始；
+                // 按键是「只录音」时可能是正在录的会议，不动它
+                if recordOnly == nil, let info = try? await s.deviceInfo(), info.recording == true {
+                    guard settings.buttonDictates else {
+                        Log.write("语音输入没开始：录音豆正在录音（只录音模式），先按录音豆按键停止")
+                        lastError = String(localized: "The recorder is recording. Stop it first.")
+                        return
+                    }
+                    Log.write("录音豆上有一段 App 不知道的录音，先停掉再开始语音输入")
+                    try await s.pauseRecording()
+                    try? await Task.sleep(nanoseconds: 600_000_000)
+                }
+                try await s.startRecording()
+                // 设备通常会主动告诉我们新录音的文件号（1A/06）；有时不发（实测放在充电盒里时就不发），
+                // 等 1.5 秒没等到就自己从文件列表里取最新的一条
+                for _ in 0..<15 where phase == .idle { try? await Task.sleep(nanoseconds: 100_000_000) }
+                if phase == .idle {
+                    guard let id = try await s.listFiles().first?.id else {
+                        Log.write("语音输入没开始：录音豆没报新录音，文件列表也是空的")
+                        return
+                    }
+                    Log.write("录音豆没报新录音，按文件列表里最新的一条开始 file=\(id)")
+                    await begin(fileId: id)
+                }
+            } else {
+                try await s.pauseRecording()
+            }
+        } catch {
+            lastError = "\(error)"
+            Log.write("语音输入\(phase == .idle ? "开始" : "停止")失败：\(error)")
+        }
     }
 
     // MARK: 开始

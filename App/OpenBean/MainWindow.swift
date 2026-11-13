@@ -459,7 +459,7 @@ struct OverviewView: View {
         return HStack(spacing: 20) {
             Text("Voice typing").fontWeight(.semibold)
             Label(s.buttonDictates ? "Button: voice typing" : "Button: record only", systemImage: "button.programmable")
-            Label(s.hotkey.label, systemImage: "command")
+            Label(s.hotkeyLabel, systemImage: "command")
             Label(model.models.state == .ready ? "SenseVoice on this Mac" : "Speech models not downloaded", systemImage: "waveform")
             Label(s.polishEnabled ? "LLM clean-up on" : "LLM clean-up off", systemImage: "sparkles")
             Spacer(minLength: 0)

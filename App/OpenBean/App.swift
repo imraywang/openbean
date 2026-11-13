@@ -32,13 +32,15 @@ final class AppModel {
         dictation.onFinished = { [weak self] in self?.library.resumeIfNeeded() }
         dictation.onEntry = { [weak self] in self?.log.add($0) }
         Hotkey.shared.onPress = { [weak self] in
-            guard let self, self.device.isReady else { return }
+            guard let self else { return }
+            guard self.device.isReady else { Log.write("按了快捷键，但录音豆没连上"); return }
+            Log.write("快捷键 \(self.settings.hotkeyLabel)")
             Task { await self.dictation.toggle() }
         }
-        Hotkey.shared.register(settings.hotkey)
+        Hotkey.shared.register(settings.hotkeyKey)
         settings.onHotkeyChange = { [weak self] in
             guard let self else { return }
-            Hotkey.shared.register(self.settings.hotkey)
+            Hotkey.shared.register(self.settings.hotkeyKey)
         }
         device.start()
         hud.start()

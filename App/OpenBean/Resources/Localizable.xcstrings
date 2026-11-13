@@ -62,6 +62,16 @@
         }
       }
     },
+    "%@ is taken by another app": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 已被别的 App 占用"
+          }
+        }
+      }
+    },
     "%@ of %@ used": {
       "localizations": {
         "zh-Hans": {
@@ -318,6 +328,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "待办事项"
+          }
+        }
+      }
+    },
+    "Add ⌘, ⌥ or ⌃": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "需要带 ⌘、⌥ 或 ⌃"
           }
         }
       }
@@ -672,6 +692,16 @@
         }
       }
     },
+    "Click, then press the keys. Use ⌘, ⌥ or ⌃ with a key, or an F key on its own. Esc cancels.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "点一下，再按下组合键。普通键要带 ⌘、⌥ 或 ⌃，F 键可以单独用；按 Esc 取消。"
+          }
+        }
+      }
+    },
     "Connect your recorder": {
       "localizations": {
         "zh-Hans": {
@@ -798,6 +828,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "没能从录音豆删除"
+          }
+        }
+      }
+    },
+    "Custom shortcut": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自定义快捷键"
+          }
+        }
+      }
+    },
+    "Custom…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自定义…"
           }
         }
       }
@@ -1762,6 +1812,16 @@
         }
       }
     },
+    "Press the shortcut…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请按下快捷键…"
+          }
+        }
+      }
+    },
     "Quit OpenBean": {
       "localizations": {
         "zh-Hans": {
@@ -1808,6 +1868,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "只录音"
+          }
+        }
+      }
+    },
+    "Record shortcut": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "录制快捷键"
           }
         }
       }
@@ -2512,6 +2582,16 @@
         }
       }
     },
+    "The recorder is recording. Stop it first.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "录音豆正在录音，请先停止。"
+          }
+        }
+      }
+    },
     "The server address in Clean-up is not valid.": {
       "localizations": {
         "zh-Hans": {
@@ -2568,6 +2648,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "这条录音还在录音豆上。"
+          }
+        }
+      }
+    },
+    "This recording is too short to summarise.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这条录音太短，没有可摘要的内容。"
           }
         }
       }

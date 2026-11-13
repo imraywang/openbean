@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import OpenBeanVoice
+import Carbon.HIToolbox
 import SwiftUI
 
 enum SettingsTab: String, CaseIterable, Identifiable {
@@ -68,6 +69,7 @@ private struct VoiceSettings: View {
                 Picker("Keyboard shortcut", selection: $settings.hotkey) {
                     ForEach(Hotkey.Preset.allCases) { Text($0.label).tag($0) }
                 }
+                if settings.hotkey == .custom { ShortcutRecorder(settings: settings) }
                 Toggle(isOn: $settings.readySound) {
                     Text("Play a sound when it's ready to listen")
                     Text("A soft tick when the bar turns into a microphone")
@@ -328,5 +330,58 @@ struct ModelStatusRow: View {
                 Button("Retry") { Task { await models.download() } }
             }
         }
+    }
+}
+
+/// 录一个自定义快捷键：点按钮后按下组合键；Esc 取消。录的时候先停掉现有快捷键，免得它被触发
+struct ShortcutRecorder: View {
+    @Bindable var settings: Settings
+    @State private var recording = false
+    @State private var monitor: Any?
+    @State private var hint: String?
+
+    var body: some View {
+        LabeledContent {
+            HStack(spacing: 8) {
+                if let hint { Text(hint).font(.caption).foregroundStyle(.secondary) }
+                Button(recording ? String(localized: "Press the shortcut…")
+                                 : (settings.hotkeyCustom?.label ?? String(localized: "Record shortcut"))) {
+                    recording ? stop() : start()
+                }
+            }
+        } label: {
+            Text("Custom shortcut")
+            Text("Click, then press the keys. Use ⌘, ⌥ or ⌃ with a key, or an F key on its own. Esc cancels.")
+        }
+        .onDisappear { stop() }
+    }
+
+    private func start() {
+        recording = true
+        hint = nil
+        Hotkey.shared.register(nil)
+        monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { e in
+            if Int(e.keyCode) == kVK_Escape { stop(); return nil }
+            guard let combo = Hotkey.Combo(event: e) else {
+                hint = String(localized: "Add ⌘, ⌥ or ⌃")
+                return nil
+            }
+            // 先试着注册：被系统或别的 App 占用就不保存
+            if Hotkey.shared.register((combo.code, combo.mods)) {
+                settings.hotkeyCustom = combo
+                stop()
+            } else {
+                hint = String(localized: "\(combo.label) is taken by another app")
+            }
+            return nil
+        }
+    }
+
+    private func stop() {
+        if let monitor { NSEvent.removeMonitor(monitor) }
+        monitor = nil
+        guard recording else { return }
+        recording = false
+        Hotkey.shared.register(settings.hotkeyKey)
     }
 }

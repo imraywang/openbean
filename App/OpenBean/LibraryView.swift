@@ -339,7 +339,7 @@ struct LibraryHome: View {
             Text("Select a recording").font(.title3.weight(.semibold))
             VStack(alignment: .leading, spacing: 8) {
                 Label("Press the recorder's button to type with your voice", systemImage: "keyboard")
-                Label("Shortcut: \(settings.hotkey.label)", systemImage: "command")
+                Label("Shortcut: \(settings.hotkeyLabel)", systemImage: "command")
                 Label("Sync brings recordings to this Mac and transcribes them", systemImage: "arrow.triangle.2.circlepath")
             }
             .font(.callout).foregroundStyle(.secondary)

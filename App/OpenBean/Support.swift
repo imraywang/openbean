@@ -110,6 +110,21 @@ final class Settings {
     /// 停顿多久算一句结束；重启 App 后生效
     var sentencePause: Double { didSet { d.set(sentencePause, forKey: "sentencePause") } }
     var hotkey: Hotkey.Preset { didSet { d.set(hotkey.rawValue, forKey: "hotkey"); onHotkeyChange?() } }
+    /// 自己录的快捷键（hotkey == .custom 时用）
+    var hotkeyCustom: Hotkey.Combo? {
+        didSet {
+            d.set(hotkeyCustom.flatMap { try? JSONEncoder().encode($0) }, forKey: "hotkeyCustom")
+            onHotkeyChange?()
+        }
+    }
+    /// 现在生效的键；没有（关掉了，或选了自定义还没录）返回 nil
+    var hotkeyKey: (code: UInt32, mods: UInt32)? {
+        hotkey == .custom ? hotkeyCustom.map { ($0.code, $0.mods) } : hotkey.key
+    }
+    /// 显示用的写法
+    var hotkeyLabel: String {
+        hotkey == .custom ? (hotkeyCustom?.label ?? String(localized: "None")) : hotkey.label
+    }
     var autoTranscribe: Bool { didSet { d.set(autoTranscribe, forKey: "autoTranscribe") } }
     /// 连上录音豆、或放回充电盒时自动经蓝牙下载新录音
     var autoSync: Bool { didSet { d.set(autoSync, forKey: "autoSync") } }
@@ -144,6 +159,7 @@ final class Settings {
         paragraphGap = d.double(forKey: "paragraphGap")
         sentencePause = d.double(forKey: "sentencePause")
         hotkey = Hotkey.Preset(rawValue: d.string(forKey: "hotkey") ?? "") ?? .optionSpace
+        hotkeyCustom = d.data(forKey: "hotkeyCustom").flatMap { try? JSONDecoder().decode(Hotkey.Combo.self, from: $0) }
         autoTranscribe = d.bool(forKey: "autoTranscribe")
         autoSync = d.bool(forKey: "autoSync")
         onboardingDone = d.bool(forKey: "onboardingDone")
@@ -195,7 +211,7 @@ enum Typist {
 @MainActor
 final class Hotkey {
     enum Preset: String, CaseIterable, Identifiable {
-        case off, optionSpace, controlOptionSpace, commandShiftD, f5
+        case off, optionSpace, controlOptionSpace, commandShiftD, f5, custom
         var id: String { rawValue }
         var label: String {
             switch self {
@@ -204,6 +220,7 @@ final class Hotkey {
             case .controlOptionSpace: return "⌃⌥ Space"
             case .commandShiftD: return "⇧⌘ D"
             case .f5: return "F5"
+            case .custom: return String(localized: "Custom…")
             }
         }
         var key: (code: UInt32, mods: UInt32)? {
@@ -213,7 +230,44 @@ final class Hotkey {
             case .controlOptionSpace: return (UInt32(kVK_Space), UInt32(optionKey | controlKey))
             case .commandShiftD: return (UInt32(kVK_ANSI_D), UInt32(cmdKey | shiftKey))
             case .f5: return (UInt32(kVK_F5), 0)
+            case .custom: return nil // 自定义的键在 Settings.hotkeyCustom 里
             }
+        }
+    }
+
+    /// 用户自己录的快捷键：虚拟键码 + Carbon 修饰键 + 显示用的写法（如 ⌃⌥ D）
+    struct Combo: Codable, Equatable {
+        var code: UInt32
+        var mods: UInt32
+        var label: String
+
+        static let functionKeys: [Int: String] = [
+            kVK_F1: "F1", kVK_F2: "F2", kVK_F3: "F3", kVK_F4: "F4", kVK_F5: "F5", kVK_F6: "F6", kVK_F7: "F7", kVK_F8: "F8",
+            kVK_F9: "F9", kVK_F10: "F10", kVK_F11: "F11", kVK_F12: "F12", kVK_F13: "F13", kVK_F14: "F14", kVK_F15: "F15",
+            kVK_F16: "F16", kVK_F17: "F17", kVK_F18: "F18", kVK_F19: "F19",
+        ]
+        static let namedKeys: [Int: String] = [
+            kVK_Space: "Space", kVK_Return: "↩", kVK_Tab: "⇥", kVK_Delete: "⌫", kVK_ForwardDelete: "⌦",
+            kVK_LeftArrow: "←", kVK_RightArrow: "→", kVK_UpArrow: "↑", kVK_DownArrow: "↓",
+            kVK_Home: "↖", kVK_End: "↘", kVK_PageUp: "⇞", kVK_PageDown: "⇟",
+        ]
+
+        /// 从一次按键得到快捷键。普通键必须带 ⌘、⌥ 或 ⌃（只带 ⇧ 会挡住正常打字）；F 键可以单独用。不合格返回 nil
+        init?(event: NSEvent) {
+            let code = Int(event.keyCode)
+            let flags = event.modifierFlags.intersection([.command, .option, .control, .shift])
+            let fn = Self.functionKeys[code]
+            guard fn != nil || !flags.intersection([.command, .option, .control]).isEmpty else { return nil }
+            let name = fn ?? Self.namedKeys[code] ?? (event.charactersIgnoringModifiers ?? "").uppercased()
+            guard !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+            var mods: UInt32 = 0, symbols = ""
+            if flags.contains(.control) { mods |= UInt32(controlKey); symbols += "⌃" }
+            if flags.contains(.option) { mods |= UInt32(optionKey); symbols += "⌥" }
+            if flags.contains(.shift) { mods |= UInt32(shiftKey); symbols += "⇧" }
+            if flags.contains(.command) { mods |= UInt32(cmdKey); symbols += "⌘" }
+            self.code = UInt32(code)
+            self.mods = mods
+            self.label = symbols.isEmpty ? name : "\(symbols) \(name)"
         }
     }
 
@@ -222,7 +276,9 @@ final class Hotkey {
     private var handler: EventHandlerRef?
     var onPress: () -> Void = {}
 
-    func register(_ preset: Preset) {
+    /// 注册快捷键；nil = 不用快捷键。返回是否注册成功（被系统或别的 App 占用时失败）
+    @discardableResult
+    func register(_ key: (code: UInt32, mods: UInt32)?) -> Bool {
         if let ref { UnregisterEventHotKey(ref); self.ref = nil }
         if handler == nil {
             var spec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
@@ -231,9 +287,10 @@ final class Hotkey {
                 return noErr
             }, 1, &spec, nil, &handler)
         }
-        guard let k = preset.key else { return }
+        guard let k = key else { return true }
         let id = EventHotKeyID(signature: OSType(0x4F42_4E21), id: 1) // "OBN!"
         let status = RegisterEventHotKey(k.code, k.mods, id, GetApplicationEventTarget(), 0, &ref)
-        if status != noErr { Log.write("快捷键注册失败 \(preset.rawValue)：\(status)") }
+        if status != noErr { Log.write("快捷键注册失败 code=\(k.code) mods=\(k.mods)：\(status)") }
+        return status == noErr
     }
 }
