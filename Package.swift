@@ -7,10 +7,13 @@ let package = Package(
     products: [
         .library(name: "OpenBeanKit", targets: ["OpenBeanKit"]),
         .library(name: "OpenBeanVoice", targets: ["OpenBeanVoice"]),
+        .library(name: "OpenBeanLibrary", targets: ["OpenBeanLibrary"]),
         .executable(name: "openbean", targets: ["openbean"]),
     ],
     targets: [
         .target(name: "OpenBeanKit"),
+        // 只读访问 App 的录音库（index.json、转写、摘要）；只用 Foundation，不碰蓝牙
+        .target(name: "OpenBeanLibrary"),
         // sherpa-onnx 动态库由 Scripts/fetch-deps.sh 放到 Vendor/sherpa-onnx
         .systemLibrary(name: "CSherpaOnnx", path: "Sources/CSherpaOnnx"),
         .target(
@@ -38,6 +41,7 @@ let package = Package(
             linkerSettings: [.unsafeFlags(["-Xlinker", "-rpath", "-Xlinker", "\(Context.packageDirectory)/Vendor/sherpa-onnx/lib"])]
         ),
         .testTarget(name: "OpenBeanKitTests", dependencies: ["OpenBeanKit"]),
+        .testTarget(name: "OpenBeanLibraryTests", dependencies: ["OpenBeanLibrary"]),
         .testTarget(
             name: "OpenBeanVoiceTests",
             dependencies: ["OpenBeanVoice"],
