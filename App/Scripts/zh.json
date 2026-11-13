@@ -181,7 +181,7 @@
 "Open log": "打开日志",
 "OpenBean": "OpenBean",
 "OpenBean disconnects and searches again. Nothing on the recorder changes.": "OpenBean 会断开并重新搜索，录音豆上的内容不会有任何改动。",
-"OpenBean never pairs, unbinds, resets or updates the recorder. It deletes a recording from the recorder only when you ask, and only once that recording is safely on this Mac.": "OpenBean 不会对录音豆做配对、解绑、恢复出厂或固件升级；只在你要求、且录音已经完整保存在这台 Mac 上时，才删除录音豆上的录音。",
+"OpenBean never pairs, unbinds, resets or updates the recorder. It deletes a recording from the recorder only when you ask and that recording is safely on this Mac, or, after voice typing, the file it created for that dictation (see Settings).": "OpenBean 不会对录音豆做配对、解绑、恢复出厂或固件升级；只在你要求、且录音已经完整保存在这台 Mac 上时删除录音豆上的录音，或在语音输入结束后删掉它为这次语音输入新建的文件（见设置）。",
 "OpenBean never pairs, unbinds, resets, deletes recordings on or updates the recorder.": "OpenBean 不会对录音豆做配对、解绑、恢复出厂、删除录音或固件升级。",
 "Output": "输出",
 "Over Bluetooth, when the recorder connects or goes back in its case": "录音豆连上或放回充电盒时，经蓝牙下载",

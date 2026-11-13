@@ -58,7 +58,7 @@ struct DeviceView: View {
             Section {
                 Button("Forget this recorder…", role: .destructive) { confirmForget = true }
             } footer: {
-                Text("OpenBean never pairs, unbinds, resets or updates the recorder. It deletes a recording from the recorder only when you ask, and only once that recording is safely on this Mac.")
+                Text("OpenBean never pairs, unbinds, resets or updates the recorder. It deletes a recording from the recorder only when you ask and that recording is safely on this Mac, or, after voice typing, the file it created for that dictation (see Settings).")
                     .font(.caption).foregroundStyle(.secondary)
             }
         }

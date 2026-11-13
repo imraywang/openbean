@@ -4,7 +4,7 @@ This document describes how a host talks to the soundcore Work recorder (product
 discovery, the control channel, encryption, live audio and file transfer.
 
 Everything marked ✅ was exercised against real hardware with the `openbean` CLI. Items marked ⚠️ are known but untested;
-most are deliberately not implemented. 🧪 marks a command that is implemented but not yet verified on hardware. openbean is not affiliated with Anker; see the [README](../README.md#disclaimer).
+most are deliberately not implemented. openbean is not affiliated with Anker; see the [README](../README.md#disclaimer).
 
 **Tested firmware:** recorder `04.82`, charging case `1.2.1`, Wi‑Fi module `03.06` (November 2026).
 A firmware update may change any of this.
@@ -85,7 +85,7 @@ All multi-byte integers are little-endian unless stated otherwise.
 | `2E` | `01` | host P-256 public key, 65 bytes uncompressed | Encryption handshake | ✅ |
 | `0B` | `87` | `01` bind / `00` unbind | Account binding | ⚠️ not implemented |
 | `01` | `B8` | — | Factory reset | ⚠️ not implemented |
-| `1A` | `10` | file id (u32) | Delete a recording | 🧪 implemented, untested — see §12a |
+| `1A` | `10` | file id (u32) | Delete a recording | ✅ see §12a |
 
 ## 6. Device info (`01/01` response) ✅
 
@@ -223,10 +223,10 @@ With nothing but notifications enabled, the host receives:
 
 The button therefore works as a start/stop trigger for the host.
 
-## 12a. Deleting a recording 🧪
+## 12a. Deleting a recording ✅
 
-**Implemented but not yet verified on hardware.** Deletion cannot be undone. The frame and the reply below come from the
-community notes (see Acknowledgements), not from our own capture.
+Verified on hardware on 2026-11-13 (recorder firmware `04.82`). Deletion cannot be undone. The request frame comes from the
+community notes (see Acknowledgements).
 
 Request — the file id is encoded exactly as in `1A/07`, little-endian:
 
@@ -236,8 +236,9 @@ Request — the file id is encoded exactly as in `1A/07`, little-endian:
 
 Example for file id `0x6AF57626`: `08 EE 00 00 00 1A 10 0E 00 26 76 F5 6A 29`.
 
-Expected reply: a `1A/10` frame from the device; the low nibble of `status` is `1` on success (reply payload not yet
-observed). openbean wraps the command in safety checks (`D3200Session.deleteFile`):
+Reply: a `1A/10` frame from the device; the low nibble of `status` is `1` on success. In the hardware test (a 37.73 s
+recording) the success reply arrived within about 2 s and the next file listing was one entry shorter; the copy on the Mac
+was not touched. The rest of the reply payload has not been recorded. openbean wraps the command in safety checks (`D3200Session.deleteFile`):
 
 1. Read device info; refuse if the recorder is recording or the recording flag is missing.
 2. List the files, find the id, and let the caller compare it with the copy on the Mac: the local Ogg file must exist and
@@ -245,10 +246,18 @@ observed). openbean wraps the command in safety checks (`D3200Session.deleteFile
 3. Send `1A/10` and wait for the `1A/10` reply (10 s timeout).
 4. List the files again: the id must be gone and every other recording must still be there.
 
+Step 2 differs in two places, both in the app only:
+
+- **After voice typing.** There is no "close file" command: `18/82 02` only pauses, and the next `18/82 01` continues the
+  same file without a `1A/06` notice. So after each dictation the app deletes the file it used, without a local copy, but
+  only if the app sent the start command, the recorder was not recording before, a `1A/06` notice named this file, and its
+  listed duration is at most the session length plus 5 s (`DictationDeletePolicy`). A guessed or continued file is kept.
+- **Old voice-typing files.** Files from earlier dictations cannot be proven new, so the app deletes them only from a
+  manual clean-up that shows their count and total length and asks for confirmation.
+
 ## 13. Not covered
 
 Binding, factory reset and firmware updates exist in the protocol but are risky and are left to the vendor app.
-Deletion (§12a) is implemented but untested on hardware until someone verifies it with a recording they can afford to lose.
 The remaining GATT services in §3 and the Bluetooth Classic path are undocumented here.
 
 ## Acknowledgements

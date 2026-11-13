@@ -24,7 +24,7 @@ searchable transcripts — all transcribed on your Mac, offline.
 | Live audio | Decrypted audio in real time, 0.3–0.5 s end-to-end |
 | Button events | The recorder tells the host when its button starts and stops a recording |
 
-openbean never binds/unbinds the device, factory-resets it or updates firmware. It deletes a recording from the recorder only when you ask, and only once the recording is safely on your Mac.
+openbean never binds/unbinds the device, factory-resets it or updates firmware. It deletes a recording from the recorder only when you ask and the recording is safely on your Mac, or — in the app, after voice typing — the file the app itself created for that dictation (can be turned off in Settings).
 
 ## The OpenBean app
 
@@ -122,7 +122,9 @@ OpenBean lives in the menu bar. *Open OpenBean* (⌘O) shows the main window. Th
   key points and action items above the transcript.
   To free space on the recorder, right-click a recording → *Delete from recorder…*. This only works once the
   recording is on your Mac and its audio checks out (it plays to the same length as on the recorder); the copy on
-  your Mac is kept. Deletion cannot be undone and has not yet been verified on hardware.
+  your Mac is kept. Deletion cannot be undone. Under the *Dictation clips* filter, *Delete voice-typing files from
+  recorder…* clears files left on the recorder by earlier voice typing; it shows how many there are and how long they
+  run in total, and asks first.
 - **Voice typing** — everything you dictated, with time, target app and length. Copy or delete entries, or clear
   the history.
 - **Recorder** — battery, storage, firmware; *Start recording* records on the recorder without voice typing
@@ -130,7 +132,9 @@ OpenBean lives in the menu bar. *Open OpenBean* (⌘O) shows the main window. Th
 
 **Settings** (⌘,) is the last item in the sidebar, in four groups — Voice typing, Clean-up, Library, Models: what
 the recorder's button does (voice typing or record only), keyboard shortcut (default ⌥ Space), pause thresholds,
-the clean-up service, voice typing history, summaries and notes, models.
+the clean-up service, voice typing history, summaries and notes, models. *Delete voice-typing audio from the recorder*
+(Voice typing, on by default) deletes the file the recorder made for each dictation once it ends — only a file the app
+started itself and can show is new; it cannot be recovered.
 
 **Summaries and notes** (Settings → Library, both off by default):
 
@@ -239,7 +243,7 @@ bin/openbean list          # device info + recordings
 bin/openbean pull latest   # download, decrypt and save the newest recording as .ogg
 bin/openbean live 15       # record 15 s and stream it live
 bin/openbean watch 60      # print events the device sends, e.g. when you press its button
-bin/openbean delete <id> --yes   # delete one recording from the recorder (untested; see below)
+bin/openbean delete <id> --yes   # delete one recording from the recorder (see below)
 ```
 
 `delete` refuses unless the recording's audio is on this Mac (`Library/<id>/audio.ogg` of the app, or `--local <file.ogg>`)
@@ -305,10 +309,10 @@ Not planned: gestures on the recorder's button. The button only reports start an
 
 Known gaps:
 
-- Deleting from the recorder (`1A/10`) and the "put back into the case" sync trigger follow community notes and have
-  not been confirmed on hardware yet. Deleting always asks first and needs a complete local copy.
-- Ending voice typing pauses the recorder's file; the next session may continue the same file on the recorder. The
-  typed text is not affected.
+- The "put back into the case" sync trigger follows community notes and has not been confirmed on hardware yet.
+- The recorder has no "end file" command, only pause. After each voice typing session the app deletes the file it
+  created; if that setting is off or a safety check fails, the file stays paused and the next session may continue
+  it. The typed text is not affected either way.
 - The first ~1 s after pressing the button is lost.
 - The word list only fixes other mis-hearings that you declare as aliases.
 - Code comments are in Chinese.
@@ -378,7 +382,11 @@ bin/build-app && open ".build/OpenBean Dev.app"
 正在录音或语音输入时不会开始，也从不自动走 Wi‑Fi。失败后会隔一段时间（1 分钟起、最多 30 分钟）再试。
 
 从录音豆删除：在录音库里右键一条录音 →「从录音豆删除…」，用来腾出录音豆的空间。只有已经下载到本机、且本机音频解码出来的时长
-和录音豆上一致的录音才能删；本机副本保留。删除不能恢复，这条命令还没在真机上验证过。
+和录音豆上一致的录音才能删；本机副本保留。删除不能恢复。录音库筛选「听写片段」下的「从录音豆删除语音输入文件…」
+清理以前语音输入留在录音豆上的文件，会先列出条数和总时长再确认。
+
+语音输入结束后，App 会从录音豆删掉这次语音输入新建的文件（设置 → 语音输入 →「从录音豆删除语音输入的音频」，默认打开）。
+只删 App 自己发开始命令、能证明是新建的文件，删了不能恢复；不满足条件就留着，下次语音输入可能续写它，打出的文字不受影响。
 
 语音输入记录只保存在这台 Mac 上（`~/Library/Application Support/openbean/dictation.json`），用于「语音输入」页和概览统计；
 可在设置里关闭（「在本机保存语音输入记录」），或在「语音输入」页清空。
@@ -404,10 +412,11 @@ bin/build-app && open ".build/OpenBean Dev.app"
 ### 其他
 
 命令行工具 `bin/openbean` 可以扫描、读设备信息、下载并解密录音（蓝牙约 2 倍实时，Wi‑Fi 约 200 倍实时）、实时拉流、监听按键事件；
-`delete <id> --yes` 删除录音豆上的一条录音（同样要先有完整的本机副本，未经真机验证）。
+`delete <id> --yes` 删除录音豆上的一条录音（同样要先有完整的本机副本）。
 协议文档见 [docs/PROTOCOL.md](docs/PROTOCOL.md)。
 
-openbean 不会做绑定/解绑、恢复出厂和固件升级；只在你明确要求、且录音已经完整保存在本机时才删除录音豆上的录音。
+openbean 不会做绑定/解绑、恢复出厂和固件升级。删除录音豆上的录音只有两种情况：你明确要求、且录音已经完整保存在本机；
+或者语音输入结束后，App 删掉它为这次语音输入新建的文件（可在设置里关闭）。
 
 0.3 已完成「录音自动进知识库」：自动同步、转写、摘要、每条录音一份 Markdown 笔记。下一步（0.4）：区分说话人和会议纪要模板；本地服务 API（让笔记软件、智能家居、AI 助手直接使用录音豆）。以后可能做：可选的云端语音识别、同步到第三方服务。不做：按键手势（按键只有开始和停止两种事件）。
 
