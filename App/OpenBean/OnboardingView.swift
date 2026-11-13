@@ -83,6 +83,7 @@ struct OnboardingView: View {
                 Label("Sync recordings to your Mac and get searchable transcripts.", systemImage: "music.note.list")
                 Label("Speech is recognised on this Mac, offline.", systemImage: "lock")
             }
+            .labelStyle(FixedIconLabel())
         }
     }
 
@@ -137,6 +138,16 @@ struct OnboardingView: View {
                 .font(.body)
                 .frame(height: 110)
                 .overlay(RoundedRectangle(cornerRadius: 6).stroke(.quaternary))
+        }
+    }
+}
+
+/// 图标列固定宽度：几个图标宽窄不一，文字也能左对齐
+private struct FixedIconLabel: LabelStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            configuration.icon.frame(width: 22, alignment: .center)
+            configuration.title
         }
     }
 }
