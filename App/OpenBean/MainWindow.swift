@@ -81,7 +81,7 @@ struct MainView: View {
         case .library: LibraryPage(model: model)
         case .dictation: DictationHistoryView(log: model.log, settings: model.settings)
         case .recorder:
-            DeviceView(device: model.device, dictation: model.dictation)
+            DeviceView(device: model.device, dictation: model.dictation, library: model.library)
                 .navigationTitle("Recorder")
         case .settings: SettingsPage(model: model)
         }

@@ -6,6 +6,7 @@ import SwiftUI
 struct DeviceView: View {
     let device: DeviceController
     let dictation: Dictation
+    let library: LibraryStore
     @State private var confirmForget = false
 
     var body: some View {
@@ -20,6 +21,13 @@ struct DeviceView: View {
                     Spacer()
                     Button("Refresh") { Task { await device.refreshInfo() } }
                         .disabled(!device.isReady || device.activity != .idle)
+                }
+            }
+
+            // 正在同步（或在读录音豆的文件列表）：进度也放在这页，不只在侧栏底部
+            if library.sync != .idle {
+                Section {
+                    SyncStatus(device: device, library: library, compact: true)
                 }
             }
 
@@ -53,14 +61,19 @@ struct DeviceView: View {
                 }
                 Section("Recording") {
                     LabeledContent("Status", value: activityText(i))
-                    HStack {
+                    // 一个按钮，跟着录音状态变；按完读一次设备信息，按钮上的字马上对得上
+                    if i.recording == true {
+                        Button("Stop recording") {
+                            Task { await device.stopRecording(); await device.refreshInfo() }
+                        }
+                        .disabled(!device.isReady)
+                    } else {
                         Button("Start recording") {
                             dictation.ignoreNextStart = true
-                            Task { await device.startRecording() }
+                            Task { await device.startRecording(); await device.refreshInfo() }
                         }
-                        Button("Stop recording") { Task { await device.stopRecording() } }
+                        .disabled(!device.isReady)
                     }
-                    .disabled(!device.isReady)
                     Text("Records on the recorder without voice typing — for meetings and notes. Sync it to the library afterwards.")
                         .font(.caption).foregroundStyle(.secondary)
                 }
@@ -89,6 +102,8 @@ struct DeviceView: View {
             }
         }
         .formStyle(.grouped)
+        // 打开这页时读一次设备信息（和「刷新」一样），录音按钮按真实的录音状态显示
+        .task { await device.refreshInfo() }
         .confirmationDialog("Forget this recorder?", isPresented: $confirmForget) {
             Button("Forget", role: .destructive) { device.forget() }
         } message: {

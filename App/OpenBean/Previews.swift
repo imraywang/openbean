@@ -107,7 +107,7 @@ private struct PreviewFrame<Content: View>: View {
 
 @MainActor private func device(_ state: String, dark: Bool = false) -> some View {
     let m = PreviewFixtures.model(state)
-    return PreviewFrame(dark: dark, width: 760, height: 700) { DeviceView(device: m.device, dictation: m.dictation) }
+    return PreviewFrame(dark: dark, width: 760, height: 700) { DeviceView(device: m.device, dictation: m.dictation, library: m.library) }
 }
 
 #Preview("录音豆 · 已连接") { device("connected") }
