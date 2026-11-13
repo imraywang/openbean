@@ -68,7 +68,7 @@ public enum Rx {
     public static let fileSlice: UInt8 = 0x08
     public static let fileDone: UInt8 = 0x0A
     public static let fileList: UInt8 = 0x0E
-    public static let deleteFile: UInt8 = 0x10 // 删除回包（社区笔记：status 低 4 位为 1 表示成功；未经真机验证）
+    public static let deleteFile: UInt8 = 0x10 // 删除回包：status 低 4 位为 1 表示成功（2026-11-13 真机验证过）
     public static let fileSliceMark: UInt8 = 0x12
 
     public static func isTransport(_ p: Packet) -> Bool { p.type == 0x1A || p.type == 0x1B }
