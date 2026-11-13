@@ -6,6 +6,45 @@
     <description>OpenBean updates</description>
     <language>en</language>
     <item>
+      <title>OpenBean 0.4.0</title>
+      <link>https://github.com/imraywang/openbean/releases/tag/v0.4.0</link>
+      <pubDate>Fri, 13 Nov 2026 13:05:30 GMT</pubDate>
+      <sparkle:version>5</sparkle:version>
+      <sparkle:shortVersionString>0.4.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+      <description sparkle:format="markdown" xml:lang="en"><![CDATA[
+### New
+
+- **For your agents (MCP).** OpenBean now ships a read-only MCP server, so your own agent — Claude Code, Claude Desktop, Cursor and others — can list your recordings by date, read summaries and transcripts, and search what was said. Settings → Library → *For agents (MCP)* has the path, a *Copy configuration* button and a ready-made command for Claude Code. It runs only when your agent starts it, never touches Bluetooth and never goes online. What it reads is handed to the agent you connect and the model behind it. Voice-typing history is not exposed.
+- **The word list now fixes library transcripts too**, not just voice typing and summaries. Existing transcripts are updated when the word list changes, and the recogniser's original wording is kept, so removing an entry restores it. In long transcripts, same-sound fixes only apply to terms of three characters or more; aliases you declare always apply.
+
+### Improved
+
+- When the recorder is not connected, OpenBean says why (Bluetooth off, no permission, not found, connection lost) instead of showing a greyed-out Sync button.
+- Recordings without a title are named the same way everywhere: "2:35 AM", "Yesterday 9:56 PM".
+- Sidebar counts now show only what needs attention (still on the recorder, not transcribed).
+- An empty library and an empty Overview explain what to do next.
+- The Recorder page shows sync progress and has a single Start/Stop recording button.
+- Download time for a recording reads "about 2 minutes over Bluetooth".
+]]></description>
+      <description sparkle:format="markdown" xml:lang="zh-Hans"><![CDATA[
+### 新功能
+
+- **给你的 agent 用（MCP）。** OpenBean 现在带一个只读的 MCP 服务，你自己的 agent（Claude Code、Claude Desktop、Cursor 等）可以按日期列出录音、读摘要和转写、搜索说过的话。「设置 → 录音库 → 给 agent 用（MCP）」里有路径、「拷贝配置」按钮和一行给 Claude Code 的命令。它只在被 agent 启动时运行，不碰蓝牙，不联网。它读到的内容会交给你连接的那个 agent 和它背后的模型。语音输入记录不会被读到。
+- **词表也纠正录音库的转写正文了**，不再只管语音输入和摘要。词表改动后已有的转写会自动更新，识别器的原文会保留，删掉词条就能还原。长转写里，同音纠正只对三个字以上的词条生效；你写的别名照常全部应用。
+
+### 改进
+
+- 没连上录音豆时会说明原因（蓝牙关着、没有权限、找不到、连接断了），不再显示一个变灰的同步按钮。
+- 没有标题的录音在各处用同一种写法：「凌晨 2:35」「昨天 晚上 9:56」。
+- 侧栏的数字只数需要处理的（还在录音豆上、没转写）。
+- 空的录音库和空的概览会告诉你下一步做什么。
+- 录音豆页显示同步进度，开始和停止录音合成了一个按钮。
+- 录音的预计下载时间写成「蓝牙约 2 分钟」。
+]]></description>
+      <enclosure url="https://github.com/imraywang/openbean/releases/download/v0.4.0/OpenBean-0.4.0.dmg" length="13800357" type="application/octet-stream" sparkle:edSignature="feAEHJpw1atB0prTEWsPzDy9grRuo4GkmxCDlWRRxwyme0yE9MWIFblbJg0N9g7ND2ixdew5bkhLPTJfnypHBA=="/>
+    </item>
+    <item>
       <title>OpenBean 0.3.2</title>
       <link>https://github.com/imraywang/openbean/releases/tag/v0.3.2</link>
       <pubDate>Fri, 13 Nov 2026 12:34:56 GMT</pubDate>
