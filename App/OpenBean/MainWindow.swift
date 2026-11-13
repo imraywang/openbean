@@ -266,7 +266,45 @@ struct LibraryPage: View {
 
     var body: some View {
         let library = model.library
-        HStack(spacing: 0) {
+        Group {
+            // 一条录音都没有：整页一个空状态（不再左边「没有录音」、右边「选择一条录音」）
+            if library.recordings.allSatisfy(\.isDictation) {
+                emptyLibrary
+            } else {
+                columns
+            }
+        }
+        .searchable(text: $query, placement: .toolbar, prompt: "Search titles and transcripts")
+        #if DEMO || DEBUG
+        .onChange(of: DemoState.shared.query, initial: true) { _, q in query = q }
+        #endif
+        .navigationTitle("Library")
+        .onAppear {
+            // 第一次进来默认选最近一条
+            if library.selection == nil { library.selection = library.visible.first?.id }
+        }
+    }
+
+    private var emptyLibrary: some View {
+        let device = model.device
+        return ContentUnavailableView {
+            Label("No recordings yet", systemImage: "waveform")
+        } description: {
+            Text(device.isReady
+                 ? "Recordings you make on the recorder show up here after you sync them to this Mac."
+                 : "Take the recorder out of its case to connect. Its recordings show up here after you sync them.")
+        } actions: {
+            if device.isReady {
+                Button("Sync") { Task { await model.library.syncAll() } }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(device.activity != .idle)
+            }
+        }
+    }
+
+    private var columns: some View {
+        let library = model.library
+        return HStack(spacing: 0) {
             RecordingList(library: library, nav: model.nav,
                           selection: Binding(get: { library.selection }, set: { library.selection = $0 }),
                           query: $query)
@@ -280,15 +318,6 @@ struct LibraryPage: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
-        .searchable(text: $query, placement: .toolbar, prompt: "Search titles and transcripts")
-        #if DEMO || DEBUG
-        .onChange(of: DemoState.shared.query, initial: true) { _, q in query = q }
-        #endif
-        .navigationTitle("Library")
-        .onAppear {
-            // 第一次进来默认选最近一条
-            if library.selection == nil { library.selection = library.visible.first?.id }
         }
     }
 }
