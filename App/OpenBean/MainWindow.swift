@@ -131,10 +131,13 @@ struct NavSidebar: View {
         }
     }
 
+    /// 侧栏数字只数要处理的：还在录音豆上没下载、或下载了还没转写的录音（0 不显示）
     private func badge(_ s: MainSection) -> Int {
         switch s {
-        case .library: return model.library.recordings.filter { !$0.isDictation }.count
-        case .dictation: return model.log.entries.count
+        case .library:
+            return model.library.recordings.filter { r in
+                !r.isDictation && ((r.onDevice && !r.downloaded) || (r.downloaded && !r.transcribed))
+            }.count
         default: return 0
         }
     }
