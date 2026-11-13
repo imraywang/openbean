@@ -9,11 +9,15 @@ let package = Package(
         .library(name: "OpenBeanVoice", targets: ["OpenBeanVoice"]),
         .library(name: "OpenBeanLibrary", targets: ["OpenBeanLibrary"]),
         .executable(name: "openbean", targets: ["openbean"]),
+        .executable(name: "openbean-mcp", targets: ["openbean-mcp"]),
     ],
     targets: [
         .target(name: "OpenBeanKit"),
         // 只读访问 App 的录音库（index.json、转写、摘要）；只用 Foundation，不碰蓝牙
         .target(name: "OpenBeanLibrary"),
+        // 只读 MCP 服务（stdio，手写的 JSON-RPC，不引入依赖）：协议层和工具在 OpenBeanMCP，可执行文件只管收发
+        .target(name: "OpenBeanMCP", dependencies: ["OpenBeanLibrary"]),
+        .executableTarget(name: "openbean-mcp", dependencies: ["OpenBeanMCP", "OpenBeanLibrary"]),
         // sherpa-onnx 动态库由 Scripts/fetch-deps.sh 放到 Vendor/sherpa-onnx
         .systemLibrary(name: "CSherpaOnnx", path: "Sources/CSherpaOnnx"),
         .target(
@@ -42,6 +46,8 @@ let package = Package(
         ),
         .testTarget(name: "OpenBeanKitTests", dependencies: ["OpenBeanKit"]),
         .testTarget(name: "OpenBeanLibraryTests", dependencies: ["OpenBeanLibrary"]),
+        // 依赖可执行文件：swift test 会先编好 openbean-mcp，端到端测试直接起进程
+        .testTarget(name: "OpenBeanMCPTests", dependencies: ["OpenBeanMCP", "OpenBeanLibrary", "openbean-mcp"]),
         .testTarget(
             name: "OpenBeanVoiceTests",
             dependencies: ["OpenBeanVoice"],
