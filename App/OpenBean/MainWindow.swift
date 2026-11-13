@@ -210,7 +210,16 @@ struct SyncStatus: View {
         case let .failed(e):
             Text("Sync failed: \(e)").font(.caption2).foregroundStyle(.red).lineLimit(2)
         case .idle:
-            if compact {
+            if !device.isReady {
+                // 没连上时不放一个点不动的同步按钮：说清楚新录音还在录音豆上、连上后才能同步
+                if pending > 0 {
+                    Text("\(pending) new recordings are on the recorder. Sync them once it connects.")
+                        .font(.caption2).foregroundStyle(.secondary)
+                        .multilineTextAlignment(compact ? .leading : .trailing)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: compact ? .infinity : 220, alignment: compact ? .leading : .trailing)
+                }
+            } else if compact {
                 if pending > 0 {
                     Button { Task { await library.syncAll() } } label: {
                         Label("Sync \(pending) new", systemImage: "arrow.triangle.2.circlepath").frame(maxWidth: .infinity)

@@ -17,6 +17,7 @@
 "%lld h": "%lld 小时",
 "%lld h %lld min": "%1$lld 小时 %2$lld 分钟",
 "%lld min": "%lld 分钟",
+"%lld new recordings are on the recorder. Sync them once it connects.": "录音豆上有 %lld 条新录音，连上后就能同步。",
 "%lld not synced": "%lld 条未同步",
 "%lld notes saved": "已保存 %lld 条笔记",
 "%lld of %lld": "%lld / %lld",
