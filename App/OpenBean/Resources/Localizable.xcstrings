@@ -182,6 +182,16 @@
         }
       }
     },
+    "%lld new recordings are on the recorder. Sync them once it connects.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "录音豆上有 %lld 条新录音，连上后就能同步。"
+          }
+        }
+      }
+    },
     "%lld not synced": {
       "localizations": {
         "zh-Hans": {
@@ -462,6 +472,16 @@
         }
       }
     },
+    "Bluetooth is off": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "蓝牙已关闭"
+          }
+        }
+      }
+    },
     "Button: record only": {
       "localizations": {
         "zh-Hans": {
@@ -478,6 +498,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "按键：语音输入"
+          }
+        }
+      }
+    },
+    "Can't find your recorder": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "找不到录音豆"
           }
         }
       }
@@ -788,6 +818,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "拷贝转写文字"
+          }
+        }
+      }
+    },
+    "Couldn't connect to the recorder": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连不上录音豆"
           }
         }
       }
@@ -1192,6 +1232,16 @@
         }
       }
     },
+    "Getting started": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "从这里开始"
+          }
+        }
+      }
+    },
     "History is off. Turn it on in Settings to keep new voice typing here.": {
       "localizations": {
         "zh-Hans": {
@@ -1208,6 +1258,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "正在加入录音豆的 Wi‑Fi（Mac 会暂时断网）…"
+          }
+        }
+      }
+    },
+    "Keep the recorder near this Mac. OpenBean reconnects by itself.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "让录音豆靠近这台 Mac，OpenBean 会自动重连。"
           }
         }
       }
@@ -1462,6 +1522,16 @@
         }
       }
     },
+    "Not connected · OpenBean keeps trying": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未连接 · OpenBean 正在重试"
+          }
+        }
+      }
+    },
     "Not connected: %@": {
       "localizations": {
         "zh-Hans": {
@@ -1642,12 +1712,32 @@
         }
       }
     },
+    "Open Bluetooth Settings": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开蓝牙设置"
+          }
+        }
+      }
+    },
     "Open OpenBean": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "打开 OpenBean"
+          }
+        }
+      }
+    },
+    "Open Privacy Settings": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开隐私设置"
           }
         }
       }
@@ -1688,6 +1778,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "OpenBean 会断开并重新搜索，录音豆上的内容不会有任何改动。"
+          }
+        }
+      }
+    },
+    "OpenBean isn't allowed to use Bluetooth": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OpenBean 没有蓝牙权限"
+          }
+        }
+      }
+    },
+    "OpenBean keeps trying. If it doesn't connect in a minute, put the recorder back in its case and take it out again.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OpenBean 会一直重试。一分钟后还连不上，就把录音豆放回充电盒再拿出来。"
           }
         }
       }
@@ -1808,6 +1918,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "按录音豆按键，用说话代替打字"
+          }
+        }
+      }
+    },
+    "Press the recorder's button, speak, then press it again. The text goes where your cursor is.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按一下录音豆的按键说话，再按一下结束，文字会打到光标所在的位置。"
           }
         }
       }
@@ -1938,6 +2058,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "录音文件"
+          }
+        }
+      }
+    },
+    "Recordings made on the recorder come to this Mac and are transcribed here.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "录音豆上的录音会同步到这台 Mac，并在这里转成文字。"
+          }
+        }
+      }
+    },
+    "Recordings you make on the recorder show up here after you sync them to this Mac.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在录音豆上录的音，同步到这台 Mac 后会出现在这里。"
           }
         }
       }
@@ -2482,6 +2622,16 @@
         }
       }
     },
+    "Sync your first recording": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "同步第一条录音"
+          }
+        }
+      }
+    },
     "Syncing": {
       "localizations": {
         "zh-Hans": {
@@ -2492,12 +2642,42 @@
         }
       }
     },
+    "Take it out of its case. OpenBean finds it over Bluetooth.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "把它从充电盒里拿出来，OpenBean 会通过蓝牙找到它。"
+          }
+        }
+      }
+    },
     "Take the recorder out of its case to connect.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "把录音豆从充电盒里拿出来就会连接。"
+          }
+        }
+      }
+    },
+    "Take the recorder out of its case to connect. Its recordings show up here after you sync them.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "把录音豆从充电盒里拿出来就会连接，同步后录音会出现在这里。"
+          }
+        }
+      }
+    },
+    "Take the recorder out of its case, or press the button on the case to wake it. OpenBean keeps looking.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "把录音豆从充电盒里拿出来，或按一下充电盒的按钮唤醒它。OpenBean 会一直找。"
           }
         }
       }
@@ -2538,6 +2718,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "大模型服务拒绝了 API Key。"
+          }
+        }
+      }
+    },
+    "The connection dropped": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接断了"
           }
         }
       }
@@ -2842,6 +3032,36 @@
         }
       }
     },
+    "Try voice typing": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "试试语音输入"
+          }
+        }
+      }
+    },
+    "Turn on Bluetooth in Control Center or System Settings. OpenBean connects as soon as it's on.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在控制中心或系统设置里打开蓝牙，打开后 OpenBean 会自动连接。"
+          }
+        }
+      }
+    },
+    "Turn on OpenBean in System Settings → Privacy & Security → Bluetooth.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在「系统设置 → 隐私与安全性 → 蓝牙」里打开 OpenBean。"
+          }
+        }
+      }
+    },
     "Type into the active app": {
       "localizations": {
         "zh-Hans": {
@@ -2962,22 +3182,22 @@
         }
       }
     },
+    "Yesterday %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "昨天 %@"
+          }
+        }
+      }
+    },
     "You can skip this; text then only appears in OpenBean.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "可以先跳过，文字就只显示在 OpenBean 里。"
-          }
-        }
-      }
-    },
-    "about %@": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "约 %@"
           }
         }
       }
