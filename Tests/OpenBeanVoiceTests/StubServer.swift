@@ -7,14 +7,17 @@ import Network
 final class StubServer: @unchecked Sendable {
     private let listener: NWListener
     private let reply: ([String: Any]) -> String
+    /// GET 请求：路径 → (状态码, 内容)；nil 时一律回 200 和空的模型列表
+    private let get: ((String) -> (Int, String))?
     private let lock = NSLock()
     private var bodies: [[String: Any]] = []
     let url: URL
 
     var requests: [[String: Any]] { lock.lock(); defer { lock.unlock() }; return bodies }
 
-    init(reply: @escaping ([String: Any]) -> String) throws {
+    init(get: ((String) -> (Int, String))? = nil, reply: @escaping ([String: Any]) -> String) throws {
         self.reply = reply
+        self.get = get
         let params = NWParameters.tcp
         params.requiredLocalEndpoint = NWEndpoint.hostPort(host: "127.0.0.1", port: .any)
         let listener = try NWListener(using: params)
@@ -61,15 +64,23 @@ final class StubServer: @unchecked Sendable {
 
     private func respond(_ c: NWConnection, head: String, body: Data) {
         var out: Data
+        var status = "200 OK"
         if head.hasPrefix("GET") {
-            out = Data(#"{"data":[]}"#.utf8)
+            let path = head.split(separator: " ").dropFirst().first.map(String.init) ?? "/"
+            if let get {
+                let (code, body) = get(path)
+                status = code == 200 ? "200 OK" : "\(code) Error"
+                out = Data(body.utf8)
+            } else {
+                out = Data(#"{"data":[]}"#.utf8)
+            }
         } else {
             let req = (try? JSONSerialization.jsonObject(with: body) as? [String: Any]) ?? [:]
             lock.lock(); bodies.append(req); lock.unlock()
             let obj: [String: Any] = ["choices": [["message": ["role": "assistant", "content": reply(req)]]]]
             out = (try? JSONSerialization.data(withJSONObject: obj)) ?? Data()
         }
-        var resp = Data("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: \(out.count)\r\nConnection: close\r\n\r\n".utf8)
+        var resp = Data("HTTP/1.1 \(status)\r\nContent-Type: application/json\r\nContent-Length: \(out.count)\r\nConnection: close\r\n\r\n".utf8)
         resp.append(out)
         c.send(content: resp, completion: .contentProcessed { _ in c.cancel() })
     }

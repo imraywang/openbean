@@ -65,7 +65,7 @@ final class DiaryService {
         guard let service = notes.service else { throw URLError(.badURL) }
         guard await service.check() == .ok else { throw URLError(.cannotConnectToHost) }
         let segs = library.transcript(id)
-        let summarizer = ConversationSummarizer(Summarizer(service: service, glossary: AppPaths.readGlossary()))
+        let summarizer = ConversationSummarizer(await notes.summarizer(service))
         let t0 = Date()
         var calls = 0, dropped = 0
         for c in todo where c.to <= segs.count {
@@ -82,12 +82,12 @@ final class DiaryService {
     /// 开着日记时整条录音的摘要：以段摘要为准。一段直接用；多段时用合并提示词合成一份（一次调用）
     func recordingSummary(_ id: UInt32, force: Bool) async throws -> RecordingSummary {
         try await summarize(id, force: force)
-        guard let library, let service = notes?.service else { throw URLError(.badURL) }
+        guard let library, let notes, let service = notes.service else { throw URLError(.badURL) }
         let parts = library.conversations.conversations(id).compactMap(\.summary)
             .map { RecordingSummary(title: $0.title, summary: $0.summary, keyPoints: $0.keyPoints, actionItems: $0.todos) }
         guard !parts.isEmpty else { throw Summarizer.Failure.tooShort }
         let sample = String(library.transcript(id).map(\.text).joined().prefix(4000))
-        return try await Summarizer(service: service, glossary: AppPaths.readGlossary()).merge(parts, languageSample: sample).0
+        return try await notes.summarizer(service).merge(parts, languageSample: sample).0
     }
 
     // MARK: 日
@@ -196,7 +196,7 @@ final class DiaryService {
         }.joined().prefix(4000))
         let out: DiaryWriter.Output
         do {
-            out = try await DiaryWriter(Summarizer(service: service, glossary: AppPaths.readGlossary())).write(inputs, languageSample: sample)
+            out = try await DiaryWriter(await notes.summarizer(service)).write(inputs, languageSample: sample)
         } catch {
             Log.write("日记 \(key) 没写成：\(error)，下次再试")
             return
@@ -221,8 +221,8 @@ final class DiaryService {
         cache[key] = day
         missing.remove(key)
         revision += 1
-        Log.write(String(format: "已写日记 %@：%d 段，%@，%d 次调用，%.0f 秒，丢掉出处对不上的 %d 条",
-                         key, included.count, out.status.rawValue, out.calls, secs, out.dropped))
+        Log.write(String(format: "已写日记 %@：%d 段，%@，%d 次调用，%.0f 秒，丢掉出处对不上的 %d 条、重复的 %d 条、不认的负责人 %d 个",
+                         key, included.count, out.status.rawValue, out.calls, secs, out.dropped, out.duplicates, out.droppedOwners))
         writeNote(day)
     }
 
@@ -235,11 +235,26 @@ final class DiaryService {
         return try? JSONDecoder().decode(NoteRecord.self, from: d)
     }
 
-    /// 日记笔记所在的子文件夹
+    /// 日记笔记所在的文件夹：设置里的相对路径（规则见 DiaryNote.folder）；不合规时用默认的子文件夹
     var noteFolder: URL? {
         guard let dir = notes?.notesFolder else { return nil }
-        let name = settings.diaryFolder.trimmingCharacters(in: .whitespacesAndNewlines)
-        return dir.appendingPathComponent(name.isEmpty ? String(localized: "Diary") : NoteTemplate.sanitize(name), isDirectory: true)
+        return DiaryNote.folder(settings.diaryFolder, notesFolder: dir, defaultName: String(localized: "Diary"))
+            ?? DiaryNote.folder("", notesFolder: dir, defaultName: String(localized: "Diary"))
+    }
+
+    /// 设置里填的日记文件夹不合规（跑到笔记文件夹的上一级以外、绝对路径等）
+    var diaryFolderInvalid: Bool {
+        guard let dir = notes?.notesFolder else { return false }
+        return DiaryNote.folder(settings.diaryFolder, notesFolder: dir, defaultName: "Diary") == nil
+    }
+
+    /// 日记笔记的小节标题，跟着 App 的语言
+    static var labels: DiaryNote.Labels {
+        DiaryNote.Labels(overview: String(localized: "Overview of the day"), decisions: String(localized: "Decided"),
+                         todos: String(localized: "To-dos"), peopleAndThings: String(localized: "People and things mentioned"),
+                         people: String(localized: "People"), things: String(localized: "Things"),
+                         conversations: String(localized: "Conversations"), transcript: String(localized: "Transcript"),
+                         media: String(localized: "media"))
     }
 
     /// 写（或重写）某天的日记笔记。规则同逐条笔记：没被改过就原地覆盖；用户改过就不动它，另写一份
@@ -252,7 +267,7 @@ final class DiaryService {
             let old = URL(fileURLWithPath: rec.path)
             if old.deletingLastPathComponent().standardizedFileURL.path == folder.standardizedFileURL.path, fm.fileExists(atPath: old.path) {
                 let mod = (try? fm.attributesOfItem(atPath: old.path)[.modificationDate] as? Date) ?? .distantPast
-                if mod.timeIntervalSince(rec.writtenAt) > 2 { Log.write("日记笔记被改过，另写一份：\(old.lastPathComponent)") } else { target = old }
+                if NoteRules.existing(edited: NoteRules.edited(modified: mod, writtenAt: rec.writtenAt), mode: .auto) == .newFile { Log.write("日记笔记被改过，另写一份：\(old.lastPathComponent)") } else { target = old }
             }
         }
         if target == nil {
@@ -263,12 +278,14 @@ final class DiaryService {
         guard let url = target else { return }
         var links: [ConversationRef: String] = [:]
         for c in day.conversations {
-            links[c.ref] = notes.noteURL(c.ref.recording).map { DiaryNote.siblingLink($0.lastPathComponent) } ?? "openbean://open/\(c.ref.recording)"
+            links[c.ref] = notes.noteURL(c.ref.recording).map { DiaryNote.relativeLink(from: folder, to: $0) } ?? "openbean://open/\(c.ref.recording)"
         }
         let ids = Array(Set(day.conversations.map(\.ref.recording))).sorted()
         let spoken = day.conversations.reduce(0.0) { $0 + max($1.wallEnd.timeIntervalSince($1.wallStart), 0) }
         let frozen = links
-        let text = DiaryNote.render(.init(day: day, recordedSeconds: spoken, recordings: ids) { frozen[$0] ?? "openbean://open/\($0.recording)" })
+        let text = DiaryNote.render(.init(day: day, recordedSeconds: spoken, recordings: ids, labels: Self.labels) {
+            frozen[$0] ?? "openbean://open/\($0.recording)"
+        })
         do {
             try text.write(to: url, atomically: true, encoding: .utf8)
         } catch {

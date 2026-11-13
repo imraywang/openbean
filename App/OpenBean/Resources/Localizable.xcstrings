@@ -802,6 +802,16 @@
         }
       }
     },
+    "Conversations": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "对话"
+          }
+        }
+      }
+    },
     "Copied": {
       "localizations": {
         "zh-Hans": {
@@ -1032,12 +1042,12 @@
         }
       }
     },
-    "Diary subfolder": {
+    "Diary folder": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "日记子文件夹"
+            "value": "日记文件夹"
           }
         }
       }
@@ -1518,6 +1528,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "请先把 OpenBean 移到「应用程序」文件夹：App 换了位置，路径就会变。"
+          }
+        }
+      }
+    },
+    "Must stay inside the notes folder or one level above it; using the default for now.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只能在笔记文件夹里，或它的上一级里；现在先用默认的文件夹。"
           }
         }
       }
@@ -2022,6 +2042,16 @@
         }
       }
     },
+    "Overview of the day": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "当天概述"
+          }
+        }
+      }
+    },
     "Paste the configuration into your agent's mcpServers settings (Claude Desktop: Settings → Developer → Edit Config), or run the command in Terminal for Claude Code. Read-only: it can't change, delete or record anything, and can't reach audio or voice typing. It runs only while an agent starts it. The transcripts and summaries it reads go to the agent you connect and the model behind it.": {
       "localizations": {
         "zh-Hans": {
@@ -2038,6 +2068,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "停顿与排版"
+          }
+        }
+      }
+    },
+    "People": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "人"
+          }
+        }
+      }
+    },
+    "People and things mentioned": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "提到的人和事"
           }
         }
       }
@@ -2308,6 +2358,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "刷新"
+          }
+        }
+      }
+    },
+    "Relative to the notes folder, for example Diary or ../Journal": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "相对笔记文件夹，例如 日记 或 ../30-日记"
           }
         }
       }
@@ -3122,6 +3182,16 @@
         }
       }
     },
+    "Things": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "事"
+          }
+        }
+      }
+    },
     "This build doesn't include openbean-mcp. Build the app with bin/build-app.": {
       "localizations": {
         "zh-Hans": {
@@ -3658,6 +3728,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "不到 1 分钟"
+          }
+        }
+      }
+    },
+    "media": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "媒体声"
           }
         }
       }
