@@ -102,10 +102,14 @@ launch() {
 pass_default() {
   go "appearance/$MODE"
   go "state/connected"
-  go "page/overview"; go "window/main/1180x760"
-  shot 01 overview main "概览（默认尺寸 1180×760）"
+  go "page/today"; go "window/main/1180x760"
+  shot 01 today main "今天（默认尺寸 1180×760）"
   go "window/main/960x600"
-  shot 02 overview-narrow main "概览（最小尺寸 960×600）"
+  shot 02 today-narrow main "今天（最小尺寸 960×600）"
+  go "window/main/1180x760"
+  go "today/-1";  shot 02 today-yesterday main "今天页翻到昨天（跨午夜、凌晨的录音）"
+  go "today/-7";  shot 02 today-empty-day main "今天页：没有录音的一天"
+  go "today/0"
   go "window/main/1180x760"
   go "select/summary";       shot 03 library-summary main "录音库：选中一条有摘要的录音"
   go "todo/check"; go "play/75"; go "select/none"; go "select/summary"
@@ -126,7 +130,7 @@ pass_default() {
   go "page/dictation";       shot 13 voice-typing main "语音输入记录"
   go "page/recorder";        shot 14 recorder-connected main "录音豆：已连接、空闲"
   go "state/syncing";        shot 15 recorder-syncing main "录音豆：正在同步（进度和预计时间）"
-  go "page/overview";        shot 16 overview-syncing main "概览：正在同步、正在转写"
+  go "page/today";           shot 16 today-syncing main "今天：正在同步、正在转写"
   go "select/summary";       shot 17 library-syncing main "录音库：同步中（侧栏底部进度）"
   go "page/recorder"
   go "state/dictating";      shot 18 recorder-dictating main "录音豆：正在语音输入"
@@ -134,12 +138,12 @@ pass_default() {
   go "state/low-battery";    shot 20 recorder-low-battery main "录音豆：低电量"
   go "state/charging";       shot 21 recorder-charging main "录音豆：在充电盒里充电"
   go "state/searching";      shot 22 recorder-searching main "录音豆：搜索中"
-  go "page/overview";        shot 23 overview-searching main "概览：没连上录音豆"
+  go "page/today";           shot 23 today-searching main "今天：没连上录音豆"
   go "page/recorder"
   go "state/failed";         shot 24 recorder-failed main "录音豆：找不到录音豆"
   go "state/bluetooth-off";  shot 24 recorder-bluetooth-off main "录音豆：蓝牙关闭"
   go "state/no-permission";  shot 24 recorder-no-permission main "录音豆：没有蓝牙权限"
-  go "page/overview";        shot 24 overview-failed main "概览：连接失败"
+  go "page/today";           shot 24 today-failed main "今天：连接失败"
   go "page/recorder"
   go "state/connected"
   # 设置是独立窗口（固定宽度，每页高度不同）
@@ -149,7 +153,7 @@ pass_default() {
   go "settings/agent";   shot 28 settings-agent settings "设置：Agent"
   go "settings/about";   shot 29 settings-about settings "设置：关于"
   go "close/settings"
-  go "page/overview"
+  go "page/today"
   # 菜单栏：图标（各状态）和点开的菜单
   local rect
   for st in connected syncing dictating searching; do
@@ -192,8 +196,8 @@ pass_empty() {
     go "onboarding/$step"; shot $n "onboarding-$((step + 1))" onboarding "首次使用向导：第 $((step + 1)) 步"; n=$((n + 1))
   done
   go "close/onboarding"
-  go "page/overview"; go "window/main/1180x760"
-  shot 55 empty-overview main "空状态：概览"
+  go "page/today"; go "window/main/1180x760"
+  shot 55 empty-today main "空状态：今天（第一次用，三步入门）"
   go "page/library";   shot 56 empty-library main "空状态：录音库"
   go "page/dictation"; shot 57 empty-voice-typing main "空状态：语音输入记录"
   go "page/recorder";  shot 58 empty-recorder main "空状态：录音豆（从没连上）"

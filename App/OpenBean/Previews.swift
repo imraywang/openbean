@@ -7,12 +7,13 @@
 // 每个预览各建一份 AppModel，互不影响。深色：本文件里成对的「· 深色」预览，或画布的 Color Scheme Variants。
 // 菜单栏菜单、悬浮条所在的面板、整窗工具栏的真实样子还是要用 bin/ui-shots 截图。
 #if DEBUG
+import OpenBeanLibrary
 import SwiftUI
 
 @MainActor
 enum PreviewFixtures {
     /// 一份摆好状态的 AppModel。state 同 openbean-demo://demo/state/<名字>；select 同 demo/select/<名字>
-    static func model(_ state: String = "connected", section: MainSection = .overview, tab: SettingsTab = .voice,
+    static func model(_ state: String = "connected", section: MainSection = .today, dayOffset: Int = 0, tab: SettingsTab = .voice,
                       select: String? = nil, filter: LibraryStore.Filter = .all, transcribedAll: Bool = false,
                       models: ModelStore.State = .ready, trusted: Bool = true) -> AppModel {
         // 不在 Xcode 预览里（例如单元测试里误用）就停下，免得读到真实数据目录
@@ -23,6 +24,10 @@ enum PreviewFixtures {
         m.models.demoSet(models)
         DemoController.apply(state: state, to: m)
         m.nav.section = section
+        if dayOffset != 0 {
+            let b = DayBoundary(startHour: m.settings.dayStartHour)
+            m.nav.day = b.day(b.day(of: Date()), offsetBy: dayOffset)
+        }
         m.nav.settingsTab = tab
         m.library.filter = filter
         // 「有待办」要摘要在缓存里：预览里直接同步读进来
@@ -52,11 +57,11 @@ private struct PreviewFrame<Content: View>: View {
 
 // MARK: - 主窗口（侧栏 + 页面）
 
-#Preview("主窗口 · 概览") { PreviewFrame { MainView(model: PreviewFixtures.model()) } }
-#Preview("主窗口 · 概览 · 深色") { PreviewFrame(dark: true) { MainView(model: PreviewFixtures.model()) } }
-#Preview("主窗口 · 概览 · 最小尺寸") { PreviewFrame(width: 960, height: 600) { MainView(model: PreviewFixtures.model()) } }
-#Preview("主窗口 · 概览 · 正在同步") { PreviewFrame { MainView(model: PreviewFixtures.model("syncing")) } }
-#Preview("主窗口 · 概览 · 没连上") { PreviewFrame { MainView(model: PreviewFixtures.model("searching")) } }
+#Preview("主窗口 · 今天") { PreviewFrame { MainView(model: PreviewFixtures.model()) } }
+#Preview("主窗口 · 今天 · 深色") { PreviewFrame(dark: true) { MainView(model: PreviewFixtures.model()) } }
+#Preview("主窗口 · 今天 · 最小尺寸") { PreviewFrame(width: 960, height: 600) { MainView(model: PreviewFixtures.model()) } }
+#Preview("主窗口 · 今天 · 正在同步") { PreviewFrame { MainView(model: PreviewFixtures.model("syncing")) } }
+#Preview("主窗口 · 今天 · 没连上") { PreviewFrame { MainView(model: PreviewFixtures.model("searching")) } }
 #Preview("主窗口 · 录音库 · 有摘要") {
     PreviewFrame { MainView(model: PreviewFixtures.model(section: .library, select: "summary")) }
 }
@@ -91,9 +96,26 @@ private struct PreviewFrame<Content: View>: View {
 
 // MARK: - 单独的页面和部件（不带侧栏，改单个视图时更快）
 
-#Preview("概览") { PreviewFrame(width: 960) { NavigationStack { OverviewView(model: PreviewFixtures.model()) } } }
-#Preview("概览 · 深色") {
-    PreviewFrame(dark: true, width: 960) { NavigationStack { OverviewView(model: PreviewFixtures.model()) } }
+// 「今天」的各种日子：勾了一条待办；昨天（含跨午夜和凌晨的录音）；没有录音的一天；第一次用
+@MainActor private func today(_ state: String = "connected", dayOffset: Int = 0, checked: Bool = false, dark: Bool = false,
+                              width: CGFloat = 1180) -> some View {
+    let m = PreviewFixtures.model(state, dayOffset: dayOffset)
+    if checked, let r = m.library.recordings.first(where: { m.library.notes.summary($0.id) != nil && Calendar.current.isDateInToday($0.start) }),
+       let t = m.library.notes.summary(r.id)?.actionItems.first {
+        m.library.notes.setDone(r.id, t, true)
+    }
+    return PreviewFrame(dark: dark, width: width) { MainView(model: m) }
+}
+
+#Preview("今天 · 勾了一条待办") { today(checked: true) }
+#Preview("今天 · 勾了一条待办 · 深色") { today(checked: true, dark: true) }
+#Preview("今天 · 昨天（跨午夜）") { today(dayOffset: -1) }
+#Preview("今天 · 没有录音的一天") { today(dayOffset: -7) }
+#Preview("今天 · 没有录音的一天 · 深色") { today(dayOffset: -7, dark: true) }
+#Preview("今天 · 低电量") { today("low-battery") }
+#Preview("今天 · 最小尺寸 · 没连上") {
+    let m = PreviewFixtures.model("failed")
+    PreviewFrame(width: 960, height: 600) { MainView(model: m) }
 }
 
 #Preview("录音列表") {

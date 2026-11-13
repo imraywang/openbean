@@ -45,6 +45,9 @@ targets:
         product: OpenBeanKit
       - package: openbean
         product: OpenBeanVoice
+      # 「今天」的分天函数（DayBoundary），和以后的日记共用
+      - package: openbean
+        product: OpenBeanLibrary
       # 二进制 xcframework，Xcode 自动拷进 Frameworks 并签名（写 embed: true 反而找不到 Sparkle-product）
       - package: Sparkle
       - framework: ../Vendor/sherpa-onnx/lib/libsherpa-onnx-c-api.dylib

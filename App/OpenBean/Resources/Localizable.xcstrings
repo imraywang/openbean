@@ -62,6 +62,16 @@
         }
       }
     },
+    "%@ battery is low (%lld%%). Put it back in its case to charge.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ 电量低（%2$lld%%），放回充电盒充电。"
+          }
+        }
+      }
+    },
     "%@ is taken by another app": {
       "localizations": {
         "zh-Hans": {
@@ -88,16 +98,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "已转写 %@"
-          }
-        }
-      }
-    },
-    "%@ · %@": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@ · %@"
           }
         }
       }
@@ -202,6 +202,16 @@
         }
       }
     },
+    "%lld new recordings on the recorder": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "录音豆上有 %lld 条新录音"
+          }
+        }
+      }
+    },
     "%lld not synced": {
       "localizations": {
         "zh-Hans": {
@@ -232,12 +242,42 @@
         }
       }
     },
+    "%lld of %lld done": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已完成 %1$lld / %2$lld"
+          }
+        }
+      }
+    },
     "%lld on this Mac": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "Mac 上 %lld 条"
+          }
+        }
+      }
+    },
+    "%lld open to-dos": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 条待办没做"
+          }
+        }
+      }
+    },
+    "%lld recordings from this day aren't transcribed yet": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这天有 %lld 条录音还没转写"
           }
         }
       }
@@ -268,6 +308,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "%lld%%"
+          }
+        }
+      }
+    },
+    "A day starts at": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "一天从几点开始"
           }
         }
       }
@@ -318,6 +368,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "蓝牙约需 %@"
+          }
+        }
+      }
+    },
+    "About %@ over Bluetooth. Use Sync in the toolbar.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "蓝牙约需 %@，用工具栏里的「同步」。"
           }
         }
       }
@@ -618,6 +678,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "选择"
+          }
+        }
+      }
+    },
+    "Choose a day": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择日期"
           }
         }
       }
@@ -1342,6 +1412,16 @@
         }
       }
     },
+    "Go to today (⌘T)": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "回到今天（⌘T）"
+          }
+        }
+      }
+    },
     "Has to-dos": {
       "localizations": {
         "zh-Hans": {
@@ -1572,6 +1652,26 @@
         }
       }
     },
+    "Next day": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "后一天"
+          }
+        }
+      }
+    },
+    "Next day (⌘→)": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "后一天（⌘→）"
+          }
+        }
+      }
+    },
     "No recordings": {
       "localizations": {
         "zh-Hans": {
@@ -1592,12 +1692,32 @@
         }
       }
     },
+    "No recordings on this day": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这一天没有录音"
+          }
+        }
+      }
+    },
     "No recordings yet": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "还没有录音"
+          }
+        }
+      }
+    },
+    "No recordings yet today": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "今天还没有录音"
           }
         }
       }
@@ -1912,6 +2032,16 @@
         }
       }
     },
+    "Open in Library": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在录音库里打开"
+          }
+        }
+      }
+    },
     "Open log": {
       "localizations": {
         "zh-Hans": {
@@ -2112,6 +2242,36 @@
         }
       }
     },
+    "Previous day": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "前一天"
+          }
+        }
+      }
+    },
+    "Previous day (⌘←)": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "前一天（⌘←）"
+          }
+        }
+      }
+    },
+    "Previous day with recordings: %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "上一个有录音的日子：%@"
+          }
+        }
+      }
+    },
     "Quit OpenBean": {
       "localizations": {
         "zh-Hans": {
@@ -2212,6 +2372,16 @@
         }
       }
     },
+    "Recorder details": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "录音豆详情"
+          }
+        }
+      }
+    },
     "Recording": {
       "localizations": {
         "zh-Hans": {
@@ -2228,6 +2398,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "录音文件"
+          }
+        }
+      }
+    },
+    "Recordings from the recorder show up here by day after you sync them.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "录音豆上录的音同步之后，会按天出现在这里。"
           }
         }
       }
@@ -2662,6 +2842,16 @@
         }
       }
     },
+    "Still on the recorder. It's transcribed after you sync it.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "还在录音豆上，同步后会自动转写。"
+          }
+        }
+      }
+    },
     "Stop": {
       "localizations": {
         "zh-Hans": {
@@ -2888,6 +3078,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "正在同步第 %1$lld/%2$lld 条"
+          }
+        }
+      }
+    },
+    "Syncing %lld of %lld — about %@ left": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在同步第 %1$lld/%2$lld 条，约剩 %3$@"
           }
         }
       }
@@ -3162,6 +3362,26 @@
         }
       }
     },
+    "This week: %lld times · %lld characters": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本周：%1$lld 次 · %2$lld 字"
+          }
+        }
+      }
+    },
+    "Timeline": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "录音"
+          }
+        }
+      }
+    },
     "Times recorded": {
       "localizations": {
         "zh-Hans": {
@@ -3202,12 +3422,32 @@
         }
       }
     },
+    "To-dos": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "待办"
+          }
+        }
+      }
+    },
     "Today": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "今天"
+          }
+        }
+      }
+    },
+    "Today groups recordings by day. With 4:00 AM, a conversation at 2 AM still counts as the day before.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「今天」按天整理录音。设成凌晨 4 点时，凌晨两点的谈话算前一天。"
           }
         }
       }
@@ -3382,6 +3622,16 @@
         }
       }
     },
+    "Untitled recording": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未命名录音"
+          }
+        }
+      }
+    },
     "Use your soundcore Work recorder on this Mac — no vendor app, no cloud.": {
       "localizations": {
         "zh-Hans": {
@@ -3418,6 +3668,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "语音输入"
+          }
+        }
+      }
+    },
+    "Voice typing %lld times · %lld characters": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "语音输入 %1$lld 次 · %2$lld 字"
           }
         }
       }
@@ -3568,6 +3828,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "录音豆。请把它从充电盒拿出来，或按一下充电盒按钮唤醒。"
+          }
+        }
+      }
+    },
+    "starts at %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "从%@算起"
+          }
+        }
+      }
+    },
+    "until %@ next day": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "到次日 %@"
           }
         }
       }

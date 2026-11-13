@@ -46,7 +46,7 @@ struct SettingsWindow: View {
                 PolishSettings(settings: model.settings).frame(height: 560)
             }
             Tab(SettingsTab.library.title, systemImage: SettingsTab.library.icon, value: .library) {
-                LibrarySettings(settings: model.settings).frame(height: 560)
+                LibrarySettings(settings: model.settings).frame(height: 640)
             }
             Tab(SettingsTab.agent.title, systemImage: SettingsTab.agent.icon, value: .agent) {
                 Form { AgentSettingsSection() }.formStyle(.grouped).frame(height: 420)
@@ -305,6 +305,17 @@ private struct LibrarySettings: View {
                 LabeledContent("Library folder") {
                     Button("Show in Finder") { NSWorkspace.shared.open(AppPaths.library) }
                 }
+            }
+            Section {
+                Picker("A day starts at", selection: $settings.dayStartHour) {
+                    ForEach(0..<7) { h in
+                        Text(Calendar.current.date(bySettingHour: h, minute: 0, second: 0, of: Date())!
+                            .formatted(date: .omitted, time: .shortened)).tag(h)
+                    }
+                }
+            } footer: {
+                Text("Today groups recordings by day. With 4:00 AM, a conversation at 2 AM still counts as the day before.")
+                    .font(.caption).foregroundStyle(.secondary)
             }
             NoteSettingsSections(settings: settings, notes: AppModel.shared.library.notes)
         }

@@ -140,7 +140,9 @@ final class Settings {
     var buttonDictates: Bool { didSet { d.set(buttonDictates, forKey: "buttonDictates") } }
     /// 可以开始说话时提示一声
     var readySound: Bool { didSet { d.set(readySound, forKey: "readySound") } }
-    /// 在本机保存语音输入记录（概览里的统计也靠它）
+    /// 「今天」和日记里一天从几点开始（默认凌晨 4 点：凌晨两点的谈话算前一天）
+    var dayStartHour: Int { didSet { d.set(dayStartHour, forKey: "dayStartHour") } }
+    /// 在本机保存语音输入记录（语音输入页、「今天」里的语音输入一行靠它）
     var keepHistory: Bool { didSet { d.set(keepHistory, forKey: "keepHistory") } }
     /// 转写完用大模型（润色那个服务）写摘要
     var summarizeRecordings: Bool { didSet { d.set(summarizeRecordings, forKey: "summarizeRecordings") } }
@@ -162,7 +164,7 @@ final class Settings {
                               "hotkey": Hotkey.Preset.optionSpace.rawValue, "autoTranscribe": true,
                               "onboardingDone": false, "buttonDictates": true, "readySound": true,
                               "keepHistory": true, "autoSync": true, "summarizeRecordings": false,
-                              "notesEnabled": false, "notesFolder": "",
+                              "notesEnabled": false, "notesFolder": "", "dayStartHour": 4,
                               "deleteDictationAudio": Self.deleteDictationAudioDefault])
         typeIntoApp = d.bool(forKey: "typeIntoApp")
         polishEnabled = d.bool(forKey: "polishEnabled")
@@ -179,6 +181,7 @@ final class Settings {
         buttonDictates = d.bool(forKey: "buttonDictates")
         readySound = d.bool(forKey: "readySound")
         keepHistory = d.bool(forKey: "keepHistory")
+        dayStartHour = d.integer(forKey: "dayStartHour")
         summarizeRecordings = d.bool(forKey: "summarizeRecordings")
         notesEnabled = d.bool(forKey: "notesEnabled")
         notesFolder = d.string(forKey: "notesFolder") ?? ""

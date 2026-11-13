@@ -7,7 +7,7 @@
 // 切状态用链接 openbean-demo://demo/<命令>[?seq=N]，带 seq 时处理完写 <数据目录>/demo-ack.json（截图脚本据此等待并取窗口号）：
 //   state/connected|searching|connecting|failed|bluetooth-off|no-permission|lost|syncing|sync-failed|dictating|recording|low-battery|charging
 //   hud/hidden|starting|listening|polishing|wrapping|typed|copied|nothing|error
-//   page/overview|library|dictation|recorder   settings/voice|polish|library|agent|about（设置窗口）
+//   page/today|library|dictation|recorder（overview 同 today）   today/<天数，负数往前>   settings/voice|polish|library|agent|about（设置窗口）
 //   select/summary|untranscribed|ondevice|long|none   search/<词>   filter/all|onRecorder|untranscribed|todos
 //   play/<秒>|off   todo/check|clear   onboarding/<0–4>   close/onboarding|main|settings   window/main|onboarding/<宽>x<高>   appearance/light|dark|auto
 //   trusted/yes|no   models/ready|missing|downloading   menu/open   ping   quit
@@ -17,6 +17,7 @@
 import AppKit
 import Observation
 import OpenBeanKit
+import OpenBeanLibrary
 import OpenBeanVoice
 import SwiftUI
 
@@ -88,13 +89,19 @@ enum DemoData {
         var offDevice = false
     }
 
-    /// 二十多条录音，跨五周：今天、昨天、本周、上个月都有
+    /// 二十多条录音，跨五周：今天（5 条，不算语音输入片段）、昨天（含一条跨午夜的、一条凌晨的）、本周、上个月都有；
+    /// 7 天前那天没有录音
     static let specs: [Spec] = [
         Spec(day: 0, hour: 16, minute: 5, seconds: 184, kind: .device),
         Spec(day: 0, hour: 14, minute: 30, seconds: 1_092, kind: .device),
         Spec(day: 0, hour: 11, minute: 48, seconds: 21, kind: .dictation),
         Spec(day: 0, hour: 10, minute: 0, seconds: 3_486, kind: .summary, topic: "roadmap"),
+        Spec(day: 0, hour: 13, minute: 15, seconds: 1_240, kind: .summary, topic: "growth2"),
         Spec(day: 0, hour: 8, minute: 52, seconds: 48, kind: .transcript, topic: "errands"),
+        // 凌晨 1:40 的随手记：按「一天从 4 点算」归到昨天
+        Spec(day: 0, hour: 1, minute: 40, seconds: 100, kind: .transcript, topic: "idea"),
+        // 昨晚 23:30 开始、录到今天 1:20 的长录音：按开始时刻算昨天
+        Spec(day: 1, hour: 23, minute: 30, seconds: 6_600, kind: .summary, topic: "retro"),
         Spec(day: 1, hour: 19, minute: 10, seconds: 3_122, kind: .device),
         Spec(day: 1, hour: 15, minute: 0, seconds: 2_534, kind: .summary, topic: "interview"),
         Spec(day: 1, hour: 9, minute: 30, seconds: 846, kind: .transcript, topic: "standup"),
@@ -472,7 +479,14 @@ final class DemoController {
         case "state": apply(state: arg)
         case "hud": hud(arg)
         case "page":
-            if let s = MainSection(rawValue: arg) { m.nav.section = s }
+            if let s = MainSection(link: arg) { m.nav.section = s }
+            openMain()
+        case "today":
+            // today/<天数>：「今天」页翻到前几天（today/0 或 today 回到今天；today/-7 是一个没有录音的日子）
+            let b = DayBoundary(startHour: m.settings.dayStartHour)
+            let n = Int(arg) ?? 0
+            m.nav.day = n == 0 ? nil : b.day(b.day(of: Date()), offsetBy: n)
+            m.nav.section = .today
             openMain()
         case "settings":
             if let tab = SettingsTab(link: arg) { m.nav.settingsTab = tab }

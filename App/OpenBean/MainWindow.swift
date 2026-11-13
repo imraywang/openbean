@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import Charts
 import OpenBeanKit
 import Observation
 import SwiftUI
@@ -8,13 +7,18 @@ import SwiftUI
 // MARK: - 导航
 
 enum MainSection: String, CaseIterable, Identifiable, Hashable {
-    case overview, library, dictation, recorder
+    case today, library, dictation, recorder
     var id: String { rawValue }
     /// 侧栏里的页面（⌘1–⌘4）。设置在独立的设置窗口里（⌘,）
-    static let pages: [MainSection] = [.overview, .library, .dictation, .recorder]
+    static let pages: [MainSection] = [.today, .library, .dictation, .recorder]
+    /// 链接里的名字：0.4 以前的「概览」现在是「今天」
+    init?(link: String) {
+        if link == "overview" { self = .today; return }
+        self.init(rawValue: link)
+    }
     var title: LocalizedStringKey {
         switch self {
-        case .overview: return "Overview"
+        case .today: return "Today"
         case .library: return "Library"
         case .dictation: return "Voice typing"
         case .recorder: return "Recorder"
@@ -22,7 +26,7 @@ enum MainSection: String, CaseIterable, Identifiable, Hashable {
     }
     var icon: String {
         switch self {
-        case .overview: return "square.grid.2x2"
+        case .today: return "sun.max"
         case .library: return "list.bullet"
         case .dictation: return "keyboard"
         case .recorder: return "mic"
@@ -32,7 +36,9 @@ enum MainSection: String, CaseIterable, Identifiable, Hashable {
 
 @MainActor @Observable
 final class Navigator {
-    var section: MainSection = .overview
+    var section: MainSection = .today
+    /// 「今天」页看的是哪一天（那个日历日的 0 点）；nil = 今天（跟着时间走，过了凌晨 4 点自动换天）
+    var day: Date?
     var settingsTab: SettingsTab = .voice
     /// 刚从别处跳过来的录音：那一行亮一下，提示「你在这」
     var flash: UInt32?
@@ -83,7 +89,7 @@ struct MainView: View {
 
     @ViewBuilder private func page(_ s: MainSection) -> some View {
         switch s {
-        case .overview: OverviewView(model: model)
+        case .today: TodayView(model: model)
         case .library: LibraryPage(model: model)
         case .dictation: DictationHistoryView(log: model.log, settings: model.settings, library: model.library)
         case .recorder:
@@ -408,346 +414,6 @@ struct LibraryPage: View {
     }
 }
 
-// MARK: - 概览
-
-struct OverviewView: View {
-    let model: AppModel
-    @State private var period: Period = .week
-    @Environment(\.colorScheme) private var scheme
-
-    enum Period: String, CaseIterable, Identifiable {
-        case week, month, all
-        var id: String { rawValue }
-        var title: LocalizedStringKey {
-            switch self { case .week: "This week"; case .month: "This month"; case .all: "All time" }
-        }
-        var interval: DateInterval? {
-            switch self {
-            case .week: Calendar.current.dateInterval(of: .weekOfYear, for: Date())
-            case .month: Calendar.current.dateInterval(of: .month, for: Date())
-            case .all: nil
-            }
-        }
-    }
-
-    private var library: LibraryStore { model.library }
-    private var device: DeviceController { model.device }
-    private var recordings: [Recording] { library.recordings.filter { !$0.isDictation } }
-
-    var body: some View {
-        // 窗口够高时撑满：图表和最近录音吃掉剩余高度；太矮时整页滚动
-        ViewThatFits(in: .vertical) {
-            content
-            ScrollView { content }
-        }
-        .navigationTitle("Overview")
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                Picker("Period", selection: $period) {
-                    ForEach(Period.allCases) { Text($0.title).tag($0) }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-            }
-        }
-    }
-
-    private var content: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            hero
-            if recordings.isEmpty && model.log.entries.isEmpty {
-                // 还什么都没有：不摆一排 0 和空图表，告诉人从哪开始
-                gettingStarted.frame(maxHeight: .infinity, alignment: .top)
-            } else {
-                tiles
-                HStack(alignment: .top, spacing: 12) {
-                    ActivityChart(recordings: recordings, log: model.log)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    recent.frame(minWidth: 260, maxWidth: 380, maxHeight: .infinity)
-                }
-                .frame(minHeight: 280, maxHeight: .infinity)
-            }
-            statusStrip
-        }
-        .padding(24)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-    }
-
-    // 录音豆
-    private var hero: some View {
-        let info = device.info
-        let onDevice = library.recordings.filter { $0.onDevice && !$0.isDictation }
-        let pending = onDevice.filter { !$0.downloaded }.count
-        // 两行：上面是设备和同步，下面三个数平分宽度，窗口窄时也不会挤出去
-        return VStack(alignment: .leading, spacing: 18) {
-            HStack(spacing: 14) {
-                // 没连上时用不透明的灰底：半透明的底会让镂空的声波看不见，只剩一团白色豆子
-                BeanBadge(size: 44, color: device.isReady ? .accentColor : Color(white: 0.42))
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(device.deviceName).font(.headline)
-                    Text(heroStatus(info)).font(.caption).foregroundStyle(.white.opacity(0.7)).lineLimit(1)
-                }
-                Spacer(minLength: 12)
-            }
-            if let info {
-                let used = Double(Int(info.totalKB) - Int(info.freeKB)), total = Double(max(info.totalKB, 1))
-                let battery = device.battery ?? info.micBattery ?? 0
-                HStack(alignment: .top, spacing: 24) {
-                    HeroMetric(title: "Battery", value: Text("\(battery)%"), progress: Double(battery) / 100)
-                    HeroMetric(title: "Storage", value: Text(bytes(used)), progress: used / total,
-                               note: Text("of \(bytes(total))"))
-                    HeroMetric(title: "On the recorder", value: Text("\(onDevice.count)"),
-                               note: pending > 0 ? Text("\(pending) not synced") : Text("All synced"))
-                }
-            } else {
-                if case .failed = device.state, let p = device.problem {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(p.title).font(.callout.weight(.semibold))
-                        Text(p.advice).font(.callout).foregroundStyle(.white.opacity(0.7))
-                    }
-                } else {
-                    Text(device.isReady ? "Reading the recorder…" : "Take the recorder out of its case to connect.")
-                        .font(.callout).foregroundStyle(.white.opacity(0.7))
-                }
-            }
-        }
-        .foregroundStyle(.white)
-        .padding(20)
-        .background(RoundedRectangle(cornerRadius: 14, style: .continuous)
-            .fill(scheme == .dark ? Color.white.opacity(0.07) : Color(red: 0.106, green: 0.114, blue: 0.129)))
-    }
-
-    private func heroStatus(_ info: DeviceInfo?) -> String {
-        var s = DeviceFooter.status(device, library)
-        if let f = info?.firmware, !f.isEmpty { s += " · " + String(localized: "Firmware \(f)") }
-        return s
-    }
-
-    // 四个数
-    private var tiles: some View {
-        let inPeriod = recordings.filter { period.interval?.contains($0.start) ?? true }
-        let secs = inPeriod.reduce(0) { $0 + $1.duration }
-        let done = inPeriod.filter(\.transcribed).reduce(0) { $0 + $1.duration }
-        let typed = model.log.entries(in: period.interval)
-        let local = recordings.filter(\.downloaded).count
-        return Grid(horizontalSpacing: 12) {
-            GridRow {
-                StatTile(title: "Recordings", value: Text("\(recordings.count)"),
-                         note: Text("\(local) on this Mac"))
-                StatTile(title: "Times recorded", value: Text("\(inPeriod.count)"), note: Text(period.title))
-                StatTile(title: "Recorded", value: Text(hours(secs)),
-                         note: Text("\(hours(done)) transcribed"))
-                StatTile(title: "Voice typing",
-                         value: Text("\(typed.reduce(0) { $0 + $1.characters }) characters"),
-                         note: Text("\(typed.count) times"))
-            }
-        }
-    }
-
-    // 最近录音
-    private var recent: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Text("Recent recordings").font(.headline)
-                Spacer()
-                Button("See all") { model.nav.section = .library }.buttonStyle(.link)
-            }
-            .padding(.bottom, 6)
-            let list = Array(recordings.sorted { $0.start > $1.start }.prefix(20))
-            if list.isEmpty {
-                Text("No recordings yet").foregroundStyle(.secondary).padding(.vertical, 8)
-            }
-            // 卡片多高就放几条整行（不露半行），其余去「查看全部」
-            GeometryReader { geo in
-            let n = max(1, min(list.count, Int((geo.size.height + 1) / (Self.recentRow + 1))))
-            VStack(alignment: .leading, spacing: 0) {
-            ForEach(Array(list.prefix(n).enumerated()), id: \.element.id) { i, r in
-                Button { model.nav.show(recording: r.id, in: library) } label: {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(r.title?.isEmpty == false ? r.title! : RelativeDate.name(r.start)).font(.callout.weight(.medium)).lineLimit(1)
-                            Text(recentStatus(r)).font(.caption).foregroundStyle(library.transcribing[r.id] != nil ? Color.accentColor : .secondary)
-                        }
-                        Spacer()
-                        Text(LibraryStore.clock(r.duration)).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
-                    }
-                    .frame(height: Self.recentRow)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                if i < n - 1 { Divider() }
-            }
-            }
-            }
-            .frame(minHeight: 120, idealHeight: 240, maxHeight: .infinity)
-        }
-        .padding(16)
-        .frame(maxHeight: .infinity, alignment: .top)
-        .background(RoundedRectangle(cornerRadius: 12).strokeBorder(.separator))
-    }
-
-    /// 最近录音一行的高度（两行字加上下留白）
-    private static let recentRow: CGFloat = 46
-
-    // 第一次用：三步入门
-    private var gettingStarted: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Getting started").font(.headline)
-            step(done: device.isReady, number: 1, title: "Connect your recorder",
-                 detail: "Take it out of its case. OpenBean finds it over Bluetooth.")
-            step(done: !model.log.entries.isEmpty, number: 2, title: "Try voice typing",
-                 detail: "Press the recorder's button, speak, then press it again. The text goes where your cursor is.")
-            step(done: !recordings.isEmpty, number: 3, title: "Sync your first recording",
-                 detail: "Recordings made on the recorder come to this Mac and are transcribed here.")
-        }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 12).strokeBorder(.separator))
-    }
-
-    private func step(done: Bool, number: Int, title: LocalizedStringKey, detail: LocalizedStringKey) -> some View {
-        Label {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title).fontWeight(.medium)
-                Text(detail).font(.callout).foregroundStyle(.secondary)
-            }
-        } icon: {
-            Image(systemName: done ? "checkmark.circle.fill" : "\(number).circle")
-                .foregroundStyle(done ? Color.green : Color.secondary)
-                .font(.title3)
-        }
-    }
-
-    private func recentStatus(_ r: Recording) -> String {
-        if let p = library.transcribing[r.id] { return String(localized: "Transcribing \(Int(p * 100))%") }
-        if !r.downloaded { return String(localized: "On your recorder") }
-        return r.transcribed ? String(localized: "Transcribed") : String(localized: "Not transcribed")
-    }
-
-    // 语音输入当前怎么配置
-    private var statusStrip: some View {
-        let s = model.settings
-        return HStack(spacing: 20) {
-            Text("Voice typing").fontWeight(.semibold)
-            Label(s.buttonDictates ? "Button: voice typing" : "Button: record only", systemImage: "button.programmable")
-            Label(s.hotkeyLabel, systemImage: "command")
-            Label(model.models.state == .ready ? "SenseVoice on this Mac" : "Speech models not downloaded", systemImage: "waveform")
-            Label(s.polishEnabled ? "LLM clean-up on" : "LLM clean-up off", systemImage: "sparkles")
-            Spacer(minLength: 0)
-        }
-        .font(.callout)
-        .foregroundStyle(.secondary)
-        .padding(.horizontal, 16).padding(.vertical, 12)
-        .background(RoundedRectangle(cornerRadius: 12).fill(.quaternary.opacity(0.5)))
-    }
-
-    private func hours(_ s: Double) -> String {
-        let units: Set<Duration.UnitsFormatStyle.Unit> = s >= 3600 ? [.hours, .minutes] : [.minutes]
-        return Duration.seconds(s).formatted(.units(allowed: units, width: .abbreviated))
-    }
-
-    private func bytes(_ kb: Double) -> String {
-        ByteCountFormatter.string(fromByteCount: Int64(kb * 1024), countStyle: .file)
-    }
-}
-
-private struct HeroMetric: View {
-    let title: LocalizedStringKey
-    let value: Text
-    var progress: Double?
-    var note: Text?
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(title).font(.caption).foregroundStyle(.white.opacity(0.6))
-            value.font(.title2.weight(.semibold).monospacedDigit())
-            if let progress {
-                ProgressView(value: min(max(progress, 0), 1)).tint(Color.accentColor).controlSize(.small)
-            }
-            if let note {
-                note.font(.caption).foregroundStyle(.white.opacity(0.6))
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-}
-
-private struct StatTile: View {
-    let title: LocalizedStringKey
-    let value: Text
-    let note: Text
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title).font(.callout).foregroundStyle(.secondary)
-            value.font(.system(size: 24, weight: .bold).monospacedDigit()).lineLimit(1).minimumScaleFactor(0.7)
-            note.font(.caption).foregroundStyle(.secondary).lineLimit(1)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 16).padding(.vertical, 14)
-        .background(RoundedRectangle(cornerRadius: 12).strokeBorder(.separator))
-    }
-}
-
-/// 最近 14 天：录音分钟数或语音输入字数（单位不同，不画在一起）
-private struct ActivityChart: View {
-    let recordings: [Recording]
-    let log: DictationLog
-    @State private var metric: Metric = .recorded
-
-    enum Metric: String, CaseIterable, Identifiable {
-        case recorded, typed
-        var id: String { rawValue }
-        var title: LocalizedStringKey { self == .recorded ? "Minutes recorded" : "Characters typed" }
-    }
-
-    struct Day: Identifiable { let date: Date; let value: Double; var id: Date { date } }
-
-    private var days: [Day] {
-        let cal = Calendar.current
-        let today = cal.startOfDay(for: Date())
-        return (0..<14).reversed().map { back in
-            let d = cal.date(byAdding: .day, value: -back, to: today)!
-            let v: Double
-            switch metric {
-            case .recorded:
-                v = recordings.filter { cal.isDate($0.start, inSameDayAs: d) }.reduce(0) { $0 + $1.duration } / 60
-            case .typed:
-                v = Double(log.entries.filter { cal.isDate($0.date, inSameDayAs: d) }.reduce(0) { $0 + $1.characters })
-            }
-            return Day(date: d, value: v)
-        }
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("Last 14 days").font(.headline)
-                Spacer()
-                Picker("Show", selection: $metric) {
-                    ForEach(Metric.allCases) { Text($0.title).tag($0) }
-                }
-                .pickerStyle(.segmented).labelsHidden().controlSize(.small).fixedSize()
-            }
-            Chart(days) { d in
-                BarMark(x: .value("Day", d.date, unit: .day), y: .value("Value", d.value))
-                    .foregroundStyle(Color.accentColor)
-                    .clipShape(RoundedRectangle(cornerRadius: 3))
-            }
-            .chartXAxis {
-                AxisMarks(values: .stride(by: .day, count: 7)) {
-                    AxisValueLabel(format: .dateTime.month(.defaultDigits).day())
-                }
-            }
-            .chartYAxis { AxisMarks(position: .leading) { AxisGridLine(); AxisValueLabel() } }
-            .frame(minHeight: 160, idealHeight: 200, maxHeight: .infinity)
-            .animation(.easeOut(duration: 0.2), value: metric)
-        }
-        .padding(16)
-        .background(RoundedRectangle(cornerRadius: 12).strokeBorder(.separator))
-    }
-}
-
 // MARK: - 语音输入记录
 
 struct DictationHistoryView: View {
@@ -762,6 +428,12 @@ struct DictationHistoryView: View {
 
     var body: some View {
         List {
+            // 原来概览里的「语音输入」统计：本周几次、多少字
+            if !log.entries.isEmpty {
+                let week = log.entries(in: Calendar.current.dateInterval(of: .weekOfYear, for: Date()))
+                Text("This week: \(week.count) times · \(week.reduce(0) { $0 + $1.characters }) characters")
+                    .font(.callout).foregroundStyle(.secondary).monospacedDigit()
+            }
             if !settings.keepHistory {
                 Label("History is off. Turn it on in Settings to keep new voice typing here.", systemImage: "info.circle")
                     .foregroundStyle(.secondary)

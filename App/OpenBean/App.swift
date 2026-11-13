@@ -84,6 +84,9 @@ final class AppModel {
         case "sync":
             Task { await library.syncAll() }
         case "open":
+            // 「打开 OpenBean」回到今天；⌘1–4 和 open/<id> 这类链接才去指定的页面
+            nav.section = .today
+            nav.day = nil
             openMain?()
         case "settings":
             openSettings?()
@@ -280,7 +283,7 @@ struct MenuContent: View {
         }))
         Toggle("Clean up with an LLM", isOn: Binding(get: { s.polishEnabled }, set: { s.polishEnabled = $0 }))
         Divider()
-        Button("Open OpenBean") { open("main") }
+        Button("Open OpenBean") { model.nav.section = .today; model.nav.day = nil; open("main") }
             .keyboardShortcut("o")
         Button("Settings…") { openSettings(); bringSettingsToFront() }
             .keyboardShortcut(",")
