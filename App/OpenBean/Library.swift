@@ -48,20 +48,19 @@ final class LibraryStore {
     private(set) var sync: SyncState = .idle
     /// 蓝牙同步估计还要多少秒（只在下载中有值）
     private(set) var syncSecondsLeft: Double?
-    /// 记住的蓝牙下载速度（字节/秒），每次下载完更新；估算同步时长用
+    /// 记住的蓝牙下载速度（字节/秒）：只用 1 MB 以上的下载来学（SyncEstimate.shouldLearn），估算同步时长用。
+    /// 换了个键：旧键 bluetoothBytesPerSecond 混进了短文件的速度（握手和请求开销占大头），偏低一倍
     private var bluetoothRate: Double {
-        get { let v = UserDefaults.standard.double(forKey: "bluetoothBytesPerSecond"); return v > 0 ? v : SyncEstimate.defaultBytesPerSecond }
-        set { UserDefaults.standard.set(newValue, forKey: "bluetoothBytesPerSecond") }
+        get { let v = UserDefaults.standard.double(forKey: "bluetoothBytesPerSecondLarge"); return v > 0 ? v : SyncEstimate.defaultBytesPerSecond }
+        set { UserDefaults.standard.set(newValue, forKey: "bluetoothBytesPerSecondLarge") }
     }
-    /// 把还没下载的录音都经蓝牙下完大约要多少秒；没有要下的返回 nil
-    /// 把一条录音经蓝牙下完大约要多少秒（和 pendingSyncSeconds 同一套算法）
-    func downloadSeconds(_ r: Recording) -> Double {
-        SyncEstimate.seconds(bytes: SyncEstimate.audioBytes(durationMs: Double(r.durationMs)), bytesPerSecond: bluetoothRate)
-    }
+    /// 把一条录音经蓝牙下完大约要多少秒（和 pendingSyncSeconds 同一套算法：每个文件的固定开销 + 字节 ÷ 速度）
+    func downloadSeconds(_ r: Recording) -> Double { estimate(durationMs: r.durationMs, rate: bluetoothRate) }
 
+    /// 把还没下载的录音都经蓝牙下完大约要多少秒；没有要下的返回 nil
     var pendingSyncSeconds: Double? {
-        let ms = pendingDownloads().reduce(0.0) { $0 + Double($1.durationMs) }
-        return ms > 0 ? SyncEstimate.seconds(bytes: SyncEstimate.audioBytes(durationMs: ms), bytesPerSecond: bluetoothRate) : nil
+        let p = pendingDownloads()
+        return p.isEmpty ? nil : p.reduce(0.0) { $0 + estimate(durationMs: $1.durationMs, rate: bluetoothRate) }
     }
     private(set) var transcribing: [UInt32: Double] = [:]
     private var transcripts: [UInt32: [TranscriptSegment]] = [:]
@@ -315,54 +314,177 @@ final class LibraryStore {
         save()
     }
 
-    /// 下载所有还没下载的录音（蓝牙）。听写开始时会让出连接，结束后自动继续。
+    /// 下载所有还没下载的录音（蓝牙）。听写开始时会让出连接，结束后自动继续
+    /// （正在下的这一条还要 10 分钟以上时不让，见 `dictationBlockMessage`）。
+    ///
+    /// 每一条边收边写进 `<id>/download.part`，收完校验（文件头 id、连续、结束包、片数）再原子换成 audio.ogg；
+    /// 没下完的临时文件留着，下次接着用（收过的不再写）。下载期间不让 Mac 空闲睡眠。
     func syncAll(ids: [UInt32]? = nil) async {
         guard case .idle = device.activity, !syncRunning else { return }
         syncRunning = true
-        defer { syncRunning = false; syncSecondsLeft = nil }
+        lastFailure = nil
+        defer { syncRunning = false; syncSecondsLeft = nil; currentSecondsLeft = nil }
         await refreshDeviceList()
         let pending = pendingDownloads(ids: ids)
         guard !pending.isEmpty else { sync = .idle; return }
         guard device.beginSync(), let s = device.session else { return }
         defer { device.endSync() }
+        // 接电源时下载期间不睡；合盖、用电池时系统照样会睡，醒来后这次下载按「Mac 睡眠」中断，重连后再试
+        let activity = ProcessInfo.processInfo.beginActivity(options: [.idleSystemSleepDisabled, .userInitiated],
+                                                             reason: "Downloading recordings from the recorder")
+        defer { ProcessInfo.processInfo.endActivity(activity) }
+        observeSleep()
         Log.write("同步 \(pending.count) 条录音 recorder=\(DeviceController.field(device.battery))")
         for (n, r) in pending.enumerated() {
             if device.syncShouldYield { pauseForDictation(); return }
+            if wifiSwitchRequested { sync = .idle; return }
             sync = .downloading(id: r.id, done: n, total: pending.count, fraction: 0, kbps: 0)
-            // 排在后面的录音还有多少字节；加上这一条没下完的部分就是剩余量
-            let restBytes = SyncEstimate.audioBytes(durationMs: pending[(n + 1)...].reduce(0.0) { $0 + Double($1.durationMs) })
+            // 排在后面的录音要多久；加上这一条没下完的部分就是剩余时间
             let known = bluetoothRate
-            syncSecondsLeft = SyncEstimate.seconds(bytes: restBytes + SyncEstimate.audioBytes(durationMs: Double(r.durationMs)), bytesPerSecond: known)
+            let rest = pending[(n + 1)...].reduce(0.0) { $0 + estimate(durationMs: $1.durationMs, rate: known) }
+            currentSecondsLeft = estimate(durationMs: r.durationMs, rate: known)
+            syncSecondsLeft = rest + currentSecondsLeft!
             let file = RecordingFile(id: r.id, endTime: nil, durationMs: r.durationMs)
             do {
-                // pull 在后台执行器上回调，这里切回主线程再碰界面状态
-                let t = try await s.pull(file, shouldCancel: { [weak self] in
-                    await MainActor.run { self?.device.syncShouldYield ?? true }
-                }) { [weak self] got, expected, elapsed in
+                let spool = try FrameSpool(url: partialURL(r.id), keepExisting: true)
+                if spool.count > 0 { Log.write("\(r.id) 有上次没下完的 \(spool.count) 片（\(spool.received.summary)）") }
+                // 断点续传还没实测（ResumeSupport.current 为不支持）：现在一律从 0 请求，收过的片不再写
+                let plan = ResumePlan.next(received: spool.received)
+                // download 在后台执行器上回调，这里切回主线程再碰界面状态
+                let result = try await s.download(file, spool: spool, offset: plan.offset, shouldCancel: { [weak self] in
+                    await MainActor.run { self.map { $0.device.syncShouldYield || $0.systemSleeping || $0.wifiSwitchRequested } ?? true }
+                }) { [weak self] p in
                     await MainActor.run {
-                        self?.sync = .downloading(id: r.id, done: n, total: pending.count,
-                                                  fraction: expected > 0 ? Double(got) / Double(expected) : 0,
-                                                  kbps: Double(got) / 1024 / max(elapsed, 0.1))
+                        guard let self else { return }
+                        self.sync = .downloading(id: r.id, done: n, total: pending.count,
+                                                 fraction: p.expected > 0 ? min(1, Double(p.received) / Double(p.expected)) : 0,
+                                                 kbps: Double(p.thisAttempt) / 1024 / max(p.elapsed, 0.1))
                         // 这一条下了 5 秒以上才信它自己的速度，之前用记住的速度
-                        let rate = elapsed >= 5 && got > 0 ? Double(got) / elapsed : known
-                        self?.syncSecondsLeft = SyncEstimate.seconds(bytes: restBytes + Double(max(expected - got, 0)), bytesPerSecond: rate)
+                        let rate = p.elapsed >= 5 && p.thisAttempt > 0 ? Double(p.thisAttempt) / p.elapsed : known
+                        self.currentSecondsLeft = SyncEstimate.seconds(bytes: Double(max(p.expected - p.received, 0)), bytesPerSecond: rate)
+                        self.syncSecondsLeft = rest + self.currentSecondsLeft!
                     }
                 }
-                if device.syncShouldYield { pauseForDictation(); return }
-                guard t.decrypted, Double(t.audio.count) >= Double(file.audioBytes) * 0.95 || t.gotDone else {
-                    Log.write("下载不完整 \(r.id)：\(t.audio.count)/\(file.audioBytes)")
-                    continue
+                Log.write("下载 \(r.id)：\(result.summary)")
+                let saved = await finishDownload(result, spool: spool, id: r.id, via: "蓝牙")
+                if saved, SyncEstimate.shouldLearn(bytes: result.bytesThisAttempt, seconds: result.seconds) {
+                    bluetoothRate = SyncEstimate.blend(old: bluetoothRate, measured: Double(result.bytesThisAttempt) / result.seconds)
                 }
-                try saveAudio(t.audio, id: r.id)
-                if t.seconds >= 3 { bluetoothRate = SyncEstimate.blend(old: bluetoothRate, measured: Double(t.audio.count) / t.seconds) }
-                Log.write("已下载 \(r.id)（\(t.audio.count / 1024) KB，\(Int(t.seconds)) 秒）")
-                if settings.autoTranscribe { Task { await transcribe(r.id) } }
+                if device.syncShouldYield { pauseForDictation(); return }
+                if wifiSwitchRequested { sync = .idle; return }
+                if !saved {
+                    lastFailure = result.stop.isInterruption ? .interrupted : .failed
+                    lastFailureLong = estimate(durationMs: r.durationMs, rate: known) > SyncPolicy.longFile
+                    // 连接没了（断开、Mac 睡过）：后面的也下不了，等重连
+                    if result.stop == .disconnected || result.stop == .clockJump || result.stop == .cancelled {
+                        sync = .failed(String(localized: "The connection dropped. Sync continues when the recorder reconnects."))
+                        return
+                    }
+                }
             } catch {
+                Log.write("下载 \(r.id) 出错：\(error)")
+                lastFailure = .failed
+                lastFailureLong = estimate(durationMs: r.durationMs, rate: known) > SyncPolicy.longFile
                 sync = .failed("\(error)")
                 return
             }
         }
         sync = .idle
+    }
+
+    /// 一个文件经蓝牙下完大约要多少秒：固定开销 + 字节 ÷ 大文件的速度
+    private func estimate(durationMs: UInt32, rate: Double) -> Double {
+        SyncEstimate.fileSeconds(bytes: SyncEstimate.audioBytes(durationMs: Double(durationMs)), bytesPerSecond: rate)
+    }
+
+    /// 下载中的临时文件：每片一条记录（seq + 解密后的 160 字节），没下完的留着下次接着用
+    func partialURL(_ id: UInt32) -> URL { folder(id).appendingPathComponent("download.part") }
+
+    /// 一次下载结束：能用就写成 audio.ogg（缺的零星几片补静音）并删掉临时文件；不能用的删掉；没下完的留着。
+    /// 返回有没有存下来
+    private func finishDownload(_ result: DownloadResult, spool: FrameSpool, id: UInt32, via: String) async -> Bool {
+        spool.close()
+        switch result.check.verdict {
+        case .complete, .completeWithGaps:
+            let dest = audioURL(id)
+            let first = result.check.firstSeq, count = result.check.expectedFrames
+            // 几百 MB 的封装不放在主线程
+            let written = await Task.detached { try? spool.writeOgg(to: dest, first: first, count: count) }.value
+            guard let written else {
+                Log.write("保存 \(id) 失败（写 audio.ogg 出错），临时文件留着")
+                return false
+            }
+            spool.remove()
+            update(id) { $0.downloaded = true }
+            Log.write("已下载 \(id)（\(result.receivedBytes / 1024) KB，\(Int(result.seconds)) 秒，\(via)）"
+                      + (written.filled > 0 ? "，缺 \(written.filled) 片已补静音" : ""))
+            if settings.autoTranscribe { Task { await transcribe(id) } }
+            return true
+        case let .rejected(why):
+            Log.write("下载 \(id) 的数据不能用：\(why)；临时文件删掉")
+            spool.remove()
+            return false
+        case let .incomplete(why):
+            Log.write("下载不完整 \(id)：\(why)；已收 \(result.receivedBytes / 1024) KB，临时文件留在 \(spool.url.lastPathComponent)")
+            return false
+        }
+    }
+
+    // MARK: 同步和 Mac 睡眠
+
+    /// 系统要睡了：正在进行的下载马上停（按中断算），醒来后连上再试
+    private var systemSleeping = false
+    private var sleepObservers: [NSObjectProtocol] = []
+
+    private func observeSleep() {
+        guard sleepObservers.isEmpty else { return }
+        let nc = NSWorkspace.shared.notificationCenter
+        sleepObservers.append(nc.addObserver(forName: NSWorkspace.willSleepNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.systemSleeping = true
+                if self.syncRunning { Log.write("Mac 要睡眠，停止这次下载") }
+            }
+        })
+        sleepObservers.append(nc.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.systemSleeping = false }
+        })
+    }
+
+    // MARK: 同步和语音输入
+
+    /// 正在下的这一条还要多少秒（不在下载时为 nil）
+    private(set) var currentSecondsLeft: Double?
+    /// 最近一次同步没完成的原因（自动同步据此决定多久后重试）；完成或让给语音输入时为 nil
+    private(set) var lastFailure: SyncPolicy.Failure?
+    /// 没完成的那一条是不是长文件（估计 10 分钟以上）
+    private(set) var lastFailureLong = false
+
+    /// 语音输入要开始时问一句：正在下的这一条还要 10 分钟以上、又不能续传时不让，返回给用户看的提示
+    func dictationBlockMessage() -> String? {
+        guard case .downloading = sync, syncRunning else { return nil }
+        guard case let .keepSyncing(left) = SyncPolicy.dictation(remaining: currentSecondsLeft,
+                                                                  resumable: ResumeSupport.current.isSupported) else { return nil }
+        Log.write("语音输入没开始：正在同步长录音，这一条约剩 \(Int(left)) 秒（没有断点续传，让出就要从头下）")
+        return String(localized: "Syncing a long recording, about \(SyncStatus.phrase(left)) left. Voice typing is available when it finishes.")
+    }
+
+    // MARK: 改用 Wi‑Fi
+
+    private var wifiSwitchRequested = false
+
+    /// 蓝牙预计要很久时可以改用 Wi‑Fi：正在下的停下（收过的留在临时文件里），剩下的经 Wi‑Fi 下
+    func switchToWifi() async {
+        let ids = pendingDownloads().map(\.id)
+        guard !ids.isEmpty else { return }
+        if syncRunning {
+            wifiSwitchRequested = true
+            Log.write("改用 Wi‑Fi：先停蓝牙同步")
+            for _ in 0..<100 where syncRunning { try? await Task.sleep(nanoseconds: 100_000_000) }
+            wifiSwitchRequested = false
+            guard !syncRunning else { Log.write("蓝牙同步 10 秒内没停下，不改用 Wi‑Fi"); return }
+        }
+        await syncViaWifi(ids: ids)
     }
 
     /// 录音豆上还没下载的录音（短的先下）
@@ -388,11 +510,6 @@ final class LibraryStore {
         }
     }
 
-    private func saveAudio(_ opus: [UInt8], id: UInt32) throws {
-        let ogg = OggOpus.mux(frames: OggOpus.frames(from: opus))
-        try Data(ogg).write(to: audioURL(id), options: .atomic)
-        update(id) { $0.downloaded = true }
-    }
 
     // MARK: 删除录音豆上的录音
 
@@ -526,20 +643,29 @@ final class LibraryStore {
 
     // MARK: Wi‑Fi 快速同步
 
-    /// 经录音豆的 Wi‑Fi 热点下载（Mac 会暂时断网约一分钟）
+    /// 经录音豆的 Wi‑Fi 热点下载（Mac 会暂时断网约一分钟）。和蓝牙一样边收边落盘、按同样的规则校验完整性
     func syncViaWifi(ids: [UInt32]) async {
         let targets = recordings.filter { ids.contains($0.id) && $0.onDevice && !$0.downloaded }
         guard !targets.isEmpty, device.beginSync(), let s = device.session else { return }
         defer { device.endSync() }
+        let activity = ProcessInfo.processInfo.beginActivity(options: [.idleSystemSleepDisabled, .userInitiated],
+                                                             reason: "Downloading recordings over Wi‑Fi")
+        defer { ProcessInfo.processInfo.endActivity(activity) }
+        Log.write("Wi‑Fi 同步 \(targets.count) 条")
         do {
             let done = try await WifiSync.run(session: s, link: device.link, files: targets.map {
                 RecordingFile(id: $0.id, endTime: nil, durationMs: $0.durationMs)
+            }, spool: { [weak self] id in
+                try await MainActor.run { () throws -> FrameSpool in
+                    guard let self else { throw CancellationError() }
+                    return try FrameSpool(url: self.partialURL(id), keepExisting: true)
+                }
             }) { [weak self] msg in
                 await MainActor.run { self?.sync = .wifi(msg) }
             }
-            for (id, audio) in done {
-                try saveAudio(audio, id: id)
-                if settings.autoTranscribe { Task { await transcribe(id) } }
+            for (id, result, spool) in done {
+                Log.write("Wi‑Fi 下载 \(id)：\(result.summary)")
+                _ = await finishDownload(result, spool: spool, id: id, via: "Wi‑Fi")
             }
             sync = .idle
         } catch {

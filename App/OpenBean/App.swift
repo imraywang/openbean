@@ -47,6 +47,7 @@ final class AppModel {
             }
         }
         dictation.cleanupRunning = { [weak self] in self?.library.deletingFromRecorder != nil }
+        dictation.syncBlocksDictation = { [weak self] in self?.library.dictationBlockMessage() }
         dictation.onEntry = { [weak self] in self?.log.add($0) }
         Hotkey.shared.onPress = { [weak self] in
             guard let self else { return }

@@ -1072,6 +1072,16 @@
         }
       }
     },
+    "Download over Wi‑Fi…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通过 Wi‑Fi 下载…"
+          }
+        }
+      }
+    },
     "Download speech models": {
       "localizations": {
         "zh-Hans": {
@@ -1942,6 +1952,16 @@
         }
       }
     },
+    "Over Wi‑Fi it takes about %@, but your Mac is offline meanwhile.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "改用 Wi‑Fi 约 %@，期间 Mac 会断网。"
+          }
+        }
+      }
+    },
     "Paste the configuration into your agent's mcpServers settings (Claude Desktop: Settings → Developer → Edit Config), or run the command in Terminal for Claude Code. Read-only: it can't change, delete or record anything, and can't reach audio or voice typing. It runs only while an agent starts it. The transcripts and summaries it reads go to the agent you connect and the model behind it.": {
       "localizations": {
         "zh-Hans": {
@@ -2692,6 +2712,16 @@
         }
       }
     },
+    "Switch to Wi‑Fi…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "改用 Wi‑Fi…"
+          }
+        }
+      }
+    },
     "Sync": {
       "localizations": {
         "zh-Hans": {
@@ -2832,6 +2862,16 @@
         }
       }
     },
+    "Syncing a long recording, about %@ left. Voice typing is available when it finishes.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在同步长录音，约剩 %@。同步完就能用语音输入。"
+          }
+        }
+      }
+    },
     "Syncing recordings from the recorder": {
       "localizations": {
         "zh-Hans": {
@@ -2942,6 +2982,16 @@
         }
       }
     },
+    "The connection dropped. Sync continues when the recorder reconnects.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接断了。录音豆重新连上后会接着同步。"
+          }
+        }
+      }
+    },
     "The model's reply could not be used. Try again or use a larger model.": {
       "localizations": {
         "zh-Hans": {
@@ -2962,32 +3012,12 @@
         }
       }
     },
-    "The recorder is recording. Stop it first.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "录音豆正在录音，请先停下。"
-          }
-        }
-      }
-    },
     "The recorder isn't connected": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "录音豆没连上"
-          }
-        }
-      }
-    },
-    "The recorder stopped answering.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "录音豆没有回应。"
           }
         }
       }
@@ -3458,6 +3488,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "可以先跳过，文字就只显示在 OpenBean 里。"
+          }
+        }
+      }
+    },
+    "Your Mac joins the recorder's own Wi‑Fi and is offline for a few minutes, then reconnects to your usual network. What Bluetooth has already received is kept.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mac 会临时加入录音豆自己的 Wi‑Fi，断网几分钟，之后自动连回原来的网络。蓝牙已经收到的部分会保留。"
           }
         }
       }

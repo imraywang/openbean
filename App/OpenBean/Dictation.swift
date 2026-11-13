@@ -129,6 +129,8 @@ final class Dictation {
     var onFinished: (DictationDeletePolicy.Evidence?) -> Void = { _ in }
     /// 录音库正在删上一次语音输入的设备文件：这时开始新的语音输入，录音豆可能续写那个正要删的文件
     var cleanupRunning: () -> Bool = { false }
+    /// 同步不肯让出连接时的提示（正在下的长录音还要 10 分钟以上、又不能续传；见 LibraryStore.dictationBlockMessage）
+    var syncBlocksDictation: () -> String? = { nil }
     /// 一次输入结束（有文字时），用于语音输入记录
     var onEntry: (DictationEntry) -> Void = { _ in }
     private var targetApp: String?
@@ -273,6 +275,14 @@ final class Dictation {
                 return
             }
             if phase == .idle, trace != nil { trace?.path = "通知" }
+            // 按键开始的、同步又不肯让：这段就当普通录音录着（不发任何命令），同步完照常下载
+            if phase == .idle, appStart == nil, let why = syncBlocksDictation() {
+                Log.write("按键开始的录音先只录音 file=\(fileId)")
+                recordOnly = (Date(), fileId)
+                lastError = why
+                notice += 1
+                return
+            }
             Task { await begin(fileId: fileId) }
         case .recordingStopped:
             if let r = recordOnly, phase == .idle {
@@ -340,6 +350,11 @@ final class Dictation {
         }
         do {
             if DictationStartPolicy.onToggle(dictating: phase != .idle) == .checkRecorder {
+                if let why = syncBlocksDictation() {
+                    lastError = why
+                    notice += 1
+                    return
+                }
                 // 和文件号无关的准备（识别器等）现在就开始，和下面的查状态、开始命令、等通知并行
                 trace = StartTrace()
                 startPreparing()
