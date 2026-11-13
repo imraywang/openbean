@@ -6,6 +6,39 @@
     <description>OpenBean updates</description>
     <language>en</language>
     <item>
+      <title>OpenBean 0.3.2</title>
+      <link>https://github.com/imraywang/openbean/releases/tag/v0.3.2</link>
+      <pubDate>Fri, 13 Nov 2026 12:34:56 GMT</pubDate>
+      <sparkle:version>4</sparkle:version>
+      <sparkle:shortVersionString>0.3.2</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+      <description sparkle:format="markdown" xml:lang="en"><![CDATA[
+### Fixed
+
+- **Voice typing no longer cuts off a recording in progress.** If the recorder is already recording — a meeting you started with its button, for example — pressing the voice-typing shortcut now does nothing to the recorder and tells you to stop the recording first. Before, ending the dictation also ended that recording.
+- OpenBean only ever ends a recording that it started itself.
+
+### Changed
+
+- This window now shows what is new in an update.
+- The "put back into the case" sync trigger is confirmed on hardware: put the recorder back and new recordings download on their own.
+- The log now says why an automatic sync did not run.
+]]></description>
+      <description sparkle:format="markdown" xml:lang="zh-Hans"><![CDATA[
+### 修复
+
+- **语音输入不再打断正在进行的录音。** 录音豆正在录音时（比如你按它的按键开始录的会议），按语音输入快捷键不会再对录音豆做任何事，只提示你先停止录音。以前结束语音输入时会把那条录音一起结束掉。
+- OpenBean 只会结束它自己开始的录音。
+
+### 变化
+
+- 更新窗口现在会显示新版本的内容。
+- 「放回充电盒触发同步」已在真机上确认：把录音豆放回盒子，新录音会自动下载。
+- 自动同步没有运行时，日志里会写明原因。
+]]></description>
+      <enclosure url="https://github.com/imraywang/openbean/releases/download/v0.3.2/OpenBean-0.3.2.dmg" length="13477913" type="application/octet-stream" sparkle:edSignature="hAHA6MzgtiaKfn2aTUjiPndJBVjeRisOcemcDfDsbZ5S/3HN76DBL3vf8nvj+BwaEaOUe8X5IdmnzdXaZTqKAA=="/>
+    </item>
+    <item>
       <title>OpenBean 0.3.1</title>
       <link>https://github.com/imraywang/openbean/releases/tag/v0.3.1</link>
       <pubDate>Fri, 13 Nov 2026 11:37:09 GMT</pubDate>

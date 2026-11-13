@@ -50,6 +50,7 @@ final class HUDController {
         withObservationTracking {
             _ = dictation.phase
             _ = dictation.lastError
+            _ = dictation.notice
         } onChange: { [weak self] in
             Task { @MainActor in
                 self?.update()
@@ -58,8 +59,19 @@ final class HUDController {
         }
     }
 
+    /// 已经显示过的提示（Dictation.notice）
+    private var shownNotice = 0
+
     private func update() {
         let before = state.mode
+        // 没开始语音输入的提示（例如录音豆正在录音）：悬浮条原本藏着也要亮出来
+        if dictation.notice != shownNotice {
+            shownNotice = dictation.notice
+            if dictation.phase == .idle, let e = dictation.lastError {
+                show(.error(e)); hide(after: 3)
+                return
+            }
+        }
         switch dictation.phase {
         case .starting: show(.starting)
         case .listening: show(.listening)

@@ -242,6 +242,10 @@ With nothing but notifications enabled, the host receives:
 | `1A/06`, file id at bytes 9–12 | Recording started, including by pressing the button on the recorder |
 | `18/82`, 10-byte payload starting with `00` | Recording stopped by the button |
 
+Both `01/04` directions (taken out, put back) were seen on hardware. On 2026-11-13 a recorder put back into its case
+after an 11 s record-only recording sent `01/04` about 5 s later; the app's automatic sync started about 4 s after that
+and downloaded the recording.
+
 The button therefore works as a start/stop trigger for the host. A button stop closes the file by itself; only a pause sent
 by the host leaves it open (§11). The reply to the host's own stop (`18/82 00`) also starts with `00`, so openbean reads it
 as a "stopped" event too; that is harmless.
