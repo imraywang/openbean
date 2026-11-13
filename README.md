@@ -101,8 +101,11 @@ script says what is missing. To ship a version:
    xml:lang="…">`, Sparkle 2.9+) and shown in the update window in the user's language, English otherwise. Without
    them the update window shows no notes.
 3. Run `bin/release`. It updates `appcast.xml` at the repo root.
-4. Create the GitHub release `v<version>` with the DMG and its `.sha256`, then commit and push `appcast.xml` to
-   `master`. Installed copies read the feed from there, so push only after the DMG is downloadable.
+4. Run `bin/publish --dry-run` to see the checks and the steps, then `bin/publish`. It creates the GitHub release
+   `v<version>` at the current commit (already pushed to `master`) with the DMG and its `.sha256`, waits until the
+   public download URL answers, downloads the DMG and checks its SHA-256, size, notarization ticket and Sparkle
+   signature, and only then commits `appcast.xml` and pushes `master` to `origin` and `private`. It stops at the
+   first failure. Installed copies read the feed from `master`, so the feed must never go out before the DMG.
 
 **Why the signing certificate:** macOS remembers permissions per code signature. With ad-hoc signing every rebuild
 looks like a new app and you have to grant Accessibility again. `make-signing-cert.sh` creates a self-signed

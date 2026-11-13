@@ -1,0 +1,150 @@
+#!/bin/zsh
+# 发版的后半段，在 bin/release 之后运行：建 GitHub Release → 等下载地址能用 → 下载回来核对 → 才提交并推送 appcast.xml。
+# 已装的 App 从 master 上的 appcast.xml 读更新：appcast 先推上去、DMG 还下不了，用户就会更新失败，所以顺序不能乱。
+#
+#   bin/publish --dry-run   # 只做本地只读检查，把每一步要执行的命令打印出来，不建 Release、不提交、不推送
+#   bin/publish             # 真的发布；任何一步失败立即停止，不做后面的
+#
+# 步骤：
+#   0. 检查（只读）：在 master、工作区只改了 appcast.xml、HEAD 已推到 origin/master、v<版本> 还不存在、
+#      DMG 和 .sha256 对得上、appcast 里这个版本的地址 / 字节数 / Sparkle 签名和 DMG 对得上
+#   1. gh release create v<版本> --target <HEAD 完整提交号>，上传 DMG 和 .sha256（说明取 docs/release-notes/<版本>.*.md）
+#   2. 轮询公开下载地址直到 200（刚上传的资产会 404 几十秒），最多 10 分钟
+#   3. 下载回来：sha256、字节数、stapler validate、Sparkle 签名都要对
+#   4. 提交 appcast.xml（appcast: <版本>），推送 origin master 和 private master
+set -euo pipefail
+ROOT="${0:A:h}/.."
+cd "$ROOT"
+
+DRY=0
+for a in "$@"; do
+  case $a in
+    --dry-run) DRY=1 ;;
+    *) echo "不认识的参数：$a（只有 --dry-run）"; exit 1 ;;
+  esac
+done
+
+REPO=imraywang/openbean
+VERSION=$(sed -nE 's/^ *MARKETING_VERSION: *"?([^"]+)"?/\1/p' App/project.yml | head -1)
+TAG="v$VERSION"
+DMG=".build/release/OpenBean-$VERSION.dmg"
+SHA="$DMG.sha256"
+URL="https://github.com/$REPO/releases/download/$TAG/${DMG:t}"
+APPCAST=appcast.xml
+SPARKLE_BIN=App/build-release/SourcePackages/artifacts/sparkle/Sparkle/bin
+# 提交用公开的 noreply 地址，不把本机 git 配置里的邮箱带进公开仓库
+EMAIL="${OPENBEAN_COMMIT_EMAIL:-16276127+imraywang@users.noreply.github.com}"
+POLL_TIMEOUT=600
+
+problems=0
+# 检查不通过：真发布时立即停止；dry-run 记下来继续，最后汇总
+fail() {
+  echo "✗ $*" >&2
+  if (( DRY )); then problems=$((problems + 1)); else exit 1; fi
+}
+ok() { echo "  ✓ $*"; }
+# 有副作用的命令：dry-run 只打印
+run() {
+  if (( DRY )); then echo "  [dry-run] ${(q-)@}"; else "$@"; fi
+}
+
+echo "▸ 0. 检查 OpenBean $VERSION（$TAG）"
+command -v gh >/dev/null || fail "需要 gh（brew install gh）"
+gh auth status >/dev/null 2>&1 || fail "gh 没登录：gh auth login"
+branch=$(git rev-parse --abbrev-ref HEAD)
+[[ "$branch" == master ]] && ok "在 master" || fail "要在 master 上发布，现在在 $branch"
+dirty=$(git status --porcelain | grep -v '^ M appcast.xml$' || true)
+[[ -z "$dirty" ]] && ok "工作区只改了 appcast.xml" || fail "工作区除了 appcast.xml 还有改动：
+$dirty"
+git diff --quiet -- $APPCAST && fail "appcast.xml 没有改动：先运行 bin/release" || ok "appcast.xml 有新条目待提交"
+git remote get-url private >/dev/null 2>&1 || fail "没有名为 private 的远端"
+git fetch -q origin master || fail "git fetch origin master 失败"
+HEAD_SHA=$(git rev-parse HEAD)
+[[ "$HEAD_SHA" == "$(git rev-parse origin/master)" ]] && ok "HEAD 已推到 origin/master（$HEAD_SHA）" \
+  || fail "HEAD 和 origin/master 不一致：先把版本号等提交推上去（Release 要指向 GitHub 上已有的提交）"
+[[ -z "$(git ls-remote --tags origin "refs/tags/$TAG")" ]] && ok "远端还没有标签 $TAG" || fail "远端已有标签 $TAG"
+gh release view "$TAG" --repo $REPO >/dev/null 2>&1 && fail "GitHub 上已有 Release $TAG" || ok "GitHub 上还没有 Release $TAG"
+
+if [[ -f $DMG && -f $SHA ]]; then
+  want=$(awk '{print $1}' "$SHA")
+  have=$(shasum -a 256 "$DMG" | awk '{print $1}')
+  [[ "$want" == "$have" ]] && ok "DMG 和 .sha256 对得上" || fail "$DMG 和 $SHA 对不上"
+  size=$(stat -f %z "$DMG")
+else
+  fail "没有 $DMG 或 $SHA：先运行 bin/release"
+  want=""; size=""
+fi
+if enc=$(python3 -I Scripts/appcast.py --enclosure $APPCAST "$VERSION" 2>&1); then
+  IFS=$'\t' read -r enc_url enc_len enc_sig <<<"$enc"
+  [[ "$enc_url" == "$URL" ]] && ok "appcast 下载地址 $URL" || fail "appcast 里的下载地址不对：$enc_url（应为 $URL）"
+  [[ "$enc_len" == "$size" ]] && ok "appcast 字节数 $enc_len" || fail "appcast 字节数 $enc_len 和 DMG（${size:-?}）对不上"
+else
+  fail "$enc"
+  enc_sig=""
+fi
+if [[ -x $SPARKLE_BIN/sign_update && -f $DMG && -n "$enc_sig" ]]; then
+  "$SPARKLE_BIN/sign_update" --verify "$DMG" "$enc_sig" >/dev/null 2>&1 && ok "本地 DMG 的 Sparkle 签名对" \
+    || fail "本地 DMG 和 appcast 里的 Sparkle 签名对不上"
+else
+  fail "没法核对 Sparkle 签名（缺 $SPARKLE_BIN/sign_update、DMG 或签名）"
+fi
+
+# Release 的说明：英文在前，中文在后
+NOTES_FILE=$(mktemp -t openbean-notes)
+trap 'rm -f "$NOTES_FILE"' EXIT
+for lang in en zh-Hans; do
+  f="docs/release-notes/$VERSION.$lang.md"
+  if [[ -f $f ]]; then
+    [[ -s $NOTES_FILE ]] && printf '\n---\n\n' >>"$NOTES_FILE"
+    cat "$f" >>"$NOTES_FILE"
+  fi
+done
+[[ -s $NOTES_FILE ]] && ok "Release 说明来自 docs/release-notes/$VERSION.*.md" \
+  || { echo "  ⚠︎ 没有 docs/release-notes/$VERSION.*.md，Release 说明只写版本号"; echo "OpenBean $VERSION" >"$NOTES_FILE"; }
+
+if (( problems )); then
+  echo "\n（dry-run）上面有 $problems 项检查没过；真发布时会在第一项就停下。下面是之后的步骤："
+fi
+
+echo "\n▸ 1. 建 GitHub Release $TAG，上传 DMG 和 .sha256"
+run gh release create "$TAG" "$DMG" "$SHA" --repo $REPO --target "${HEAD_SHA}" \
+  --title "OpenBean $VERSION" --notes-file "$NOTES_FILE" || fail "建 Release 失败，什么都没推"
+
+echo "\n▸ 2. 等下载地址能用：$URL"
+if (( DRY )); then
+  echo "  [dry-run] 每 5 秒 curl -sIL -o /dev/null -w '%{http_code}' $URL，直到 200（最多 $POLL_TIMEOUT 秒）"
+else
+  start=$SECONDS
+  while true; do
+    code=$(curl -sIL -o /dev/null -w '%{http_code}' "$URL" || true)
+    [[ "$code" == 200 ]] && { ok "200（等了 $((SECONDS - start)) 秒）"; break; }
+    (( SECONDS - start < POLL_TIMEOUT )) || fail "等了 $POLL_TIMEOUT 秒还是 $code：Release 已建，appcast 没推。查明后可以手动推"
+    sleep 5
+  done
+fi
+
+echo "\n▸ 3. 下载回来核对"
+TMP=$(mktemp -d -t openbean-publish)
+trap 'rm -f "$NOTES_FILE"; rm -rf "$TMP"' EXIT
+GOT="$TMP/${DMG:t}"
+run curl -sfL -o "$GOT" "$URL" || fail "下载失败：Release 已建，appcast 没推"
+if (( DRY )); then
+  echo "  [dry-run] 核对：sha256 = .sha256、字节数 = appcast、xcrun stapler validate、sign_update --verify"
+else
+  [[ "$(shasum -a 256 "$GOT" | awk '{print $1}')" == "$want" ]] && ok "sha256" || fail "下载的 DMG sha256 不对"
+  [[ "$(stat -f %z "$GOT")" == "$enc_len" ]] && ok "字节数" || fail "下载的 DMG 字节数不对"
+  xcrun stapler validate "$GOT" >/dev/null && ok "公证票" || fail "下载的 DMG 没有有效的公证票"
+  "$SPARKLE_BIN/sign_update" --verify "$GOT" "$enc_sig" >/dev/null 2>&1 && ok "Sparkle 签名" || fail "下载的 DMG Sparkle 签名不对"
+fi
+
+echo "\n▸ 4. 提交并推送 appcast.xml"
+run git add $APPCAST
+run git -c user.email="$EMAIL" commit -q -m "appcast: $VERSION"
+run git push origin master || fail "推送 origin master 失败：appcast 已在本地提交，查明后手动推"
+run git push private master || fail "推送 private master 失败：origin 已推，补推 private 即可"
+
+if (( DRY )); then
+  echo "\n（dry-run）什么都没做。$([[ $problems -gt 0 ]] && echo "先解决上面 $problems 项检查。")"
+else
+  echo "\n完成：$TAG 已发布，appcast 已推送"
+fi
