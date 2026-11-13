@@ -311,9 +311,10 @@ Not planned: gestures on the recorder's button. The button only reports start an
 Known gaps:
 
 - The "put back into the case" sync trigger follows community notes and has not been confirmed on hardware yet.
-- The recorder has no "end file" command, only pause. After each voice typing session the app deletes the file it
-  created; if that setting is off or a safety check fails, the file stays paused and the next session may continue
-  it. The typed text is not affected either way.
+- Ending voice typing or *Stop recording* now pauses and then stops the recorder (`18/82 00`), so the file is closed
+  and the next session starts a new one; after voice typing the app then deletes that file (if the setting is on and
+  every safety check passes). Verified on hardware only as pause → stop; stopping without a pause, and whether the
+  yellow light goes out after stop, are not tested yet. The typed text is not affected either way.
 - The first ~1 s after pressing the button is lost.
 - The word list only fixes other mis-hearings that you declare as aliases.
 - Code comments are in Chinese.
@@ -387,7 +388,8 @@ bin/build-app && open ".build/OpenBean Dev.app"
 清理以前语音输入留在录音豆上的文件，会先列出条数和总时长再确认。
 
 语音输入结束后，App 会从录音豆删掉这次语音输入新建的文件（设置 → 语音输入 →「从录音豆删除语音输入的音频」，默认打开）。
-只删 App 自己发开始命令、能证明是新建的文件，删了不能恢复；不满足条件就留着，下次语音输入可能续写它，打出的文字不受影响。
+结束时 App 先暂停、再发「结束录音」让录音豆把文件收尾（这样下次会新建文件，不再续写），然后删掉它。只删 App 自己发开始命令、
+能证明是新建的文件，删了不能恢复；不满足条件就留在录音豆上，打出的文字不受影响。设备页的「停止录音」同样是暂停再结束。
 
 语音输入记录只保存在这台 Mac 上（`~/Library/Application Support/openbean/dictation.json`），用于「语音输入」页和概览统计；
 可在设置里关闭（「在本机保存语音输入记录」），或在「语音输入」页清空。

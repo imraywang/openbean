@@ -77,7 +77,8 @@ All multi-byte integers are little-endian unless stated otherwise.
 |---|---|---|---|---|
 | `01` | `01` | — | Device info | ✅ |
 | `01` | `A6` | unix time (u32) + UTC offset in hours (i8) | Set clock | ✅ |
-| `18` | `82` | `01` start / `02` pause | Recording control | ✅ |
+| `18` | `82` | `01` start / `02` pause / `00` stop | Recording control | ✅ see §11 |
+| `1A` | `11` | `01` | Stop BT transport (name from the vendor SDK) | ⚠️ see §11 |
 | `1B` | `0E` | page (u16) | List recordings, 10 per page | ✅ |
 | `1A` | `07` | offset (u32) + file id (u32) + realtime flag (u8) | Start a file transfer | ✅ |
 | `1A` | `05` | ssid length + ssid + password length + password | Open Wi‑Fi soft AP | ✅ |
@@ -207,6 +208,26 @@ command cannot be sent afterwards without reconnecting; whether the access point
 2. About 0.8 s later it sends `1A/06`; bytes 9–12 are the new file id.
 3. Send `1A/07` with that file id and `realtime = 1`. A file head (size `FFFFFFFF`) and then slices follow in real time.
 4. Send `18/82` with `02` to pause. No `1A/0A` was observed afterwards.
+5. Send `18/82` with `00` to stop. This closes the file.
+
+**Pause is not stop.** After `02` the file stays open: the recorder's yellow light keeps blinking (paused), the next `01`
+continues the same file without a `1A/06` notice, and `1A/10` on that file replies success but the file stays in the list.
+Disconnecting Bluetooth also makes the recorder close the file.
+
+Stop, verified on hardware on 2026-11-13 (firmware `04.82`), sent after a pause:
+
+```
+host → 08 EE 00 00 00 18 82 0B 00 00 9B
+dev  → 09 FF 00 00 01 18 82 0C 00 00 9B 4A                     (18/82, status 01)
+dev  → 09 FF 00 00 01 1A 0A 13 00 00 30 1B 00 00 EE C2 F6 6A 9B  (1A/0A, file id at payload bytes 5–8)
+```
+
+After this, `1A/10` deleted the file in the same connection (40 → 39 files). The first five bytes of the `1A/0A` payload
+have not been decoded. Not yet tested: sending `00` while recording without pausing first, and whether the yellow light
+stops after `00`.
+
+`1A/11` with `01` (sent after a pause) was also tried: the device replied `1A/11` with status `01`, but the file still could
+not be deleted afterwards. openbean does not use it.
 
 Measured end-to-end latency (sound in the room → decrypted audio on the host) is **0.3–0.5 s**. The live stream starts at
 the current position, so the first ~0.7 s after the start command is only available by downloading the file later.
@@ -221,7 +242,11 @@ With nothing but notifications enabled, the host receives:
 | `1A/06`, file id at bytes 9–12 | Recording started, including by pressing the button on the recorder |
 | `18/82`, 10-byte payload starting with `00` | Recording stopped by the button |
 
-The button therefore works as a start/stop trigger for the host.
+The button therefore works as a start/stop trigger for the host. A button stop closes the file by itself; only a pause sent
+by the host leaves it open (§11). The reply to the host's own stop (`18/82 00`) also starts with `00`, so openbean reads it
+as a "stopped" event too; that is harmless.
+
+Indicator light: a blinking yellow light means a recording is paused (file still open).
 
 ## 12a. Deleting a recording ✅
 
@@ -248,10 +273,11 @@ was not touched. The rest of the reply payload has not been recorded. openbean w
 
 Step 2 differs in two places, both in the app only:
 
-- **After voice typing.** There is no "close file" command: `18/82 02` only pauses, and the next `18/82 01` continues the
-  same file without a `1A/06` notice. So after each dictation the app deletes the file it used, without a local copy, but
-  only if the app sent the start command, the recorder was not recording before, a `1A/06` notice named this file, and its
-  listed duration is at most the session length plus 5 s (`DictationDeletePolicy`). A guessed or continued file is kept.
+- **After voice typing.** When the app ended the dictation, it pauses and then stops the recording (§11), waits for `1A/0A`
+  (up to 3 s), then deletes the file it used, without a local copy — but only if the app sent the start command, the
+  recorder was not recording before, a `1A/06` notice named this file, and its listed duration is at most the session
+  length plus 5 s (`DictationDeletePolicy`). A guessed or continued file is kept. A paused file cannot be deleted
+  (see §11), so the stop must come first.
 - **Old voice-typing files.** Files from earlier dictations cannot be proven new, so the app deletes them only from a
   manual clean-up that shows their count and total length and asks for confirmation.
 
