@@ -53,9 +53,27 @@ func appVersion() -> String {
 
 let location = LibraryLocation.resolve(path: path, dev: dev, environment: ProcessInfo.processInfo.environment,
                                        executable: Bundle.main.executableURL)
-let tools = LibraryTools(location: location)
+/// 一天从几点开始：和 App 设置里的一样（App 存在自己的偏好设置里：正式版 dev.openbean.app，开发版 dev.openbean.app.dev）。
+/// 环境变量 OPENBEAN_DAY_START_HOUR 优先；读不到就用 4
+func dayStartHour() -> Int {
+    let env = ProcessInfo.processInfo.environment
+    if let v = env["OPENBEAN_DAY_START_HOUR"].flatMap(Int.init), (0...23).contains(v) { return v }
+    let domain: String?
+    switch location.flavor {
+    case .release: domain = "dev.openbean.app"
+    case .dev: domain = "dev.openbean.app.dev"
+    case .custom: domain = Bundle.main.executableURL.flatMap(LibraryLocation.enclosingBundleIdentifier)
+    }
+    if let domain, let d = UserDefaults(suiteName: domain), d.object(forKey: "dayStartHour") != nil {
+        let v = d.integer(forKey: "dayStartHour")
+        if (0...23).contains(v) { return v }
+    }
+    return 4
+}
+
+let tools = LibraryTools(location: location, dayStartHour: dayStartHour())
 let server = MCPServer(tools: tools, version: appVersion())
-log("\(appVersion()), library \(location.folder.path) (\(location.flavor.rawValue))"
+log("\(appVersion()), library \(location.folder.path) (\(location.flavor.rawValue)), day starts at \(dayStartHour()):00"
     + (RecordingLibrary(folder: location.folder).exists ? "" : " — not found yet"))
 
 // 客户端提前关了管道时，写 stdout 不要被 SIGPIPE 直接杀掉，按出错退出

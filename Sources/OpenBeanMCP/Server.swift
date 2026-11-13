@@ -37,7 +37,8 @@ public final class MCPServer {
         Use day_overview or list_recordings to find recordings by date, search_recordings to find where something was said, \
         get_recording for a recording's summary, key points and action items, and get_transcript for the words with timestamps. \
         Transcripts are automatic speech recognition and can contain mis-heard words, especially names; summaries were written by an LLM. \
-        Dates are the user's local dates (YYYY-MM-DD, or "today" / "yesterday"); every result says the time zone and today's date. \
+        Dates are the user's local dates (YYYY-MM-DD, or "today" / "yesterday"); a day starts at 4 AM by default, as in the OpenBean app, \
+        so a recording made after midnight belongs to the day before. Every result says the time zone, today's date and when a day starts. \
         Nothing here can change, delete or record anything.
         """
 

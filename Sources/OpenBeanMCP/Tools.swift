@@ -25,8 +25,11 @@ public final class LibraryTools: @unchecked Sendable {
     let timeZone: TimeZone
     let now: () -> Date
     let calendar: Calendar
+    /// 一天从几点开始（和 App 的「今天」、每日日记同一个规则：默认凌晨 4 点，凌晨两点的录音算前一天）
+    let boundary: DayBoundary
 
-    public init(location: LibraryLocation, timeZone: TimeZone = .current, now: @escaping () -> Date = Date.init) {
+    public init(location: LibraryLocation, timeZone: TimeZone = .current, dayStartHour: Int = 4,
+                now: @escaping () -> Date = Date.init) {
         self.location = location
         library = RecordingLibrary(folder: location.folder)
         self.timeZone = timeZone
@@ -35,6 +38,7 @@ public final class LibraryTools: @unchecked Sendable {
         c.timeZone = timeZone
         c.locale = Locale(identifier: "en_US_POSIX")
         calendar = c
+        boundary = DayBoundary(startHour: dayStartHour, calendar: c)
     }
 
     public static let names = ["list_recordings", "get_recording", "get_transcript", "search_recordings", "day_overview"]
@@ -64,7 +68,7 @@ public final class LibraryTools: @unchecked Sendable {
     // MARK: - 工具定义（写给模型看）
 
     public var definitions: [JSON] {
-        let dateHelp = "Local date (YYYY-MM-DD), or \"today\" / \"yesterday\"."
+        let dateHelp = "Local date (YYYY-MM-DD), or \"today\" / \"yesterday\". \(dayRule)"
         let id: JSON = ["type": "integer", "description": "Recording id, from list_recordings, search_recordings or day_overview."]
         let readOnly: JSON = ["readOnlyHint": true, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false]
         func tool(_ name: String, _ title: String, _ description: String, _ properties: [String: JSON], required: [String] = []) -> JSON {
@@ -299,8 +303,7 @@ public final class LibraryTools: @unchecked Sendable {
     func dayOverview(_ a: [String: JSON]) throws -> ToolResult {
         let dayText = try optionalString(a, "date") ?? "today"
         let day = try parseDay(dayText, key: "date")
-        let next = calendar.date(byAdding: .day, value: 1, to: day)!
-        let list = try library.recordings(in: DateInterval(start: day, end: next)).reversed()
+        let list = try library.recordings(in: boundary.interval(of: day)).reversed()
         let label = dayLabel(day)
         let total = list.reduce(0.0) { $0 + $1.duration }
         var lines = [list.isEmpty ? "\(label): no recordings. \(contextLine)"
@@ -442,11 +445,13 @@ public final class LibraryTools: @unchecked Sendable {
     func dateRange(_ a: [String: JSON]) throws -> Range? {
         let f = try optionalString(a, "from"), t = try optionalString(a, "to")
         guard f != nil || t != nil else { return nil }
-        let start = try f.map { try parseDay($0, key: "from") } ?? Date.distantPast
+        let firstDay = try f.map { try parseDay($0, key: "from") }
         let lastDay = try t.map { try parseDay($0, key: "to") }
-        let end = lastDay.map { calendar.date(byAdding: .day, value: 1, to: $0)! } ?? Date.distantFuture
+        // 每天按 boundary 的起点算：from 那天的起点到 to 那天的终点（下一天的起点）
+        let start = firstDay.map { boundary.interval(of: $0).start } ?? Date.distantPast
+        let end = lastDay.map { boundary.interval(of: $0).end } ?? Date.distantFuture
         guard start < end else { throw ToolError("from (\(f!)) is after to (\(t!)).") }
-        let fs = f != nil ? dayString(start) : "", ts = lastDay.map(dayString) ?? ""
+        let fs = firstDay.map(dayString) ?? "", ts = lastDay.map(dayString) ?? ""
         let label: String
         switch (f, t) {
         case (.some, .some) where fs == ts: label = "on \(fs)"
@@ -457,9 +462,9 @@ public final class LibraryTools: @unchecked Sendable {
         return Range(interval: DateInterval(start: start, end: end), from: fs, to: ts, label: label)
     }
 
-    /// 本地日期的零点
+    /// 本地日期的零点（当作那一天的标识）；today / yesterday 按 boundary 算，凌晨 4 点前的「今天」还是前一天
     func parseDay(_ s: String, key: String) throws -> Date {
-        let today = calendar.startOfDay(for: now())
+        let today = boundary.day(of: now())
         switch s.lowercased() {
         case "today": return today
         case "yesterday": return calendar.date(byAdding: .day, value: -1, to: today)!
@@ -477,8 +482,18 @@ public final class LibraryTools: @unchecked Sendable {
     // MARK: 时间格式
 
     /// 每个结果都带上时区和今天的日期：模型常常不知道用户那边是几号
-    var contextLine: String { "Times are in \(timeZone.identifier); today is \(dayString(now()))." }
-    var contextJSON: [String: JSON] { ["time_zone": .string(timeZone.identifier), "today": .string(dayString(now()))] }
+    var contextLine: String { "Times are in \(timeZone.identifier); today is \(dayString(boundary.day(of: now()))). \(dayRule)" }
+    var contextJSON: [String: JSON] {
+        ["time_zone": .string(timeZone.identifier), "today": .string(dayString(boundary.day(of: now()))),
+         "day_starts_at": .string(String(format: "%02d:00", boundary.startHour))]
+    }
+
+    /// 「一天从几点算」的说明（写给模型看）
+    var dayRule: String {
+        boundary.startHour == 0 ? ""
+            : String(format: "A day runs from %02d:00 to %02d:00 the next morning, so a recording at 01:30 belongs to the day before.",
+                     boundary.startHour, boundary.startHour)
+    }
 
     func formatter(_ f: String) -> DateFormatter {
         let d = DateFormatter()

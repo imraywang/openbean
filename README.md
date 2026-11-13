@@ -298,7 +298,8 @@ other clients take the same `mcpServers` entry:
 | `day_overview` | `date` (default today) | Every recording of that day with its summary and action items |
 
 Each result is text for the model plus `structuredContent`; times carry the UTC offset, and every result names the
-time zone and today's date. Recordings still only on the recorder are listed but have no transcript; voice typing
+time zone and today's date. A day runs from 4 AM to 4 AM, as on the app's Today page (Settings → Library → "A day
+starts at"; or set `OPENBEAN_DAY_START_HOUR`), so a recording made at 1:30 AM belongs to the day before. Recordings still only on the recorder are listed but have no transcript; voice typing
 clips are left out.
 
 **Privacy.** It is read-only: it can't change, delete or record anything, has no access to audio, the voice typing
@@ -532,6 +533,8 @@ Claude Desktop（设置 → 开发者 → 编辑配置，改完退出重开）�
 | `day_overview` | `date`（默认今天） | 这一天每条录音的摘要和待办 |
 
 结果既有给模型读的文字，也有结构化内容（`structuredContent`）；时间都带时区，每个结果都写明时区和今天的日期。
+一天从凌晨 4 点算到次日凌晨 4 点，和 App 的「今天」一样（设置 → 录音库 →「一天从几点开始」，或环境变量 `OPENBEAN_DAY_START_HOUR`），
+所以凌晨 1:30 的录音算前一天。
 还在录音豆上、没同步的录音会列出但没有转写；语音输入片段不出现。
 
 **隐私**：只读——不能修改、删除或录音，读不到音频、语音输入记录，也不碰录音豆、不联网；只在 agent 启动它时运行。
