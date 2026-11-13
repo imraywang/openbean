@@ -5,6 +5,7 @@
 用法：
     python3 -I Scripts/battery-report.py                      # 默认读 ~/Library/Application Support/OpenBean/openbean.log
     python3 -I Scripts/battery-report.py path/to/openbean.log --since 2026-11-13 --until "2026-11-13 22:00"
+    python3 -I Scripts/battery-report.py --dev                # 读开发版 OpenBean Dev 的日志（Application Support/openbean-dev）
     python3 -I Scripts/battery-report.py --self-test          # 用合成日志校验算法
 
 日志行（时间是 UTC ISO 8601，取值未知时写 ?）：
@@ -16,6 +17,9 @@
     battery event=record seconds=600 recorder=70 file=1794477466
     battery event=disconnect recorder=70
     battery event=quit
+    battery event=device-file file=1794477466 start=1794477466 end=1794506266 seconds=28800.0 recorder=40
+                                                      （读到设备文件列表时，新出现或变长的录音各一行）
+    battery event=device-files count=12 seconds=40210.0 recorder=40      （同时写一行设备上的合计）
 
 口径：
 - 只统计「看得到」的时间：连着、且相邻两行电量日志间隔不超过 --max-gap（默认 15 分钟）。
@@ -23,6 +27,11 @@
 - charging=1（录音豆在充电盒里）的时间不算「离开充电盒」。
 - 电量只有 10% 一档。耗电率用「相邻两次掉档之间的时长」来算（每段正好用掉约 10%），
   每段之前、之后不满一档的零头不计；只有一两次掉档时结果很粗。
+- 离线录音（戴着录音豆离开 Mac）：空档里没有日志，但回来后读到的文件列表里有这段时间录的文件
+  （开始时间 = 文件 id，加上时长）。对每个「离开（电量 a）… 回来（电量 b）」的空档：
+      a − b = 待机耗电 × (空档 − 录音时长) + 录音耗电 × 录音时长
+  待机耗电用上面拟合出的结果（或 --standby 指定），解出录音耗电和满电能录多久。
+  两头各有 ±10% 的档位误差，所以给一个范围；空档越长、掉得越多越准。
 """
 
 from __future__ import annotations
@@ -35,6 +44,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 
 DEFAULT_LOG = os.path.expanduser("~/Library/Application Support/OpenBean/openbean.log")
+DEV_LOG = os.path.expanduser("~/Library/Application Support/openbean-dev/openbean.log")
 LINE = re.compile(r"^(\S+)\s+battery\s+(event=\S+.*)$")
 KV = re.compile(r"(\w+)=(\S+)")
 
@@ -148,6 +158,8 @@ def analyse(events: list[Event], max_gap: float = 15 * 60) -> Report:
     for e in events:
         r.first = r.first or e.t
         r.last = e.t
+        if e.kind in ("device-file", "device-files"):
+            continue  # 文件列表的记录，离线分析用（offline_gaps）
         observed = conn and last is not None and (e.t - last).total_seconds() <= max_gap
         if conn and last is not None:
             dt = (e.t - last).total_seconds()
@@ -243,6 +255,144 @@ def fit(steps, dictations, records):
     return None, None, len(rows)
 
 
+@dataclass
+class Gap:
+    """一段看不到录音豆的时间（断开、退出或日志中断）"""
+    start: datetime
+    start_level: int | None
+    start_charging: bool | None
+    end: datetime
+    end_level: int | None
+    end_charging: bool | None
+    files: list = field(default_factory=list)  # (文件 id, 开始, 结束)，和空档有重叠的录音
+
+    @property
+    def seconds(self) -> float:
+        return (self.end - self.start).total_seconds()
+
+    @property
+    def recorded(self) -> float:
+        return sum(max(0.0, (min(b, self.end) - max(a, self.start)).total_seconds()) for _, a, b in self.files)
+
+
+def device_files(events: list[Event]) -> dict:
+    """文件 id → (开始, 结束)。同一个文件写过多行时取最长的那次（录音中读到的列表时长会偏短）"""
+    out = {}
+    for e in events:
+        if e.kind != "device-file":
+            continue
+        fid, start = e.num("file"), e.num("start")
+        try:
+            secs = float(e.f.get("seconds", ""))
+        except ValueError:
+            continue
+        if fid is None or start is None or secs <= 0:
+            continue
+        a = datetime.fromtimestamp(start, timezone.utc)
+        b = a + timedelta(seconds=secs)
+        if fid not in out or b > out[fid][1]:
+            out[fid] = (a, b)
+    return out
+
+
+def offline_gaps(events: list[Event], max_gap: float = 15 * 60, min_gap: float = 30 * 60) -> list[Gap]:
+    """找出空档（断开 / 退出 / 两行电量日志相隔超过 max_gap），把这期间录的文件挂上去。
+    只返回至少 min_gap 长、且有录音的空档。"""
+    gaps = []
+    prev_t = None
+    level = None
+    chg = None
+    pending = None  # (开始时间, 电量, 充电)
+    for e in events:
+        if e.kind in ("device-file", "device-files"):
+            continue
+        lvl, c = e.num("recorder"), e.flag("charging")
+        if e.kind in ("disconnect", "quit"):
+            if pending is None:
+                pending = (e.t, lvl if lvl is not None else level, chg)
+            prev_t = None
+            continue
+        if pending is None and prev_t is not None and (e.t - prev_t).total_seconds() > max_gap:
+            pending = (prev_t, level, chg)
+        if pending is not None:
+            gaps.append(Gap(pending[0], pending[1], pending[2], e.t, lvl, c))
+            pending = None
+        prev_t = e.t
+        if lvl is not None:
+            level = lvl
+        if c is not None:
+            chg = c
+    files = device_files(events)
+    out = []
+    for g in gaps:
+        g.files = sorted((fid, a, b) for fid, (a, b) in files.items() if b > g.start and a < g.end)
+        if g.seconds >= min_gap and g.recorded > 0:
+            out.append(g)
+    return out
+
+
+def offline_rate(g: Gap, standby: float | None):
+    """录音耗电 %/h 的估计和范围：(中间值, 下限, 上限)；算不出返回 None。
+    两头电量各是 10% 一档，掉的百分点误差按 ±10 算。"""
+    if g.start_level is None or g.end_level is None or g.recorded <= 0:
+        return None
+    drop = g.start_level - g.end_level
+    idle_h = (g.seconds - g.recorded) / 3600
+    rec_h = g.recorded / 3600
+    s = standby or 0.0
+
+    def rate(d):
+        return max(0.0, (d - s * idle_h) / rec_h)
+
+    return rate(drop), rate(max(0, drop - 10)), rate(drop + 10)
+
+
+def render_offline(gaps: list[Gap], standby: float | None, standby_source: str) -> list[str]:
+    out = []
+    p = out.append
+    p("")
+    p("Offline recording (recorder away from the Mac, recordings found in the file list afterwards):")
+    if not gaps:
+        p("  None yet. Needs a log gap of 30 min or more with recordings in it, written by a build that logs"
+          " 'battery event=device-file'.")
+        return out
+    if standby is None:
+        p("  Standby drain unknown (no fit yet and no --standby): counting the non-recording time as free,"
+          " which overstates the recording drain.")
+    else:
+        p(f"  Standby drain used for the non-recording time: {standby:.2f} %/h ({standby_source}).")
+    for g in gaps:
+        lv = lambda v: "?" if v is None else f"{v}%"
+        p(f"  {local(g.start)} → {local(g.end)}  away {hm(g.seconds)}, recorded {hm(g.recorded)}"
+          f" in {len(g.files)} file(s); battery {lv(g.start_level)} → {lv(g.end_level)}")
+        for fid, a, b in g.files:
+            p(f"      file {fid}: {local(a)} – {local(b)} ({hm((b - a).total_seconds())})")
+        if g.start_charging:
+            p("      ! The recorder was in the case when the gap began; when it came out is unknown.")
+        if g.end_charging:
+            p("      ! It was already back in the case at reconnect: the level may have risen, so the drop is a lower bound.")
+        last_end = max(b for _, _, b in g.files)
+        if (g.end - last_end).total_seconds() > 15 * 60:
+            p(f"      Last recording ended {hm((g.end - last_end).total_seconds())} before the reconnect"
+              " (stopped by hand, or the battery ran out?).")
+        if g.end_level is not None and g.end_level <= 10:
+            p(f"      Battery at the lowest bucket on return: if the recorder died, {hm(g.recorded)} is the measured"
+              " recording time from this start level.")
+        est = offline_rate(g, standby)
+        if est is None:
+            p("      Cannot estimate: battery level unknown at one end.")
+            continue
+        mid, lo, hi = est
+        if mid <= 0 and hi <= 0:
+            p("      No drop measured: away too short for a 10% bucket.")
+            continue
+        def life(r):
+            return "∞" if r <= 0 else f"{100 / r:.1f} h"
+        p(f"      Recording drain ≈ {mid:.1f} %/h (range {lo:.1f}–{hi:.1f} with ±10% bucket error)"
+          f" → full charge records ≈ {life(mid)} (range {life(hi)}–{life(lo)})")
+    return out
+
+
 def hm(seconds: float) -> str:
     m = int(round(seconds / 60))
     return f"{m // 60} h {m % 60:02d} min" if m >= 60 else f"{m} min"
@@ -252,7 +402,8 @@ def local(t: datetime) -> str:
     return t.astimezone().strftime("%Y-%m-%d %H:%M")
 
 
-def render(r: Report, path: str) -> str:
+def render(r: Report, path: str, events: list[Event] | None = None, standby_override: float | None = None,
+           max_gap: float = 15 * 60) -> str:
     out = []
     p = out.append
     p("OpenBean battery report")
@@ -314,6 +465,14 @@ def render(r: Report, path: str) -> str:
                   f" every 10 min of voice typing costs ≈ {b * 10:.1f}%")
     else:
         p("Projected battery life: not enough data yet (no bucket dropped while off the charger).")
+    if events is not None:
+        if standby_override is not None:
+            standby, source = standby_override, "--standby"
+        elif a:
+            standby, source = a, "fitted above"
+        else:
+            standby, source = None, ""
+        out += render_offline(offline_gaps(events, max_gap=max_gap), standby, source)
     return "\n".join(out)
 
 
@@ -431,6 +590,33 @@ def self_test() -> int:
     check("full 10% steps", len(steps), 4, 0)
     # 渲染不能出错
     render(r, "<synthetic>")
+    # 离线录音：离开 10 小时，其中录了 8 小时，待机 1 %/h、录音 10 %/h → 掉 2 + 80 = 82%，从 100% 到 18%（日志显示 20%）
+    T = datetime(2026, 11, 14, 8, 0, tzinfo=timezone.utc)
+    z = lambda t: t.strftime("%Y-%m-%dT%H:%M:%SZ")
+    start = T + timedelta(hours=1)
+    off_lines = [
+        f"{z(T)} battery event=connect recorder=100 case=90 charging=0 caseCharging=0",
+        f"{z(T + timedelta(minutes=5))} battery event=disconnect recorder=100",
+        f"{z(T + timedelta(hours=10, minutes=5))} battery event=connect recorder=20 case=90 charging=0 caseCharging=0",
+        # 回来时还在录，第一次读到的时长偏短；停了之后再读到完整的
+        f"{z(T + timedelta(hours=10, minutes=6))} battery event=device-file file={int(start.timestamp())} start={int(start.timestamp())} end=? seconds=20000.0 recorder=20",
+        f"{z(T + timedelta(hours=10, minutes=8))} battery event=device-file file={int(start.timestamp())} start={int(start.timestamp())} end=? seconds=28800.0 recorder=20",
+        f"{z(T + timedelta(hours=10, minutes=8))} battery event=device-files count=1 seconds=28800.0 recorder=20",
+        f"{z(T + timedelta(hours=10, minutes=18))} battery event=tick recorder=20 case=90 charging=0 caseCharging=0",
+    ]
+    ev = parse(off_lines)
+    gs = offline_gaps(ev)
+    check("offline gaps", len(gs), 1, 0)
+    if gs:
+        check("offline recorded hours", gs[0].recorded / 3600, 8, 0.01)
+        check("offline away hours", gs[0].seconds / 3600, 10, 0.01)
+        mid, lo, hi = offline_rate(gs[0], 1.0)
+        check("offline recording %/h (logged 100→20: (80 − 2) / 8)", mid, 9.75, 0.01)
+        check("offline range low", lo, 8.5, 0.01)
+        check("offline range high", hi, 11.0, 0.01)
+    # 主分析不被 device-file 行打乱
+    check("main pass ignores device-file lines", analyse(ev).gaps, 0, 0)
+    render(analyse(ev), "<synthetic offline>", ev, standby_override=1.0)
     # 只有旧日志（没有 battery 行）时
     ok &= parse(["2026-11-12T09:57:43Z 已连接录音豆"]) == []
     print("self-test passed" if ok else "self-test FAILED")
@@ -439,7 +625,10 @@ def self_test() -> int:
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="Recorder battery and usage report from the OpenBean log.")
-    ap.add_argument("log", nargs="?", default=DEFAULT_LOG, help=f"log file (default: {DEFAULT_LOG})")
+    ap.add_argument("log", nargs="?", default=None, help=f"log file (default: {DEFAULT_LOG})")
+    ap.add_argument("--dev", action="store_true", help=f"read the OpenBean Dev log ({DEV_LOG})")
+    ap.add_argument("--standby", type=float, help="standby drain in %%/h for the offline-recording estimate"
+                    " (default: the fitted value)")
     ap.add_argument("--since", help="start time, local unless it has a zone, e.g. 2026-11-13 or '2026-11-13 08:00'")
     ap.add_argument("--until", help="end time, same format")
     ap.add_argument("--max-gap", type=float, default=15, help="minutes between log lines treated as a gap (default 15)")
@@ -447,6 +636,7 @@ def main(argv=None) -> int:
     args = ap.parse_args(argv)
     if args.self_test:
         return self_test()
+    args.log = args.log or (DEV_LOG if args.dev else DEFAULT_LOG)
     try:
         with open(args.log, encoding="utf-8", errors="replace") as f:
             events = parse(f)
@@ -466,7 +656,7 @@ def main(argv=None) -> int:
         print("They are written by OpenBean builds with battery logging. Run such a build with the recorder"
               " connected for a while (a full day of wear is best), then run this again.")
         return 0
-    print(render(analyse(events, max_gap=args.max_gap * 60), args.log))
+    print(render(analyse(events, max_gap=args.max_gap * 60), args.log, events, args.standby, args.max_gap * 60))
     return 0
 
 

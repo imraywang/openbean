@@ -292,6 +292,9 @@ final class LibraryStore {
     }
 
     private func merge(_ files: [RecordingFile]) {
+        // 续航统计：离线录的音只能事后从列表里知道（新出现或变长的文件各写一行，见 DeviceFileLog）
+        let known = Dictionary(recordings.map { ($0.id, $0.durationMs) }, uniquingKeysWith: { a, _ in a })
+        DeviceFileLog.lines(known: known, files: files, recorder: device.battery).forEach(Log.write)
         let ids = Set(files.map(\.id))
         for f in files {
             if let i = recordings.firstIndex(where: { $0.id == f.id }) {
