@@ -5,43 +5,73 @@ import Carbon.HIToolbox
 import SwiftUI
 
 enum SettingsTab: String, CaseIterable, Identifiable {
-    case voice, polish, library, models
+    case voice, polish, library, agent, about
     var id: String { rawValue }
     var title: LocalizedStringKey {
         switch self {
         case .voice: return "Voice typing"
         case .polish: return "Clean-up"
         case .library: return "Library"
-        case .models: return "Models"
+        case .agent: return "Agents"
+        case .about: return "About"
         }
+    }
+    var icon: String {
+        switch self {
+        case .voice: return "keyboard"
+        case .polish: return "sparkles"
+        case .library: return "waveform"
+        case .agent: return "point.3.connected.trianglepath.dotted"
+        case .about: return "info.circle"
+        }
+    }
+    /// 链接里的名字（openbean://settings/<名字>）；0.4 以前的 models 页现在叫「关于」
+    init?(link: String) {
+        if link == "models" { self = .about; return }
+        self.init(rawValue: link)
     }
 }
 
-/// 主窗口里的「设置」页：工具栏中间的分段控件切四组（语音输入 / 润色 / 录音库 / 模型）
-struct SettingsPage: View {
+/// 独立的设置窗口（Settings 场景，⌘, 和菜单栏「设置…」打开）：工具栏放分页，记住上次打开的那页（存在 Navigator 里，链接也能指定）
+struct SettingsWindow: View {
     let model: AppModel
 
     var body: some View {
         @Bindable var nav = model.nav
-        Group {
-            switch nav.settingsTab {
-            case .voice: VoiceSettings(settings: model.settings)
-            case .polish: PolishSettings(settings: model.settings)
-            case .library: LibrarySettings(settings: model.settings)
-            case .models: ModelSettings(models: model.models, updater: model.updater)
+        TabView(selection: $nav.settingsTab) {
+            Tab(SettingsTab.voice.title, systemImage: SettingsTab.voice.icon, value: .voice) {
+                VoiceSettings(settings: model.settings).frame(height: 700)
+            }
+            Tab(SettingsTab.polish.title, systemImage: SettingsTab.polish.icon, value: .polish) {
+                PolishSettings(settings: model.settings).frame(height: 560)
+            }
+            Tab(SettingsTab.library.title, systemImage: SettingsTab.library.icon, value: .library) {
+                LibrarySettings(settings: model.settings).frame(height: 560)
+            }
+            Tab(SettingsTab.agent.title, systemImage: SettingsTab.agent.icon, value: .agent) {
+                Form { AgentSettingsSection() }.formStyle(.grouped).frame(height: 420)
+            }
+            Tab(SettingsTab.about.title, systemImage: SettingsTab.about.icon, value: .about) {
+                AboutSettings(models: model.models, updater: model.updater).frame(height: 320)
             }
         }
-        .frame(maxWidth: 680)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .navigationTitle("Settings")
-        .toolbar {
-            ToolbarItem(placement: .principal) {
-                Picker("Settings", selection: $nav.settingsTab) {
-                    ForEach(SettingsTab.allCases) { Text($0.title).tag($0) }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-            }
+        .frame(width: 640)
+    }
+}
+
+/// 把设置窗口带到前台（菜单栏 App：和 bringToFront 一样要等菜单收起再激活）。
+/// 第一次打开时 openSettings 返回后窗口还没建好，所以没找到或没成为主窗口就稍后再试几次
+@MainActor func bringSettingsToFront(attempt: Int = 0) {
+    DispatchQueue.main.asyncAfter(deadline: .now() + (attempt == 0 ? 0 : 0.12)) {
+        NSApp.activate()
+        let w = NSApp.windows.first { $0.identifier?.rawValue.contains("Settings") == true }
+        if let w {
+            if w.isMiniaturized { w.deminiaturize(nil) }
+            w.makeKeyAndOrderFront(nil)
+            w.orderFrontRegardless()
+        }
+        if w?.isKeyWindow != true {
+            if attempt < 8 { bringSettingsToFront(attempt: attempt + 1) } else { Log.write("设置窗口没能置前") }
         }
     }
 }
@@ -93,7 +123,7 @@ private struct VoiceSettings: View {
                 }
                 Toggle(isOn: $settings.keepHistory) {
                     Text("Keep voice typing history on this Mac")
-                    Text("Used by the Voice typing page and the Overview totals")
+                    Text("Shown on the Voice typing page and in Today")
                 }
                 Toggle(isOn: $settings.deleteDictationAudio) {
                     Text("Delete voice-typing audio from the recorder")
@@ -277,15 +307,14 @@ private struct LibrarySettings: View {
                 }
             }
             NoteSettingsSections(settings: settings, notes: AppModel.shared.library.notes)
-            AgentSettingsSection()
         }
         .formStyle(.grouped)
     }
 }
 
-// MARK: - 模型与关于
+// MARK: - 关于（版本、更新、语音模型）
 
-private struct ModelSettings: View {
+private struct AboutSettings: View {
     let models: ModelStore
     @Bindable var updater: Updater
 
@@ -298,10 +327,7 @@ private struct ModelSettings: View {
 
     var body: some View {
         Form {
-            Section("Speech models") {
-                ModelStatusRow(models: models)
-            }
-            Section("About") {
+            Section("OpenBean") {
                 LabeledContent("Version") {
                     HStack {
                         Text(version).textSelection(.enabled)
@@ -312,6 +338,9 @@ private struct ModelSettings: View {
                 Toggle("Automatically check for updates", isOn: $updater.automaticallyChecks)
                     .disabled(!Flavor.updates)
                 Link("Source code and protocol notes", destination: URL(string: "https://github.com/imraywang/openbean")!)
+            }
+            Section("Speech models") {
+                ModelStatusRow(models: models)
             }
         }
         .formStyle(.grouped)

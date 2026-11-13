@@ -67,6 +67,8 @@ final class AppModel {
 
     /// 主窗口打开回调（由 MainView 登记，用于 openbean://open）
     var openMain: (() -> Void)?
+    /// 设置窗口打开回调（菜单栏菜单第一次渲染时登记，用于 ⌘, 和 openbean://settings）
+    var openSettings: (() -> Void)?
 
     func handle(_ url: URL) {
         guard let scheme = url.scheme, Flavor.schemes.contains(scheme) else { return }
@@ -84,13 +86,11 @@ final class AppModel {
         case "open":
             openMain?()
         case "settings":
-            nav.section = .settings
-            openMain?()
+            openSettings?()
         case let p where p.hasPrefix("settings/"):
-            // openbean://settings/voice|polish|library|models
-            if let tab = SettingsTab(rawValue: String(p.dropFirst(9))) { nav.settingsTab = tab }
-            nav.section = .settings
-            openMain?()
+            // openbean://settings/voice|polish|library|agent|about（models 是 about 的旧名）
+            if let tab = SettingsTab(link: String(p.dropFirst(9))) { nav.settingsTab = tab }
+            openSettings?()
         case let p where p.hasPrefix("summarize/"):
             // openbean://summarize/<录音 id>：摘要（或重新摘要）一条已转写的录音
             if let id = UInt32(p.dropFirst(10)), let r = library.recordings.first(where: { $0.id == id }),
@@ -147,6 +147,10 @@ struct OpenBeanApp: App {
         }
         .windowResizability(.contentSize)
         .defaultLaunchBehavior(model.settings.onboardingDone ? .suppressed : .presented)
+
+        SwiftUI.Settings {
+            SettingsWindow(model: model)
+        }
 
         #if DEMO
         // 演示版：启动时开一个小窗口拿到 openWindow（菜单栏菜单没人点开就拿不到），也用来把菜单内容画成普通窗口
@@ -214,13 +218,15 @@ final class Delegate: NSObject, NSApplicationDelegate {
     }
 }
 
-/// 菜单栏菜单第一次渲染时登记「打开主窗口」的方法（链接 openbean://open 用）
+/// 菜单栏菜单第一次渲染时登记「打开主窗口」「打开设置」的方法（链接 openbean://open、settings 用）
 private struct OpenWindowBinder: View {
     let model: AppModel
     @Environment(\.openWindow) private var openWindow
+    @Environment(\.openSettings) private var openSettings
     var body: some View {
         Color.clear.frame(width: 0, height: 0).onAppear {
             model.openMain = { openWindow(id: "main"); bringToFront("main") }
+            model.openSettings = { openSettings(); bringSettingsToFront() }
         }
     }
 }
@@ -252,6 +258,7 @@ struct MenuIcon: View {
 struct MenuContent: View {
     let model: AppModel
     @Environment(\.openWindow) private var openWindow
+    @Environment(\.openSettings) private var openSettings
 
     var body: some View {
         let d = model.device, dict = model.dictation, s = model.settings
@@ -275,7 +282,7 @@ struct MenuContent: View {
         Divider()
         Button("Open OpenBean") { open("main") }
             .keyboardShortcut("o")
-        Button("Settings…") { model.nav.section = .settings; open("main") }
+        Button("Settings…") { openSettings(); bringSettingsToFront() }
             .keyboardShortcut(",")
         if !s.onboardingDone { Button("Set up…") { open("onboarding") } }
         Button("Check for Updates…") { model.updater.check() }

@@ -7,9 +7,9 @@
 // 切状态用链接 openbean-demo://demo/<命令>[?seq=N]，带 seq 时处理完写 <数据目录>/demo-ack.json（截图脚本据此等待并取窗口号）：
 //   state/connected|searching|connecting|failed|bluetooth-off|no-permission|lost|syncing|dictating|recording|low-battery|charging
 //   hud/hidden|starting|listening|polishing|wrapping|typed|copied|nothing|error
-//   page/overview|library|dictation|recorder|settings[/voice|polish|library|models]
+//   page/overview|library|dictation|recorder   settings/voice|polish|library|agent|about（设置窗口）
 //   select/summary|untranscribed|ondevice|long|none   search/<词>   filter/all|transcribed|onRecorder|dictation
-//   onboarding/<0–4>   close/onboarding|main   window/main|onboarding/<宽>x<高>   appearance/light|dark|auto
+//   onboarding/<0–4>   close/onboarding|main|settings   window/main|onboarding/<宽>x<高>   appearance/light|dark|auto
 //   trusted/yes|no   models/ready|missing|downloading   menu/open   ping   quit
 // 数据档：启动参数 -demoProfile empty 用空数据目录 openbean-demo-empty（第一次用：空库、没连过设备、向导未完成）。
 // Debug 构建里也编进来：Xcode 预览（Previews.swift）用同一套假数据，见 Flavor.isPreview。
@@ -455,9 +455,11 @@ final class DemoController {
         case "state": apply(state: arg)
         case "hud": hud(arg)
         case "page":
-            if arg == "settings", parts.count > 2, let tab = SettingsTab(rawValue: parts[2]) { m.nav.settingsTab = tab }
             if let s = MainSection(rawValue: arg) { m.nav.section = s }
             openMain()
+        case "settings":
+            if let tab = SettingsTab(link: arg) { m.nav.settingsTab = tab }
+            m.openSettings?()
         case "select":
             DemoState.shared.query = ""
             m.library.filter = .all
@@ -590,6 +592,7 @@ final class DemoController {
         switch role {
         case "hud": return model?.hud.demoPanel
         case "status": return NSApp.windows.first { String(describing: type(of: $0)).contains("StatusBarWindow") }
+        case "settings": return NSApp.windows.first { $0.identifier?.rawValue.contains("Settings") == true }
         default:
             return NSApp.windows.first { w in
                 guard let id = w.identifier?.rawValue else { return false }
@@ -633,7 +636,7 @@ final class DemoController {
     /// 告诉截图脚本：第 seq 条命令处理完了，以及各窗口的窗口号（= CGWindowID）
     private func ack(_ seq: String) {
         var windows: [String: Int] = [:]
-        for role in ["main", "onboarding", "hud", "demo"] {
+        for role in ["main", "onboarding", "settings", "hud", "demo"] {
             if let w = window(role), w.isVisible { windows[role] = w.windowNumber }
         }
         var body: [String: Any] = ["seq": seq, "pid": Int(ProcessInfo.processInfo.processIdentifier), "windows": windows]
@@ -664,6 +667,7 @@ enum DemoScenes {
 private struct DemoBinder: View {
     let model: AppModel
     @Environment(\.openWindow) private var openWindow
+    @Environment(\.openSettings) private var openSettings
 
     var body: some View {
         Text(verbatim: "OpenBean Demo — openbean-demo://demo/…")
@@ -672,6 +676,7 @@ private struct DemoBinder: View {
             .onAppear {
                 DemoController.shared.openWindow = openWindow
                 model.openMain = { openWindow(id: "main"); bringToFront("main") }
+                model.openSettings = { openSettings(); bringSettingsToFront() }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { DemoController.shared.window("demo")?.orderOut(nil) }
             }
     }

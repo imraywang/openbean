@@ -8,9 +8,9 @@ import SwiftUI
 // MARK: - 导航
 
 enum MainSection: String, CaseIterable, Identifiable, Hashable {
-    case overview, library, dictation, recorder, settings
+    case overview, library, dictation, recorder
     var id: String { rawValue }
-    /// 侧栏上半部分的内容页（⌘1–⌘4）；设置单独放在下面（⌘,）
+    /// 侧栏里的页面（⌘1–⌘4）。设置在独立的设置窗口里（⌘,）
     static let pages: [MainSection] = [.overview, .library, .dictation, .recorder]
     var title: LocalizedStringKey {
         switch self {
@@ -18,7 +18,6 @@ enum MainSection: String, CaseIterable, Identifiable, Hashable {
         case .library: return "Library"
         case .dictation: return "Voice typing"
         case .recorder: return "Recorder"
-        case .settings: return "Settings"
         }
     }
     var icon: String {
@@ -27,7 +26,6 @@ enum MainSection: String, CaseIterable, Identifiable, Hashable {
         case .library: return "list.bullet"
         case .dictation: return "keyboard"
         case .recorder: return "mic"
-        case .settings: return "gearshape"
         }
     }
 }
@@ -68,7 +66,6 @@ struct MainView: View {
                 .transition(.opacity)
         }
         .animation(reduceMotion ? nil : .easeOut(duration: 0.18), value: nav.section)
-        // 再窄工具栏就放不下设置页的四个标签，会收进 » 菜单
         .frame(minWidth: 960, minHeight: 600)
         .background { shortcuts }
         .task { await model.library.refreshDeviceList() }
@@ -83,7 +80,6 @@ struct MainView: View {
         case .recorder:
             DeviceView(device: model.device, dictation: model.dictation, library: model.library)
                 .navigationTitle("Recorder")
-        case .settings: SettingsPage(model: model)
         }
     }
 
@@ -94,7 +90,7 @@ struct MainView: View {
                 Button("") { model.nav.section = s }
                     .keyboardShortcut(KeyEquivalent(Character("\(i + 1)")), modifiers: .command)
             }
-            Button("") { model.nav.section = .settings }
+            Button("") { model.openSettings?() }
                 .keyboardShortcut(",", modifiers: .command)
             Button("") {
                 withAnimation { columns = columns == .detailOnly ? .all : .detailOnly }
@@ -119,10 +115,6 @@ struct NavSidebar: View {
                 }
                     .badge(badge(s))
                     .tag(s)
-            }
-            Section {
-                Label(MainSection.settings.title, systemImage: MainSection.settings.icon)
-                    .tag(MainSection.settings)
             }
         }
         .listStyle(.sidebar)

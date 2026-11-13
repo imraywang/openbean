@@ -352,6 +352,16 @@
         }
       }
     },
+    "Agents": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agent"
+          }
+        }
+      }
+    },
     "All recordings": {
       "localizations": {
         "zh-Hans": {
@@ -2432,6 +2442,16 @@
         }
       }
     },
+    "Shown on the Voice typing page and in Today": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示在语音输入页和「今天」里"
+          }
+        }
+      }
+    },
     "Source code and protocol notes": {
       "localizations": {
         "zh-Hans": {
@@ -2818,6 +2838,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "录音豆正在录音。先按录音豆上的按键停止，再开始语音输入。"
+          }
+        }
+      }
+    },
+    "The recorder is recording. Stop it first.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "录音豆正在录音，请先停下。"
           }
         }
       }

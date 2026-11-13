@@ -125,8 +125,9 @@ private struct PreviewFrame<Content: View>: View {
 
 // MARK: - 设置
 
+// 设置窗口的内容（预览里没有窗口的工具栏，分页标签画在内容上方；真实窗口的样子见 bin/ui-shots 的 25–29）
 @MainActor private func settings(_ tab: SettingsTab, dark: Bool = false) -> some View {
-    PreviewFrame(dark: dark, width: 900) { NavigationStack { SettingsPage(model: PreviewFixtures.model(tab: tab)) } }
+    SettingsWindow(model: PreviewFixtures.model(tab: tab)).preferredColorScheme(dark ? .dark : .light)
 }
 
 #Preview("设置 · 语音输入") { settings(.voice) }
@@ -135,8 +136,10 @@ private struct PreviewFrame<Content: View>: View {
 #Preview("设置 · 润色 · 深色") { settings(.polish, dark: true) }
 #Preview("设置 · 录音库") { settings(.library) }
 #Preview("设置 · 录音库 · 深色") { settings(.library, dark: true) }
-#Preview("设置 · 模型") { settings(.models) }
-#Preview("设置 · 模型 · 深色") { settings(.models, dark: true) }
+#Preview("设置 · Agent") { settings(.agent) }
+#Preview("设置 · Agent · 深色") { settings(.agent, dark: true) }
+#Preview("设置 · 关于") { settings(.about) }
+#Preview("设置 · 关于 · 深色") { settings(.about, dark: true) }
 
 // MARK: - 首次使用向导（第一次用：没找到录音豆、没下载模型、没有辅助功能权限）
 

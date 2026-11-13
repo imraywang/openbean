@@ -30,7 +30,7 @@ enum MCPHelper {
     }
 }
 
-/// 设置 → 录音库里的「给 agent 用」一组：说明、服务路径、拷贝配置和 Claude Code 命令
+/// 设置窗口「Agent」页：给 agent 用的说明、服务路径、拷贝配置和 Claude Code 命令：说明、服务路径、拷贝配置和 Claude Code 命令
 struct AgentSettingsSection: View {
     @State private var copied: String?
 

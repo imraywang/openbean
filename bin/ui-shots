@@ -138,12 +138,13 @@ pass_default() {
   go "page/overview";        shot 24 overview-failed main "概览：连接失败"
   go "page/recorder"
   go "state/connected"
-  go "page/settings/voice";   shot 25 settings-voice main "设置：语音输入"
-  go "page/settings/polish";  shot 26 settings-polish main "设置：润色"
-  go "page/settings/library"; shot 27 settings-library main "设置：录音库"
-  go "page/settings/models";  shot 28 settings-models main "设置：模型与关于"
-  go "window/main/960x600";   shot 29 settings-voice-narrow main "设置：最小尺寸"
-  go "window/main/1180x760"
+  # 设置是独立窗口（固定宽度，每页高度不同）
+  go "settings/voice";   shot 25 settings-voice settings "设置：语音输入"
+  go "settings/polish";  shot 26 settings-polish settings "设置：润色"
+  go "settings/library"; shot 27 settings-library settings "设置：录音库"
+  go "settings/agent";   shot 28 settings-agent settings "设置：Agent"
+  go "settings/about";   shot 29 settings-about settings "设置：关于"
+  go "close/settings"
   go "page/overview"
   # 菜单栏：图标（各状态）和点开的菜单
   local rect
@@ -192,7 +193,8 @@ pass_empty() {
   go "page/library";   shot 56 empty-library main "空状态：录音库"
   go "page/dictation"; shot 57 empty-voice-typing main "空状态：语音输入记录"
   go "page/recorder";  shot 58 empty-recorder main "空状态：录音豆（从没连上）"
-  go "page/settings/models"; shot 59 empty-settings-models main "空状态：模型没下载"
+  go "settings/about"; shot 59 empty-settings-about settings "空状态：模型没下载（设置 · 关于）"
+  go "close/settings"
 }
 
 trap quit_demo EXIT
