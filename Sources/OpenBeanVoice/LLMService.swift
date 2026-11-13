@@ -112,4 +112,42 @@ public struct LLMService: Sendable {
     }
 
     public func check() async -> Status { await Self.check(endpoint, apiKey: apiKey) }
+
+    // MARK: 上下文长度
+
+    /// 服务给这个模型开的上下文长度（token）；读不到返回 nil，调用方用保守的默认值。依次试：
+    /// - llama.cpp：`GET /props` 的 `default_generation_settings.n_ctx`（每个请求能用的长度）或顶层 `n_ctx`；
+    /// - OpenAI 兼容的 `GET /v1/models`：这个模型条目里的 `context_length` / `max_context_length` / `max_model_len` / `context_window`；
+    /// - LM Studio：`GET /api/v0/models` 的 `loaded_context_length`。
+    /// 不用训练长度（`n_ctx_train` 之类）：服务实际开的往往小得多。
+    public func contextLength() async -> Int? {
+        let s = makeSession(timeout: isLocal ? 2 : 6)
+        var root = endpoint
+        if root.path.hasSuffix("/v1") || root.path.hasSuffix("/v1/") { root = root.deletingLastPathComponent() }
+        if let o = await getJSON(root.appendingPathComponent("props"), s) as? [String: Any] {
+            let n = Self.int((o["default_generation_settings"] as? [String: Any])?["n_ctx"]) ?? Self.int(o["n_ctx"])
+            if let n, n > 0 { return n }
+        }
+        for url in [Self.url(endpoint, "models"), root.appendingPathComponent("api/v0/models")] {
+            guard let o = await getJSON(url, s) as? [String: Any], let list = o["data"] as? [[String: Any]], !list.isEmpty else { continue }
+            let entry = list.first { ($0["id"] as? String) == model } ?? (list.count == 1 ? list[0] : nil)
+            guard let entry else { continue }
+            for k in ["loaded_context_length", "context_length", "max_context_length", "max_model_len", "context_window"] {
+                if let n = Self.int(entry[k]), n > 0 { return n }
+            }
+        }
+        return nil
+    }
+
+    private func getJSON(_ url: URL, _ s: URLSession) async -> Any? {
+        var req = URLRequest(url: url)
+        if let apiKey { req.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization") }
+        guard let (d, r) = try? await s.data(for: req), (r as? HTTPURLResponse)?.statusCode == 200 else { return nil }
+        return try? JSONSerialization.jsonObject(with: d)
+    }
+
+    static func int(_ v: Any?) -> Int? {
+        if let n = v as? NSNumber, CFGetTypeID(n) != CFBooleanGetTypeID() { return n.intValue }
+        return nil
+    }
 }

@@ -26,10 +26,15 @@ public struct ConversationSummarizer: Sendable {
         public var calls: Int
         /// 被丢掉的人名和专有名词（在转写里找不到）
         public var droppedNames: Int
+        /// 被丢掉的代词、泛称和职位（「我」「店长」「发言人」）
+        public var droppedGeneric: Int = 0
     }
 
     public static let kinds: Set<String> = ["conversation", "monologue", "media", "fragment"]
-    static let maxDecisions = 5, maxTodos = 3, maxPeople = 12, maxThings = 5, maxKeyPoints = 5
+    /// 每段的上限：一段对话里真正定下来的事、能执行的待办通常就一两件；多了多半是把讨论和建议也算进去了
+    static let maxDecisions = 3, maxTodos = 2, maxPeople = 8, maxThings = 5, maxKeyPoints = 5
+    /// 转写不到这么多字的段不出待办（几句话里列出的待办多半是凑的）
+    public static let minCharsForTodos = 150
 
     static let fields = """
     {"title": "...", "summary": "...", "kind": "conversation", "key_points": ["..."], "decisions": ["..."], \
@@ -38,14 +43,17 @@ public struct ConversationSummarizer: Sendable {
 
     static let rules = """
     - key_points: up to 5 short points with the important facts, numbers and names. [] when there are none.
-    - decisions: things the speakers clearly agreed on or settled. Not suggestions, options under discussion or open \
-    questions. [] when there are none.
-    - todos: at most 3 concrete to-dos that someone committed to or was asked to do, with the owner and deadline when \
-    they are said. General advice is not a to-do. [] when there are none.
-    - people: names of people who speak or are mentioned in this transcript, written exactly as in the transcript. \
+    - decisions: at most 3 things the speakers clearly settled. Not suggestions, ideas, options under discussion, \
+    principles or open questions. [] when nothing was settled, which is common.
+    - todos: at most 2 concrete actions that someone committed to or was asked to do. Add the owner only when a \
+    person's name is said in the transcript, and the deadline when one is said. General advice is not a to-do. \
+    [] when there are none.
+    - Put each item in only one list: an action someone will do is a to-do, not also a decision.
+    - people: names of people who speak or are mentioned, written exactly as in the transcript. Only real names: not \
+    pronouns (I, you, he, 我, 你, 他), not roles or titles (manager, speaker, 店长, 督导, 员工, 发言人). \
     [] when there are none.
     - things: at most 5 named projects, products, companies or places that are said in this transcript, written exactly \
-    as in the transcript. The speaker's own terms below are only a spelling guide: list a term only when it is said here.
+    as in the transcript.
     Leave a list empty rather than guessing. Never invent people, numbers, dates, decisions or to-dos. Describe what was \
     recorded ("they agreed…", "someone suggested…"); do not write as "I" or "you".
     """
@@ -84,9 +92,9 @@ public struct ConversationSummarizer: Sendable {
     - summary: 1 to 3 sentences covering the whole conversation.
     - kind: "conversation", "monologue", "media" or "fragment", for the conversation as a whole.
     - key_points: up to 5 of the most important points; merge duplicates.
-    - decisions: the decisions from the parts, merged; at most 5.
-    - todos: the to-dos from the parts, merged and deduplicated; at most 3, the most concrete ones (an owner, a \
-    deadline or a number).
+    - decisions: the decisions from the parts, merged; at most 3, only things that were really settled.
+    - todos: the to-dos from the parts, merged and deduplicated; at most 2, the most concrete ones (an owner, a \
+    deadline or a number). An item is either a to-do or a decision, never both.
     - people, things: write [] (they are collected from the parts).
     Only use what is in the part summaries.
     """
@@ -97,7 +105,8 @@ public struct ConversationSummarizer: Sendable {
         guard !chunks.isEmpty, Summarizer.estimateTokens(text) >= Summarizer.minTokens else {
             return Result(summary: nil, kind: "fragment", calls: 0, droppedNames: 0)
         }
-        let lang = Summarizer.languageLine(for: text) + Summarizer.termsLine(base.glossary)
+        // 不把词表放进提示词：模型会把词表原样抄进「人」和「事」。词表只在事后纠正拼写（finish）
+        let lang = Summarizer.languageLine(for: text)
         let session = base.service.makeSession(timeout: base.timeout)
         var calls = 0
         func ask(_ system: String, _ user: String) async throws -> Parsed {
@@ -145,21 +154,29 @@ public struct ConversationSummarizer: Sendable {
                                            extra: extra, session: session)
     }
 
-    /// 封顶、词表纠正、人名和专有名词要在转写里找得到
+    /// 收尾：词表纠正；人名去掉代词和泛称、和专有名词一样要在转写里找得到；待办去掉泛称的负责人；
+    /// 和待办相近的决定去掉（同一件事只归一类，有动作的算待办）；短段不出待办；封顶
     func finish(_ p: Parsed, transcript: String, calls: Int) -> Result {
         let c = GlossaryCorrector(terms: base.glossary)
         func fix(_ s: String) -> String { c.correct(s).text }
         let haystack = Self.normalized(c.correct(transcript).text + transcript)
-        let people = Self.unique(p.people.map(fix)).filter { haystack.contains(Self.normalized($0)) }
-        let things = Self.unique(p.things.map(fix)).filter { haystack.contains(Self.normalized($0)) }
-        let dropped = Self.unique(p.people).count + Self.unique(p.things).count - people.count - things.count
+        let rawPeople = Self.unique(p.people.map(fix))
+        let named = rawPeople.filter { !NameFilter.isGeneric($0) }
+        let people = named.filter { haystack.contains(Self.normalized($0)) }
+        let rawThings = Self.unique(p.things.map(fix))
+        let things = rawThings.filter { haystack.contains(Self.normalized($0)) }
+        let dropped = named.count - people.count + rawThings.count - things.count
         let kind = Self.kinds.contains(p.kind) ? p.kind : "conversation"
+        var todos = TextSimilarity.dedupe(p.todos.map { NameFilter.stripGenericOwner(fix($0)) }.filter { !$0.isEmpty })
+        if transcript.count < Self.minCharsForTodos { todos = [] }
+        todos = Array(todos.prefix(Self.maxTodos))
+        let decisions = TextSimilarity.dedupe(p.decisions.map(fix)).filter { d in !todos.contains { TextSimilarity.similar($0, d) } }
         let s = ConversationSummary(title: fix(p.title), summary: fix(p.summary),
                                     keyPoints: Array(p.keyPoints.map(fix).prefix(Self.maxKeyPoints)),
-                                    decisions: Array(p.decisions.map(fix).prefix(Self.maxDecisions)),
-                                    todos: Array(p.todos.map(fix).prefix(Self.maxTodos)),
+                                    decisions: Array(decisions.prefix(Self.maxDecisions)), todos: todos,
                                     people: Array(people.prefix(Self.maxPeople)), things: Array(things.prefix(Self.maxThings)))
-        return Result(summary: s, kind: kind, calls: calls, droppedNames: max(dropped, 0))
+        return Result(summary: s, kind: kind, calls: calls, droppedNames: max(dropped, 0),
+                      droppedGeneric: rawPeople.count - named.count)
     }
 
     /// 对比用：去掉空白和标点、转小写
@@ -257,7 +274,8 @@ enum JSONReply {
                     if let s = item as? String { return s }
                     if let o = item as? [String: Any] {
                         let main = ["text", "task", "item", "name", "action", "content"].compactMap { o[$0] as? String }.first
-                        let extra = ["owner", "assignee", "who", "due", "deadline"].compactMap { o[$0] as? String }.filter { !$0.isEmpty }
+                        let extra = ["owner", "assignee", "who", "due", "deadline"].compactMap { o[$0] as? String }
+                            .filter { !$0.isEmpty && !NameFilter.isGeneric($0) }
                         guard let main else { return nil }
                         return extra.isEmpty ? main : "\(main) (\(extra.joined(separator: ", ")))"
                     }

@@ -176,6 +176,20 @@ final class NoteService {
         return URL(fileURLWithPath: p, isDirectory: true)
     }
 
+    /// 按服务的上下文长度定好分块预算的 Summarizer（读到的长度记 10 分钟，换了服务地址或模型就重读）
+    func summarizer(_ service: LLMService) async -> Summarizer {
+        let key = "\(service.endpoint.absoluteString)|\(service.model)"
+        if let c = contextCache, c.key == key, Date().timeIntervalSince(c.at) < 600 {
+            return Summarizer(service: service, budget: Summarizer.budget(contextLength: c.length), glossary: AppPaths.readGlossary())
+        }
+        let n = await service.contextLength()
+        contextCache = (key, n, Date())
+        let b = Summarizer.budget(contextLength: n)
+        Log.write("大模型上下文：\(n.map(String.init) ?? "读不到")，每块 \(b) token")
+        return Summarizer(service: service, budget: b, glossary: AppPaths.readGlossary())
+    }
+    @ObservationIgnored private var contextCache: (key: String, length: Int?, at: Date)?
+
     var service: LLMService? {
         URL(string: settings.polishEndpoint).map { LLMService(endpoint: $0, apiKey: settings.polishAPIKey, model: settings.polishModel) }
     }
@@ -259,7 +273,7 @@ final class NoteService {
                 // 开着每日日记：以段摘要为准，整条的摘要由它们合成（一段时直接用，多段时合并一次）
                 s = try await diary.recordingSummary(id, force: manual)
             } else {
-                s = try await Summarizer(service: service, glossary: AppPaths.readGlossary()).summarize(lines) { p in
+                s = try await summarizer(service).summarize(lines) { p in
                     Task { @MainActor [weak self] in
                         if self?.summarizing[id] != nil { self?.summarizing[id] = max(p, 0.02) }
                     }
@@ -268,7 +282,7 @@ final class NoteService {
             let old = stored(id)
             var stored = StoredSummary(summary: s, createdAt: Date(), model: settings.polishModel, appliedTitle: old?.appliedTitle)
             // 没有用户自己起的标题（或者标题就是上次摘要给的）时，用生成的标题
-            if !s.title.isEmpty, r.title?.isEmpty ?? true || r.title == old?.appliedTitle {
+            if NoteRules.applyTitle(generated: s.title, current: r.title, lastApplied: old?.appliedTitle) {
                 library.rename(id, to: s.title)
                 stored.appliedTitle = s.title
             }
@@ -309,6 +323,16 @@ final class NoteService {
         case newFile
         /// 刷新：只重写 OpenBean 写过、用户没改过的那份；改过或找不到就不写
         case refresh
+
+        var rule: NoteRules.Mode {
+            switch self {
+            case .auto: return .auto
+            case .ask: return .ask
+            case .replace: return .replace
+            case .newFile: return .newFile
+            case .refresh: return .refresh
+            }
+        }
     }
 
     enum WriteResult {
@@ -336,12 +360,12 @@ final class NoteService {
             if old.deletingLastPathComponent().standardizedFileURL.path == dir.standardizedFileURL.path,
                fm.fileExists(atPath: old.path) {
                 let mod = (try? fm.attributesOfItem(atPath: old.path)[.modificationDate] as? Date) ?? .distantPast
-                let edited = mod.timeIntervalSince(rec.writtenAt) > 2
-                switch (edited, mode) {
-                case (false, .newFile), (true, .auto), (true, .newFile): target = nil
-                case (true, .ask): return .edited(old)
-                case (true, .refresh): return .skipped("edited")
-                default: target = old
+                let edited = NoteRules.edited(modified: mod, writtenAt: rec.writtenAt)
+                switch NoteRules.existing(edited: edited, mode: mode.rule) {
+                case .newFile: target = nil
+                case .ask: return .edited(old)
+                case .skip: return .skipped("edited")
+                case .overwrite: target = old
                 }
                 if edited, mode == .auto { Log.write("笔记被改过，另写一份：\(old.lastPathComponent)") }
             }
@@ -605,9 +629,17 @@ struct NoteSettingsSections: View {
             }
             .onChange(of: settings.dailyDiary) { _, on in if on { notes.diary.catchUp() } }
             if settings.dailyDiary {
-                LabeledContent("Diary subfolder") {
-                    TextField("Diary subfolder", text: $settings.diaryFolder, prompt: Text("Diary"))
+                LabeledContent {
+                    TextField("Diary folder", text: $settings.diaryFolder, prompt: Text("Diary"))
                         .labelsHidden().frame(maxWidth: 180)
+                } label: {
+                    Text("Diary folder")
+                    if notes.diary.diaryFolderInvalid {
+                        Text("Must stay inside the notes folder or one level above it; using the default for now.")
+                            .foregroundStyle(.orange)
+                    } else {
+                        Text("Relative to the notes folder, for example Diary or ../Journal")
+                    }
                 }
             }
         } header: {

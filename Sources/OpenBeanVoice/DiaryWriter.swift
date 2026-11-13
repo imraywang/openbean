@@ -42,11 +42,16 @@ public struct DiaryWriter: Sendable {
         public var calls: Int
         /// 出处对不上被丢掉的条数
         public var dropped: Int
+        /// 和别的条目重复、被去掉的条数（待办之间、决定之间、和待办相近的决定）
+        public var duplicates: Int = 0
+        /// 不认的负责人（泛称、或出处那几段里找不到）
+        public var droppedOwners: Int = 0
     }
 
     /// 当天进日记的转写至少要这么多字，才写概述
     public static let minChars = 500
-    static let maxDecisions = 8, maxTodos = 10
+    /// 一天的上限：日记是给人扫一眼的，列太多就等于没列。人按出现的段数排，只出现一次的在后面
+    static let maxDecisions = 5, maxTodos = 6, maxPeople = 12, maxThings = 8
 
     /// 进日记的段：有段摘要，不是碎片、不是媒体声
     public static func usable(_ inputs: [Input]) -> [Input] {
@@ -64,10 +69,13 @@ public struct DiaryWriter: Sendable {
     {"overview": "...", "decisions": [{"text": "...", "refs": ["S1"]}], "todos": [{"text": "...", "owner": "...", "refs": ["S2"]}]}
     - overview: 2 to 4 sentences on what the day's recorded conversations were about, in time order. Describe what was \
     recorded ("there was a meeting about…"); do not write as "I" or "you".
-    - decisions: the most important things that were settled, at most 8, merged across conversations. Each one must come \
-    from the Decisions of the conversations it lists in refs. [] when there are none.
-    - todos: at most 10 to-dos, merged and deduplicated, those with an owner or a deadline first. Each one must come from \
-    the To-dos of the conversations it lists in refs. owner: "" when it is not said.
+    - decisions: only what was really settled, at most 5, merged across conversations. Each one must come from the \
+    Decisions of the conversations it lists in refs. [] when there are none.
+    - todos: at most 6 concrete actions, merged and deduplicated, those with an owner or a deadline first. Each one must \
+    come from the To-dos of the conversations it lists in refs. owner: a person's name from those conversations, or "" \
+    when no name is given; never a pronoun or a role (speaker, manager, 发言人, 店长).
+    - Put each item in only one list: an action someone will do is a to-do; otherwise it is a decision. Never list the \
+    same thing in both.
     Only use what is in the summaries. Never add an item that is not in them, and never leave refs empty.
     """
 
@@ -84,7 +92,8 @@ public struct DiaryWriter: Sendable {
             return Output(status: .brief, diary: nil, calls: 0, dropped: 0)
         }
         let labels = Dictionary(uniqueKeysWithValues: use.enumerated().map { ("S\($0.offset + 1)", $0.element) })
-        let lang = Summarizer.languageLine(for: languageSample) + Summarizer.termsLine(base.glossary)
+        // 不放词表：输入已经是摘要，词表只在事后纠正拼写
+        let lang = Summarizer.languageLine(for: languageSample)
         let session = base.service.makeSession(timeout: base.timeout)
         var calls = 0
         func ask(_ system: String, _ user: String) async throws -> [String: Any] {
@@ -126,11 +135,22 @@ public struct DiaryWriter: Sendable {
             overview = ov.isEmpty ? overviews.joined(separator: " ") : ov
         }
         let c = GlossaryCorrector(terms: base.glossary)
+        let byRef = Dictionary(use.map { ($0.ref, $0) }, uniquingKeysWith: { a, _ in a })
+        var droppedOwners = 0
+        let checked = todos.map { t -> DiaryItem in
+            let ok = Self.ownerOK(t.owner, refs: t.refs, byRef: byRef)
+            if t.owner != nil, !ok { droppedOwners += 1 }
+            return DiaryItem(text: t.text, owner: ok ? t.owner : nil, refs: t.refs)
+        }
+        let cleanTodos = Self.dedupe(checked)
+        // 和某条待办说的是同一件事的决定去掉：有动作的归待办
+        let cleanDecisions = Self.dedupe(decisions).filter { d in !cleanTodos.contains { TextSimilarity.similar($0.text, d.text) } }
+        let duplicates = todos.count - cleanTodos.count + decisions.count - cleanDecisions.count
         let diary = Diary(overview: overview.map { c.correct($0).text },
-                          decisions: Array(Self.dedupe(decisions).prefix(Self.maxDecisions)).map { Self.fix($0, c) },
-                          todos: Array(Self.dedupe(todos).prefix(Self.maxTodos)).map { Self.fix($0, c) },
-                          people: people, things: things)
-        return Output(status: .diary, diary: diary, calls: calls, dropped: dropped)
+                          decisions: Array(cleanDecisions.prefix(Self.maxDecisions)).map { Self.fix($0, c) },
+                          todos: Array(cleanTodos.prefix(Self.maxTodos)).map { Self.fix($0, c) },
+                          people: Array(people.prefix(Self.maxPeople)), things: Array(things.prefix(Self.maxThings)))
+        return Output(status: .diary, diary: diary, calls: calls, dropped: dropped, duplicates: duplicates, droppedOwners: droppedOwners)
     }
 
     private func chat(_ system: String, _ user: String, _ session: URLSession) async throws -> String {
@@ -186,26 +206,50 @@ public struct DiaryWriter: Sendable {
             .map { $0.hasPrefix("S") ? $0 : "S" + $0 }.filter { $0.count > 1 }
     }
 
+    /// 文字相近的合成一条：出处合并，负责人取先有的
     static func dedupe(_ items: [DiaryItem]) -> [DiaryItem] {
-        var seen = Set<String>()
-        return items.filter { seen.insert(ConversationSummarizer.normalized($0.text)).inserted }
+        var out: [DiaryItem] = []
+        for i in items {
+            if let k = out.firstIndex(where: { TextSimilarity.similar($0.text, i.text) }) {
+                for r in i.refs where !out[k].refs.contains(r) { out[k].refs.append(r) }
+                if out[k].owner == nil { out[k].owner = i.owner }
+            } else {
+                out.append(i)
+            }
+        }
+        return out
+    }
+
+    /// 负责人只认具体的人名：不是代词或泛称，并且出现在出处那几段的人名、摘要或待办里（段的人名已经核对过转写）
+    static func ownerOK(_ owner: String?, refs: [ConversationRef], byRef: [ConversationRef: Input]) -> Bool {
+        guard let owner, !NameFilter.isGeneric(owner) else { return false }
+        let o = ConversationSummarizer.normalized(owner)
+        return refs.contains { r in
+            guard let s = byRef[r]?.summary else { return false }
+            let text = ConversationSummarizer.normalized(([s.summary] + s.todos + s.decisions).joined())
+            return s.people.contains { let p = ConversationSummarizer.normalized($0); return p == o || p.contains(o) || o.contains(p) }
+                || text.contains(o)
+        }
     }
 
     static func fix(_ i: DiaryItem, _ c: GlossaryCorrector) -> DiaryItem {
         DiaryItem(text: c.correct(i.text).text, owner: i.owner.map { c.correct($0).text }, refs: i.refs)
     }
 
-    /// 人和事：照段摘要里的写法，写法不同就是不同的名字（不合并），列出出现在哪几段
+    /// 人和事：照段摘要里的写法，写法不同就是不同的名字（不合并），列出出现在哪几段；按出现的段数排，一样多时按先后
     static func names(_ inputs: [Input], _ pick: (ConversationSummary) -> [String]) -> [DiaryName] {
         var order: [String] = [], refs: [String: [ConversationRef]] = [:]
         for i in inputs {
             for n in pick(i.summary ?? ConversationSummary()) {
                 let name = n.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !name.isEmpty else { continue }
+                guard !name.isEmpty, !NameFilter.isGeneric(name) else { continue }
                 if refs[name] == nil { order.append(name) }
                 if !(refs[name]?.contains(i.ref) ?? false) { refs[name, default: []].append(i.ref) }
             }
         }
-        return order.map { DiaryName(name: $0, refs: refs[$0] ?? []) }
+        let all = order.map { DiaryName(name: $0, refs: refs[$0] ?? []) }
+        return all.enumerated().sorted { a, b in
+            a.element.refs.count != b.element.refs.count ? a.element.refs.count > b.element.refs.count : a.offset < b.offset
+        }.map(\.element)
     }
 }

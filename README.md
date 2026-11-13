@@ -162,7 +162,7 @@ started itself and can show is new; it cannot be recovered.
 - *Summarise recordings after transcription* — after a recording is transcribed, the LLM service from Clean-up
   writes a title (used when you haven't named the recording), a 2–4 sentence summary, key points and action items, in
   the language of the recording. If the service isn't running it is skipped quietly (see the log). Long recordings
-  are summarised in parts that fit a 4k context, then merged. Voice typing clips are never summarised. *Summarise* /
+  are summarised in parts sized to the server's context (4k when it can't be read), then merged. Voice typing clips are never summarised. *Summarise* /
   *Summarise again* in a recording's toolbar does it by hand.
 - *Save a note for each recording to a folder* — pick a folder (for example inside an Obsidian vault) and OpenBean
   writes `<yyyy-MM-dd>-<title>.md` there after each transcription (and summary): YAML frontmatter (`title`,
@@ -189,11 +189,15 @@ days. This needs no LLM and is always on. The split is kept next to the recordin
 **Daily diary** (Settings → Library → *Write a diary for each day*, off by default): each conversation gets a short
 summary — a heading, two or three sentences, what was decided, to-dos, the people and things mentioned — and each
 day a diary built from them: an overview, decisions, to-dos and the people mentioned, every item pointing to the
-conversation it came from. Items whose source can't be found are dropped, and names that don't appear in the
-transcript are dropped too; names are listed as spelled, never merged. A day with too little said gets no overview,
-only the list of conversations. The diary appears at the top of Today and, with a notes folder, as
-`<notes folder>/Diary/<yyyy-MM-dd>.md` (the subfolder name can be changed; the Chinese app uses `日记`), linking to
-each recording's note. Edited diary notes are left alone, as with recording notes.
+conversation it came from. Items whose source can't be found are dropped; so are names that don't appear in the
+transcript, pronouns and roles ("I", "the manager", "店长"), and an owner of a to-do unless a real name is given. The
+same thing is never listed both as a decision and as a to-do. Lists are kept short (at most 3 decisions and 2 to-dos
+per conversation, 5 and 6 per day; conversations of a few sentences get no to-dos), and people are listed as spelled,
+never merged, the ones in most conversations first. A day with too little said gets no overview, only the list of
+conversations. The diary appears at the top of Today and, with a notes folder, as `<notes folder>/Diary/<yyyy-MM-dd>.md`
+with headings in the app's language (the Chinese app uses `日记`), linking to each recording's note. The folder can be
+any path relative to the notes folder, as long as it stays inside it or inside the folder one level up (`Diary`,
+`../Journal`). Edited diary notes are left alone, as with recording notes.
 
 It uses the same LLM service as summaries and makes **several more requests**: one per conversation (more for long
 ones) and one or two per day. On our M5 Max with a local Qwen3-30B-A3B a day with a 99-minute meeting took about 25
@@ -239,8 +243,11 @@ model name (e.g. `deepseek-chat`) and an API key in Settings → Clean-up. The k
 each sentence is then sent to that service; audio and speech recognition still stay on your Mac.
 
 The same service writes recording summaries when *Summarise recordings after transcription* is on (Settings →
-Library). Summaries send the whole transcript, in chunks of about 1,800 tokens, with a longer timeout (5 minutes per
-request for a local server) and run in the background; a 4k context (`-c 4096`) is enough. With a cloud service the
+Library). Summaries send the whole transcript in chunks sized to the server's context length when OpenBean can read it
+(llama.cpp's `/props`, or the context length in the server's model list), leaving room for the prompt and the reply,
+and in chunks of about 1,800 tokens otherwise; requests have a longer timeout (5 minutes for a local server) and run
+in the background. A 4k context (`-c 4096`) is enough; with 8k (`-c 8192`) long recordings need about half as many
+requests. With a cloud service the
 transcript text leaves your Mac.
 
 **Personal word list:** Settings → *Edit personal word list…* opens `~/Library/Application Support/openbean/glossary.txt`.
@@ -535,7 +542,8 @@ bin/build-app && open ".build/OpenBean Dev.app"
 **摘要和笔记**（设置 → 录音库，默认都关）：
 
 - **转写后自动生成摘要**：用「润色」里设置的大模型服务，按录音的语言写标题（录音没起名时用它）、2–4 句摘要、要点和待办。
-  服务没开就静默跳过（写日志）。长录音按 4k 上下文分块摘要再合并。语音输入片段不做摘要。录音详情工具栏的「摘要 / 重新摘要」可手动触发。
+  服务没开就静默跳过（写日志）。长录音分块摘要再合并：读得到服务的上下文长度（llama.cpp 的 `/props`，或模型列表里的上下文长度）时
+  按它定每块大小、留出提示词和输出的余量，读不到按 4k 上下文（每块约 1800 token）。语音输入片段不做摘要。录音详情工具栏的「摘要 / 重新摘要」可手动触发。
   用云端服务时整篇转写文字会发给该服务。
 - **为每条录音在文件夹里保存一份笔记**：选一个文件夹（如 Obsidian 知识库里的），转写（和摘要）完成后写入 `<yyyy-MM-dd>-<标题>.md`：
   YAML frontmatter（`title`、`created_at`、`duration`、`source: openbean`、`recording_id`、`tags: [recording]`）、摘要、要点、待办、
@@ -551,9 +559,12 @@ bin/build-app && open ".build/OpenBean Dev.app"
 不用大模型、一直开着，结果存在录音旁边的 `segments.json`。
 
 **每日日记**（设置 → 录音库 →「每天写一篇日记」，默认关）：每段对话写一段段摘要（小标题、两三句话、定了的事、待办、提到的人和事），
-每天再合成一篇日记：概述、定了的事、待办、提到的人，每一条都指回出自哪段对话；出处对不上的条目丢掉，转写里找不到的名字也丢掉；
-人名照转写写，不合并不同写法。一天说的话太少时不写概述，只列对话。日记显示在「今天」页顶上；设置了笔记文件夹时，
-每天一篇写到 `<笔记文件夹>/日记/<yyyy-MM-dd>.md`（子文件夹名可改），链接到每条录音的笔记；你改过的日记不会被覆盖。
+每天再合成一篇日记：概述、定了的事、待办、提到的人，每一条都指回出自哪段对话。出处对不上的条目丢掉；转写里找不到的名字、
+代词和职位泛称（「我」「店长」「发言人」）也丢掉，待办的负责人只在说出了具体人名时才写。同一件事不会既算决定又算待办；
+条数有上限（每段最多 3 条决定、2 条待办，每天 5 条、6 条；只有几句话的段不出待办）。人名照转写写、不合并不同写法，
+出现在越多段的越靠前。一天说的话太少时不写概述，只列对话。日记显示在「今天」页顶上；设置了笔记文件夹时，
+每天一篇写到 `<笔记文件夹>/日记/<yyyy-MM-dd>.md`，小节标题跟着 App 的语言，链接到每条录音的笔记；你改过的日记不会被覆盖。
+日记文件夹可以填相对笔记文件夹的路径（如 `日记`、`../30-日记`），但只能在笔记文件夹里或它的上一级里。
 
 它和摘要用同一个大模型服务，但**会多调用几次**：每段对话一次（长的几次），每天再一两次。我们在 M5 Max 上用本机 Qwen3-30B-A3B，
 有一场 99 分钟会议的一天约 25 次调用、一分钟左右；用云端服务时段摘要的内容会发给该服务。开着日记时，整条录音的摘要由各段的

@@ -35,7 +35,7 @@ final class ConversationSummarizerTests: XCTestCase {
         let s = try XCTUnwrap(r.summary)
         XCTAssertEqual(s.people, ["张伟", "张 伟"]) // 不合并写法；转写里没有的「李娜」丢掉
         XCTAssertEqual(s.things, ["远山咖啡"])
-        XCTAssertEqual(s.todos.count, 3)
+        XCTAssertEqual(s.todos.count, 2)
         XCTAssertEqual(r.kind, "conversation") // 不认识的大小写写法按默认
         XCTAssertEqual(r.droppedNames, 2)
         XCTAssertEqual(r.calls, 1)

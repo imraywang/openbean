@@ -802,6 +802,16 @@
         }
       }
     },
+    "Conversations": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "对话"
+          }
+        }
+      }
+    },
     "Copied": {
       "localizations": {
         "zh-Hans": {
@@ -1032,12 +1042,12 @@
         }
       }
     },
-    "Diary subfolder": {
+    "Diary folder": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "日记子文件夹"
+            "value": "日记文件夹"
           }
         }
       }
@@ -1128,16 +1138,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "通过 Wi‑Fi 下载？"
-          }
-        }
-      }
-    },
-    "Download over Wi‑Fi…": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "通过 Wi‑Fi 下载…"
           }
         }
       }
@@ -1528,6 +1528,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "请先把 OpenBean 移到「应用程序」文件夹：App 换了位置，路径就会变。"
+          }
+        }
+      }
+    },
+    "Must stay inside the notes folder or one level above it; using the default for now.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只能在笔记文件夹里，或它的上一级里；现在先用默认的文件夹。"
           }
         }
       }
@@ -2032,12 +2042,12 @@
         }
       }
     },
-    "Over Wi‑Fi it takes about %@, but your Mac is offline meanwhile.": {
+    "Overview of the day": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "改用 Wi‑Fi 约 %@，期间 Mac 会断网。"
+            "value": "当天概述"
           }
         }
       }
@@ -2058,6 +2068,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "停顿与排版"
+          }
+        }
+      }
+    },
+    "People": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "人"
+          }
+        }
+      }
+    },
+    "People and things mentioned": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "提到的人和事"
           }
         }
       }
@@ -2328,6 +2358,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "刷新"
+          }
+        }
+      }
+    },
+    "Relative to the notes folder, for example Diary or ../Journal": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "相对笔记文件夹，例如 日记 或 ../30-日记"
           }
         }
       }
@@ -2812,16 +2852,6 @@
         }
       }
     },
-    "Switch to Wi‑Fi…": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "改用 Wi‑Fi…"
-          }
-        }
-      }
-    },
     "Sync": {
       "localizations": {
         "zh-Hans": {
@@ -2962,16 +2992,6 @@
         }
       }
     },
-    "Syncing a long recording, about %@ left. Voice typing is available when it finishes.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "正在同步长录音，约剩 %@。同步完就能用语音输入。"
-          }
-        }
-      }
-    },
     "Syncing recordings from the recorder": {
       "localizations": {
         "zh-Hans": {
@@ -3082,16 +3102,6 @@
         }
       }
     },
-    "The connection dropped. Sync continues when the recorder reconnects.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "连接断了。录音豆重新连上后会接着同步。"
-          }
-        }
-      }
-    },
     "The model's reply could not be used. Try again or use a larger model.": {
       "localizations": {
         "zh-Hans": {
@@ -3168,6 +3178,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "这些文件没有下载到本机。有的被后来的语音输入续写过，可能比一次语音输入长。删除后不能恢复。"
+          }
+        }
+      }
+    },
+    "Things": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "事"
           }
         }
       }
@@ -3652,16 +3672,6 @@
         }
       }
     },
-    "Your Mac joins the recorder's own Wi‑Fi and is offline for a few minutes, then reconnects to your usual network. What Bluetooth has already received is kept.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mac 会临时加入录音豆自己的 Wi‑Fi，断网几分钟，之后自动连回原来的网络。蓝牙已经收到的部分会保留。"
-          }
-        }
-      }
-    },
     "about %@": {
       "localizations": {
         "zh-Hans": {
@@ -3718,6 +3728,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "不到 1 分钟"
+          }
+        }
+      }
+    },
+    "media": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "媒体声"
           }
         }
       }

@@ -40,13 +40,31 @@ public struct Summarizer: Sendable {
     /// 个人词表（原始行，可带 `词 = 误听写法`）：提示模型按这些词改认错的词，输出再过一遍同音纠正
     public let glossary: [String]
 
-    public init(service: LLMService, budget: Int = 1800, maxOutput: Int = 1000, timeout: TimeInterval? = nil,
+    public init(service: LLMService, budget: Int = Summarizer.defaultBudget, maxOutput: Int = 1000, timeout: TimeInterval? = nil,
                 glossary: [String] = []) {
         self.service = service
         self.glossary = glossary
         self.budget = max(budget, 200)
         self.maxOutput = maxOutput
         self.timeout = timeout ?? (service.isLocal ? 300 : 120)
+    }
+
+    /// 读不到上下文长度时每块的转写预算（按 4k 上下文定的）
+    public static let defaultBudget = 1800
+
+    /// 按服务的上下文长度定每块放多少 token：扣掉输出上限和提示词（约 700），再留 15% 余量（不同模型的分词器
+    /// 算出来的 token 数不一样）；最多 24000（太长的请求本机模型要读很久，也更容易漏内容）。读不到时用 defaultBudget
+    public static func budget(contextLength: Int?, maxOutput: Int = 1000) -> Int {
+        guard let n = contextLength, n > 0 else { return defaultBudget }
+        let usable = Double(n - maxOutput - 700) * 0.85
+        return min(max(Int(usable), 600), 24_000)
+    }
+
+    /// 先问服务的上下文长度，再按它建一个 Summarizer（整条摘要、段摘要、日记都用这一个入口）
+    public static func sized(service: LLMService, maxOutput: Int = 1000, glossary: [String] = []) async -> Summarizer {
+        let n = await service.contextLength()
+        return Summarizer(service: service, budget: budget(contextLength: n, maxOutput: maxOutput), maxOutput: maxOutput,
+                          glossary: glossary)
     }
 
     // MARK: 提示词
