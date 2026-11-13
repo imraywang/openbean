@@ -118,6 +118,12 @@ final class NoteService {
         }
     }
 
+    /// 转写文字变了（词表回填）：写过的笔记、用户没改过就重写；没写过、或改过的都不动。不重新摘要
+    func transcriptChanged(_ id: UInt32) {
+        guard noteRecord(id) != nil else { return }
+        enqueue { [weak self] in _ = self?.writeNote(id, mode: .refresh) }
+    }
+
     /// 「摘要」/「重新摘要」；写过笔记（或开着自动笔记）就顺手更新笔记
     func summarize(_ id: UInt32) {
         guard summarizing[id] == nil else { return }
@@ -197,6 +203,8 @@ final class NoteService {
         case replace
         /// 另存一份新文件
         case newFile
+        /// 刷新：只重写 OpenBean 写过、用户没改过的那份；改过或找不到就不写
+        case refresh
     }
 
     enum WriteResult {
@@ -228,6 +236,7 @@ final class NoteService {
                 switch (edited, mode) {
                 case (false, .newFile), (true, .auto), (true, .newFile): target = nil
                 case (true, .ask): return .edited(old)
+                case (true, .refresh): return .skipped("edited")
                 default: target = old
                 }
                 if edited, mode == .auto { Log.write("笔记被改过，另写一份：\(old.lastPathComponent)") }
@@ -244,6 +253,7 @@ final class NoteService {
                 target = renamed
             }
         }
+        if target == nil, mode == .refresh { return .skipped("no note") }
         if target == nil {
             let name = NoteTemplate.fileName(title: r.title, start: r.start) { fm.fileExists(atPath: dir.appendingPathComponent($0).path) }
             target = dir.appendingPathComponent(name)

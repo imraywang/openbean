@@ -128,6 +128,16 @@ final class RecordingLibraryTests: XCTestCase {
         XCTAssertNil(lib.notePath(1))
     }
 
+    /// App 在词表改过的句子里多存一个 raw（识别器原文）：这里只读 text，多出来的字段不影响
+    func testTranscriptWithRawUsesCorrectedText() throws {
+        try fake.writeJSON("index.json", [FakeLibrary.entry(1, start: t0)])
+        try fake.writeJSON("transcript.json", [["start": 0.0, "end": 2.0, "text": "我们用大模型写摘要", "raw": "我们用大冒险写摘要"],
+                                               ["start": 2.0, "end": 3.0, "text": "没改过的一句"]], id: 1)
+        XCTAssertEqual(lib.transcript(1).value?.map(\.text), ["我们用大模型写摘要", "没改过的一句"])
+        XCTAssertEqual(try lib.search("大模型").hits.map(\.recording.id), [1])
+        XCTAssertTrue(try lib.search("大冒险").hits.isEmpty)
+    }
+
     func testDateRangeIsHalfOpen() throws {
         let day = DateInterval(start: t0, duration: 86_400)
         try fake.writeJSON("index.json", [

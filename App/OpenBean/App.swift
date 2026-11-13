@@ -16,6 +16,8 @@ final class AppModel {
     lazy var library = LibraryStore(device: device, settings: settings)
     lazy var hud = HUDController(dictation: dictation)
     lazy var autoSync = AutoSync(device: device, library: library, settings: settings)
+    /// 词表变了就重新应用到已有的转写
+    lazy var glossaryBackfill = GlossaryBackfill(library: library)
     /// 自动更新：start() 里创建，第二份 App 退出前不会碰到它
     lazy var updater = Updater()
 
@@ -51,6 +53,7 @@ final class AppModel {
         }
         device.start()
         hud.start()
+        glossaryBackfill.start()
         _ = updater
     }
 
@@ -94,6 +97,9 @@ final class AppModel {
                 Log.write("打字测试：焦点 \(f.kind)（\(f.role)）")
                 if f.kind != .notEditable { Typist.type("OpenBean 打字测试 OK。") }
             }
+        case "glossary/apply":
+            // 手动把词表重新应用到录音库的所有转写（平时词表一变就会自动做）
+            glossaryBackfill.check(force: true)
         case "notes/backfill":
             library.notes.backfillNotes()
         case let p where p.hasPrefix("open/"):

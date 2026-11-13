@@ -27,11 +27,8 @@ struct Recording: Codable, Identifiable, Hashable {
     }
 }
 
-struct TranscriptSegment: Codable, Hashable {
-    var start: Double
-    var end: Double
-    var text: String
-}
+/// 转写的一句（transcript.json 的一项），定义在 OpenBeanVoice（带可选的 raw，见 TranscriptCorrection）
+typealias TranscriptSegment = OpenBeanVoice.TranscriptSegment
 
 /// 录音库：本机索引 + 从录音豆同步 + 离线转写 + 导出
 @MainActor @Observable
@@ -97,7 +94,7 @@ final class LibraryStore {
         return u
     }
     func audioURL(_ id: UInt32) -> URL { folder(id).appendingPathComponent("audio.ogg") }
-    private func transcriptURL(_ id: UInt32) -> URL { folder(id).appendingPathComponent("transcript.json") }
+    func transcriptURL(_ id: UInt32) -> URL { folder(id).appendingPathComponent("transcript.json") }
 
     init(device: DeviceController, settings: Settings) {
         self.device = device
@@ -207,6 +204,12 @@ final class LibraryStore {
         guard !q.isEmpty else { return true }
         if r.displayTitle.localizedCaseInsensitiveContains(q) { return true }
         return r.transcribed && transcript(r.id).contains { $0.text.localizedCaseInsensitiveContains(q) }
+    }
+
+    /// 转写文件被词表回填改过：丢掉缓存（列表摘要、搜索、导出、详情都会读新文字），笔记按规则刷新
+    func transcriptRewritten(_ id: UInt32) {
+        transcripts[id] = nil
+        notes.transcriptChanged(id)
     }
 
     /// 删除本机副本（不动设备上的录音）
@@ -585,10 +588,10 @@ enum FileTranscriber {
         return out.filter { !$0.text.isEmpty }
     }
 
-    /// 每句先按个人词表纠正专有名词
+    /// 每句先按个人词表纠正专有名词（转写模式，更保守）；改过的句子留下原文
     private static func seg(_ s: SentenceRecognizer.Sentence, _ glossary: GlossaryCorrector) -> TranscriptSegment {
-        let r = glossary.correct(s.text)
-        for f in r.replacements { Log.write("词表纠正：\(f.original) → \(f.replacement)") }
-        return TranscriptSegment(start: s.start, end: s.end, text: r.text)
+        let l = TranscriptCorrection.apply(glossary, text: s.text, raw: nil)
+        if let raw = l.raw { Log.write("词表纠正：\(raw) → \(l.text)") }
+        return TranscriptSegment(start: s.start, end: s.end, text: l.text, raw: l.raw)
     }
 }

@@ -228,7 +228,7 @@ private struct PolishSettings: View {
                 }
                 .buttonStyle(.link)
             } footer: {
-                Text("One term per line: names, product names, jargon. OpenBean fixes same-sounding names and spelling to these without an LLM; clean-up prefers them too. For a word it keeps mishearing, add what it hears after an equals sign: Claude Code = cloud code, 克劳德 code")
+                Text("One term per line: names, product names, jargon. OpenBean fixes same-sounding names and spelling to these without an LLM, in voice typing and in library transcripts (where only terms of three or more characters are fixed by sound); clean-up prefers them too. For a word it keeps mishearing, add what it hears after an equals sign: Claude Code = cloud code, 克劳德 code")
                     .font(.caption).foregroundStyle(.secondary)
             }
         }

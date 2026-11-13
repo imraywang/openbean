@@ -95,3 +95,33 @@ final class TranscriptCorrectionTests: XCTestCase {
         XCTAssertTrue(T.needsBackfill(currentHash: h, lastApplied: h, force: true))
     }
 }
+
+final class TranscriptSegmentTests: XCTestCase {
+    func testCodingWithAndWithoutRaw() throws {
+        let segs = [TranscriptSegment(start: 0, end: 1.5, text: "大模型", raw: "大冒险"),
+                    TranscriptSegment(start: 1.5, end: 3, text: "没改过")]
+        let data = try JSONEncoder().encode(segs)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [[String: Any]])
+        XCTAssertEqual(json[0]["raw"] as? String, "大冒险")
+        XCTAssertNil(json[1]["raw"], "没改过的句子不写 raw")
+        XCTAssertEqual(try JSONDecoder().decode([TranscriptSegment].self, from: data), segs)
+        // 老文件：没有 raw 字段照常能读
+        let old = Data(#"[{"start":0,"end":1,"text":"老的一句"}]"#.utf8)
+        XCTAssertEqual(try JSONDecoder().decode([TranscriptSegment].self, from: old),
+                       [TranscriptSegment(start: 0, end: 1, text: "老的一句")])
+    }
+
+    func testBackfillOneTranscript() {
+        var segs = [TranscriptSegment(start: 0, end: 1, text: "玩大冒险"),
+                    TranscriptSegment(start: 1, end: 2, text: "今天天气不错")]
+        let c = GlossaryCorrector(terms: ["大模型 = 大冒险"])
+        XCTAssertEqual(TranscriptCorrection.apply(c, to: &segs), 1)
+        XCTAssertEqual(segs[0], TranscriptSegment(start: 0, end: 1, text: "玩大模型", raw: "玩大冒险"))
+        XCTAssertEqual(segs[1], TranscriptSegment(start: 1, end: 2, text: "今天天气不错"))
+        // 第二遍：什么都不变
+        XCTAssertEqual(TranscriptCorrection.apply(c, to: &segs), 0)
+        // 删掉词条：还原，raw 去掉
+        XCTAssertEqual(TranscriptCorrection.apply(GlossaryCorrector(terms: []), to: &segs), 1)
+        XCTAssertEqual(segs[0], TranscriptSegment(start: 0, end: 1, text: "玩大冒险"))
+    }
+}

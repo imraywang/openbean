@@ -209,8 +209,15 @@ One term per line (names, product names, jargon). Every finalised sentence — v
 is corrected against it without an LLM: Chinese characters that sound the same as a term (toneless pinyin, common
 polyphones) are replaced, and English terms get their exact casing and spacing back (`open bean` → `OpenBean`). The
 rules are conservative: single characters are never touched, two-character terms only replace one character and only
-where it isn't part of another word, and text that already matches stays as it is. Replacements are logged. The
-clean-up step, when on, also prefers these terms.
+where it isn't part of another word, and text that already matches stays as it is. Library transcripts are long, so
+there same-sound fixes apply only to terms of three or more characters with one character off; write two-character
+names as aliases. Replacements are logged. The clean-up step, when on, also prefers these terms.
+
+Transcripts keep the recognizer's original wording of every sentence the word list changed (`raw` in
+`transcript.json`), so the list can be re-applied safely: when you save a changed word list (or start OpenBean after
+changing it), every existing transcript is recomputed from the original in the background, and notes OpenBean wrote
+and you haven't edited are refreshed. Removing a term restores the original wording. `openbean://glossary/apply`
+re-applies it by hand. Voice typing history is not changed.
 
 Some words are misheard as something that doesn't sound alike in Chinese — typically English terms inside Mandarin
 (`Claude` → `cloud`, `session` → `筛选`). Declare those after an equals sign, separated by commas:
@@ -414,7 +421,7 @@ openbean 是录音豆的开源本地驱动：通过蓝牙和 Wi‑Fi 连接设�
 ### 语音输入
 
 - **识别**：Apple 设备端听写出灰字预览；每句停顿后由 SenseVoice-Small 定稿（每句约 0.1 秒，带标点）。
-- **个人词表**：每句定稿后先按个人词表纠正专有名词，不需要大模型：读音相同的错字换成词表里的词，英文恢复词表的大小写和空格（open bean → OpenBean）；单字不改，两字词只在不和别的字成词时才改。录音库转写也一样。
+- **个人词表**：每句定稿后先按个人词表纠正专有名词，不需要大模型：读音相同的错字换成词表里的词，英文恢复词表的大小写和空格（open bean → OpenBean）；单字不改，两字词只在不和别的字成词时才改。录音库转写也一样，但更保守：转写里只按读音纠正三个字以上、只错一个字的词，两个字的人名请写成别名。转写里被词表改过的句子保留识别原文（`transcript.json` 的 `raw`），改了词表（保存或下次启动时）会在后台从原文重算所有已有转写，删掉词条就还原；OpenBean 写过、你没改过的笔记跟着更新。`openbean://glossary/apply` 可以手动重算。语音输入记录不动。
   读音不同的误听（多是中文里夹的英文词，如 Claude 被认成 cloud、session 被认成「筛选」）可以在等号后面声明，逗号分隔：`Claude Code = cloud code, 克劳德 code`，识别出右边任何一个都写成左边。英文别名不分大小写、空格和连字符可有可无、只按整词匹配；含汉字的别名要一字不差。没有等号的行照旧；润色只拿等号左边的词。别把自己真会说的词当别名（单写一个 cloud，所有真的 cloud 都会变成 Claude）。
 - **润色（可选）**：接任意 OpenAI 兼容服务，本机的（如 llama.cpp 跑 Qwen3-30B-A3B）或云端的（DeepSeek、通义千问等，填 API Key，Key 存钥匙串），去口头禅、按个人词表纠正同音字，保留你的说法。用云端时每句话的文字会发给该服务，录音和语音识别仍在本机。
 - **按停顿排版**：停 0.8 秒定稿一句；稍长用逗号，更长用句号，超过 2.5 秒换段（用 Shift+回车，聊天软件里不会误发送）。均可在设置里调。

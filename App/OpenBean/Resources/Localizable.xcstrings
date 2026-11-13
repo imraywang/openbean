@@ -1662,12 +1662,12 @@
         }
       }
     },
-    "One term per line: names, product names, jargon. OpenBean fixes same-sounding names and spelling to these without an LLM; clean-up prefers them too. For a word it keeps mishearing, add what it hears after an equals sign: Claude Code = cloud code, 克劳德 code": {
+    "One term per line: names, product names, jargon. OpenBean fixes same-sounding names and spelling to these without an LLM, in voice typing and in library transcripts (where only terms of three or more characters are fixed by sound); clean-up prefers them too. For a word it keeps mishearing, add what it hears after an equals sign: Claude Code = cloud code, 克劳德 code": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "每行一个词：人名、产品名、术语。不用大模型也会把读音相同的错字和英文写法改成这些词；润色时也优先用它们。总被认错的词，在等号后面写上它被认成的样子：Claude Code = cloud code, 克劳德 code"
+            "value": "每行一个词：人名、产品名、术语。不用大模型也会把读音相同的错字和英文写法改成这些词，语音输入和录音库的转写都用（转写里只按读音纠正三个字以上的词）；润色时也优先用它们。总被认错的词，在等号后面写上它被认成的样子：Claude Code = cloud code, 克劳德 code"
           }
         }
       }
