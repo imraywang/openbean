@@ -436,6 +436,40 @@ final class LibraryStore {
         }
     }
 
+    /// 以前留在录音豆上的语音输入文件：资料库标了语音输入、设备上还在、没下载。
+    /// 这些没法证明是 App 新建的（可能续写过），只在用户确认后手动清理。
+    var leftoverDictationFiles: [Recording] {
+        recordings.filter { DictationDeletePolicy.isLeftover(isDictation: $0.isDictation, onRecorder: $0.onDevice, downloaded: $0.downloaded) }
+    }
+
+    /// 逐条删除旧的语音输入文件，返回成功和失败的条数。调用前要先让用户确认。
+    func deleteLeftoverDictation(_ ids: [UInt32]) async -> (deleted: Int, failed: Int) {
+        var ok = 0, failed = 0
+        for id in ids {
+            do {
+                guard let r = recordings.first(where: { $0.id == id }),
+                      DictationDeletePolicy.isLeftover(isDictation: r.isDictation, onRecorder: r.onDevice, downloaded: r.downloaded)
+                else { throw DeleteError.refused(.notOnRecorder) }
+                guard recorderIdle, device.beginSync(), let s = device.session else { throw DeleteError.refused(.busy) }
+                defer { device.endSync() }
+                deletingFromRecorder = id
+                defer { deletingFromRecorder = nil }
+                do {
+                    merge(try await s.deleteFile(id: id) { _ in })
+                } catch {
+                    if let files = try? await s.listFiles() { merge(files) }
+                    throw error
+                }
+                ok += 1
+                Log.write("已从录音豆删除旧的语音输入文件 \(id)")
+            } catch {
+                failed += 1
+                Log.write("旧的语音输入文件 \(id) 没删：\(error)")
+            }
+        }
+        return (ok, failed)
+    }
+
     // MARK: Wi‑Fi 快速同步
 
     /// 经录音豆的 Wi‑Fi 热点下载（Mac 会暂时断网约一分钟）

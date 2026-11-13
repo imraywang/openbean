@@ -127,6 +127,12 @@ public enum DictationDeletePolicy {
         }
     }
 
+    /// 以前留在录音豆上的语音输入文件（没法证明是新建的）：只有资料库标了语音输入、设备上还在、
+    /// 没下载到本机的才能在用户确认后手动清理。
+    public static func isLeftover(isDictation: Bool, onRecorder: Bool, downloaded: Bool) -> Bool {
+        isDictation && onRecorder && !downloaded
+    }
+
     /// 返回 nil 表示可以删。deviceSeconds 是删之前刚读到的设备时长（列表里没有就是 nil），
     /// sessionSeconds 是从发开始命令到现在的秒数。
     public static func check(_ e: Evidence, deviceSeconds: Double?, sessionSeconds: Double,

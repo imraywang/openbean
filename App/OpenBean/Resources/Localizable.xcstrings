@@ -842,6 +842,16 @@
         }
       }
     },
+    "Delete %lld voice-typing files (%@ in total) from the recorder?": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "从录音豆删除 %lld 个语音输入文件（共 %@）？"
+          }
+        }
+      }
+    },
     "Delete from recorder": {
       "localizations": {
         "zh-Hans": {
@@ -888,6 +898,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "从录音豆删除语音输入的音频"
+          }
+        }
+      }
+    },
+    "Delete voice-typing files from recorder…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "从录音豆删除语音输入文件…"
+          }
+        }
+      }
+    },
+    "Deleted %lld, failed %lld.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除成功 %lld 个，失败 %lld 个。"
           }
         }
       }
@@ -2552,6 +2582,16 @@
         }
       }
     },
+    "These files were never downloaded to this Mac. Some may have been continued by later voice typing, so they can be longer than one dictation. This cannot be undone.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这些文件没有下载到本机。有的被后来的语音输入续写过，可能比一次语音输入长。删除后不能恢复。"
+          }
+        }
+      }
+    },
     "This cannot be undone. The copy on this Mac is kept.": {
       "localizations": {
         "zh-Hans": {
@@ -2868,6 +2908,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "语音输入"
+          }
+        }
+      }
+    },
+    "Voice-typing files": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "语音输入文件"
           }
         }
       }

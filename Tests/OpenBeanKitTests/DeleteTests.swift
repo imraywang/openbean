@@ -108,6 +108,14 @@ final class DeleteTests: XCTestCase {
         XCTAssertEqual(dcheck(evidence(), device: nil), .notOnRecorder)
     }
 
+    func testLeftoverDictationFiles() {
+        XCTAssertTrue(DictationDeletePolicy.isLeftover(isDictation: true, onRecorder: true, downloaded: false))
+        // 普通录音、已经不在设备上、已经下载的，都不算
+        XCTAssertFalse(DictationDeletePolicy.isLeftover(isDictation: false, onRecorder: true, downloaded: false))
+        XCTAssertFalse(DictationDeletePolicy.isLeftover(isDictation: true, onRecorder: false, downloaded: false))
+        XCTAssertFalse(DictationDeletePolicy.isLeftover(isDictation: true, onRecorder: true, downloaded: true))
+    }
+
     func testVerifyAfterDelete() throws {
         func f(_ id: UInt32) -> RecordingFile { RecordingFile(id: id, endTime: nil, durationMs: 1000) }
         let before = [f(3), f(2), f(1)]

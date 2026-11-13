@@ -13,6 +13,10 @@ struct RecordingList: View {
     @Binding var query: String
     @State private var confirmDelete: Recording?
     @State private var deleteError: String?
+    /// 清理旧的语音输入文件：确认框里列的条目，和删完的结果
+    @State private var leftover: [Recording] = []
+    @State private var confirmLeftover = false
+    @State private var leftoverResult: String?
 
     private var items: [Recording] { library.visible.filter { library.matches($0, query: query) } }
 
@@ -55,6 +59,24 @@ struct RecordingList: View {
         } message: {
             Text(deleteError ?? "")
         }
+        .confirmationDialog(leftoverTitle, isPresented: $confirmLeftover) {
+            Button("Delete from recorder", role: .destructive) {
+                let ids = leftover.map(\.id)
+                Task {
+                    let r = await library.deleteLeftoverDictation(ids)
+                    leftoverResult = String(localized: "Deleted \(r.deleted), failed \(r.failed).")
+                }
+            }
+        } message: {
+            Text("These files were never downloaded to this Mac. Some may have been continued by later voice typing, so they can be longer than one dictation. This cannot be undone.")
+        }
+        .alert("Voice-typing files", isPresented: Binding(
+            get: { leftoverResult != nil }, set: { if !$0 { leftoverResult = nil } }
+        )) {
+            Button("OK") { leftoverResult = nil }
+        } message: {
+            Text(leftoverResult ?? "")
+        }
         .overlay {
             if items.isEmpty {
                 ContentUnavailableView {
@@ -76,7 +98,29 @@ struct RecordingList: View {
                 }
                 .help("Filter recordings")
             }
+            // 「语音输入」筛选下：清理以前留在录音豆上的语音输入文件
+            if library.filter == .dictation, !library.leftoverDictationFiles.isEmpty {
+                ToolbarItem {
+                    Button {
+                        Task {
+                            // 先读一遍设备列表，确认框里的条数和时长用最新的
+                            await library.refreshDeviceList()
+                            leftover = library.leftoverDictationFiles
+                            confirmLeftover = !leftover.isEmpty
+                        }
+                    } label: {
+                        Label("Delete voice-typing files from recorder…", systemImage: "trash")
+                    }
+                    .disabled(!library.recorderIdle)
+                    .help("Delete voice-typing files from recorder…")
+                }
+            }
         }
+    }
+
+    private var leftoverTitle: String {
+        let total = leftover.reduce(0) { $0 + $1.duration }
+        return String(localized: "Delete \(leftover.count) voice-typing files (\(LibraryStore.clock(total)) in total) from the recorder?")
     }
 
     /// 今天 / 昨天 / 本周 / 按月
