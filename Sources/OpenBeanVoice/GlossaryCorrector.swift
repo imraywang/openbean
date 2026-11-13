@@ -22,7 +22,16 @@ import NaturalLanguage
 /// - 纯英文别名：和英文词条一样不分大小写、只在单词边界上匹配、空格和连字符可有可无（cloud code / cloudcode / Cloud-Code）；
 /// - 含汉字的别名：汉字必须一字不差（不按拼音），夹的英文部分同上；
 /// - 别名至少两个字符；别名和其它词条一起比长短，已经正确的地方同样不动。
+///
+/// 录音库的转写（`.transcript`）比语音输入更保守：长篇里同音的两字组合多得多，误改的机会也多。
+/// 同音纠正只对 3 个字以上的词条、且只错一个字时生效；两字词条（人名等）请写成别名。别名、英文的大小写和空格照常。
 public struct GlossaryCorrector: Sendable {
+    /// 用在哪里：语音输入（一句一句、短）或录音库的转写（长篇，更保守）
+    public enum Mode: Sendable {
+        case dictation
+        case transcript
+    }
+
     public struct Replacement: Equatable, Sendable {
         public let original: String
         public let replacement: String
@@ -117,7 +126,7 @@ public struct GlossaryCorrector: Sendable {
     public var isEmpty: Bool { terms.isEmpty }
 
     /// 纠正一句话，返回新文本和每处替换（原文 → 词表写法）
-    public func correct(_ text: String) -> (text: String, replacements: [Replacement]) {
+    public func correct(_ text: String, mode: Mode = .dictation) -> (text: String, replacements: [Replacement]) {
         guard !terms.isEmpty, !text.isEmpty else { return (text, []) }
         let chars = Array(text)
         var ctx = Context(chars: chars, text: text)
@@ -134,7 +143,7 @@ public struct GlossaryCorrector: Sendable {
                         if String(chars[i..<end]) != term.text { candidates.append((i..<end, term)) }
                     } else if Array(chars[i..<end]) == term.chars {
                         protected.append(i..<end)
-                    } else if accept(term, range: i..<end, ctx: &ctx) {
+                    } else if accept(term, range: i..<end, mode: mode, ctx: &ctx) {
                         candidates.append((i..<end, term))
                     }
                 }
@@ -250,7 +259,7 @@ public struct GlossaryCorrector: Sendable {
     }
 
     /// 中文部分的保守规则（英文部分 match 已经保证只差大小写和空格）
-    func accept(_ term: Term, range: Range<Int>, ctx: inout Context) -> Bool {
+    func accept(_ term: Term, range: Range<Int>, mode: Mode = .dictation, ctx: inout Context) -> Bool {
         // 把文本里的汉字和词条里的汉字一一对上
         let textHan = range.filter { Pinyin.isHan(ctx.chars[$0]) }
         let termHan: [(Character, Pinyin.Sound)] = term.elements.compactMap {
@@ -269,6 +278,8 @@ public struct GlossaryCorrector: Sendable {
         if diffs == 0 { return true }                      // 只差大小写或空格
         let n = term.hanCount
         if n < 2 { return false }
+        // 转写：只改 3 个字以上、只错一个字的
+        if mode == .transcript, n < 3 || diffs > 1 { return false }
         if diffs == n { return false }                     // 至少留一个原字
         if fuzzy > 0 { return n >= 3 && fuzzy == 1 && diffs == 1 }
         if n == 2 {
