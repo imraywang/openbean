@@ -18,10 +18,11 @@ let usage = """
                           → 关热点 → Mac 重连原来的网络。期间 Mac 断网
   watch [秒数]            只连接和监听，不发控制命令，打印设备主动发来的所有帧（默认 90 秒）
   live [秒数]             让录音豆开始录音，实时拉流若干秒（默认 15），然后暂停录音
-  delete <id> --yes [--local 路径]
+  delete <id> --yes [--local 路径 | --dev]
                           ⚠️ 删除录音豆上的一个录音（1A/10，删了不能恢复）。
                           只有本机副本存在、且解码时长和设备上的一致时才删；默认核对 App 录音库里的
-                          Library/<id>/audio.ogg，也可以用 --local 指定（例如 pull 出来的 .ogg）。
+                          Library/<id>/audio.ogg，也可以用 --local 指定（例如 pull 出来的 .ogg）；
+                          --dev 改为核对开发版 OpenBean Dev 的录音库（Application Support/openbean-dev）。
                           录音豆正在录音时不删；删完回读列表确认
 
 选项：
@@ -56,6 +57,9 @@ let localPath: String? = {
     defer { args.removeSubrange(i...(i + 1)) }
     return args[i + 1]
 }()
+/// delete 默认核对正式版 App 的录音库；--dev 改用开发版（OpenBean Dev）的
+let devLibrary = args.contains("--dev")
+args.removeAll { $0 == "--dev" }
 let confirmed = args.contains("--yes")
 args.removeAll { $0 == "--yes" }
 guard let command = args.first else { print(usage); exit(0) }
@@ -65,6 +69,9 @@ try? FileManager.default.createDirectory(at: outDir, withIntermediateDirectories
 let stateDir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("openbean")
 try? FileManager.default.createDirectory(at: stateDir, withIntermediateDirectories: true)
 let lastDeviceFile = stateDir.appendingPathComponent("last-device.txt")
+/// App 的录音库（delete 在这里找本机副本）
+let appLibrary = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+    .appendingPathComponent(devLibrary ? "openbean-dev" : "openbean").appendingPathComponent("Library")
 
 func say(_ s: String) { print(s); fflush(stdout) }
 func fmtDate(_ d: Date?) -> String {
@@ -365,7 +372,7 @@ do {
     case "delete":
         guard let arg = args.dropFirst().first, let id = UInt32(arg) else { throw LinkError.missing("参数：要删除的录音 id（数字）") }
         let local = localPath.map { URL(fileURLWithPath: $0) }
-            ?? stateDir.appendingPathComponent("Library").appendingPathComponent(String(id)).appendingPathComponent("audio.ogg")
+            ?? appLibrary.appendingPathComponent(String(id)).appendingPathComponent("audio.ogg")
         say("核对本机副本 \(local.path)…")
         let localSeconds = LocalAudio.decodedSeconds(local)
         say("  " + (localSeconds.map { "解码时长 \(fmtDur($0))（\(String(format: "%.2f", $0)) 秒）" } ?? "不存在或无法解码"))

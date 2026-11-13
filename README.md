@@ -246,7 +246,8 @@ bin/openbean watch 60      # print events the device sends, e.g. when you press 
 bin/openbean delete <id> --yes   # delete one recording from the recorder (see below)
 ```
 
-`delete` refuses unless the recording's audio is on this Mac (`Library/<id>/audio.ogg` of the app, or `--local <file.ogg>`)
+`delete` refuses unless the recording's audio is on this Mac (`Library/<id>/audio.ogg` of the app, `--dev` for the
+OpenBean Dev build's library, or `--local <file.ogg>`)
 and decodes to the length the recorder lists, and it re-reads the list afterwards to confirm. Without `--yes` it only
 checks the local copy and sends nothing.
 
@@ -412,7 +413,7 @@ bin/build-app && open ".build/OpenBean Dev.app"
 ### 其他
 
 命令行工具 `bin/openbean` 可以扫描、读设备信息、下载并解密录音（蓝牙约 2 倍实时，Wi‑Fi 约 200 倍实时）、实时拉流、监听按键事件；
-`delete <id> --yes` 删除录音豆上的一条录音（同样要先有完整的本机副本）。
+`delete <id> --yes` 删除录音豆上的一条录音（同样要先有完整的本机副本；默认找正式版 App 的录音库，`--dev` 找开发版的，`--local` 指定文件）。
 协议文档见 [docs/PROTOCOL.md](docs/PROTOCOL.md)。
 
 openbean 不会做绑定/解绑、恢复出厂和固件升级。删除录音豆上的录音只有两种情况：你明确要求、且录音已经完整保存在本机；
