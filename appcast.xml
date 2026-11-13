@@ -6,6 +6,15 @@
     <description>OpenBean updates</description>
     <language>en</language>
     <item>
+      <title>OpenBean 0.3.1</title>
+      <link>https://github.com/imraywang/openbean/releases/tag/v0.3.1</link>
+      <pubDate>Fri, 13 Nov 2026 11:37:09 GMT</pubDate>
+      <sparkle:version>3</sparkle:version>
+      <sparkle:shortVersionString>0.3.1</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+      <enclosure url="https://github.com/imraywang/openbean/releases/download/v0.3.1/OpenBean-0.3.1.dmg" length="13559497" type="application/octet-stream" sparkle:edSignature="WyyqzgsH4fDzeIktrJsZizxfEZ48920ITYXgPAGCG4GNR70o787lTOdmILYqpYlCn0vvRRctWHlrJ6xlS/MgDg=="/>
+    </item>
+    <item>
       <title>OpenBean 0.3.0</title>
       <link>https://github.com/imraywang/openbean/releases/tag/v0.3.0</link>
       <pubDate>Fri, 13 Nov 2026 04:24:25 GMT</pubDate>
