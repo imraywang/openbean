@@ -86,4 +86,13 @@ final class NoteTemplateTests: XCTestCase {
         taken.insert("2026-11-12-周会-复盘-1511.md")
         XCTAssertEqual(name(), "2026-11-12-周会-复盘-1511-2.md")
     }
+
+    func testFileNameWithoutTitleUsesTime() {
+        var taken: Set<String> = []
+        func name(_ t: String?) -> String { NoteTemplate.fileName(title: t, start: start, timeZone: tz) { taken.contains($0) } }
+        XCTAssertEqual(name(nil), "2026-11-12-1511.md")
+        XCTAssertEqual(name("  "), "2026-11-12-1511.md")
+        taken.insert("2026-11-12-1511.md")
+        XCTAssertEqual(name(nil), "2026-11-12-1511-2.md")
+    }
 }

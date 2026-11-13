@@ -159,12 +159,18 @@ public enum NoteTemplate {
     }
 
     /// `<yyyy-MM-dd>-<标题>.md`；名字被占用时加上时间 `-HHmm`，还占用就再加 `-2`、`-3`…
-    public static func fileName(title: String, start: Date, timeZone: TimeZone = .current,
+    /// 没有标题（还没摘要）时用 `<yyyy-MM-dd>-<HHmm>.md`，不把日期再写一遍
+    public static func fileName(title: String?, start: Date, timeZone: TimeZone = .current,
                                 isTaken: (String) -> Bool) -> String {
-        let base = "\(format(start, "yyyy-MM-dd", timeZone))-\(sanitize(title))"
-        let first = base + ".md"
-        if !isTaken(first) { return first }
-        let timed = "\(base)-\(format(start, "HHmm", timeZone))"
+        let day = format(start, "yyyy-MM-dd", timeZone), time = format(start, "HHmm", timeZone)
+        let timed: String
+        if let title, !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            let base = "\(day)-\(sanitize(title))"
+            if !isTaken(base + ".md") { return base + ".md" }
+            timed = "\(base)-\(time)"
+        } else {
+            timed = "\(day)-\(time)"
+        }
         if !isTaken(timed + ".md") { return timed + ".md" }
         var n = 2
         while isTaken("\(timed)-\(n).md") { n += 1 }

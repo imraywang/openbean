@@ -57,7 +57,8 @@ public struct Summarizer: Sendable {
     - key_points: 3 to 7 short points with the important facts, decisions, numbers and names.
     - action_items: concrete to-dos that someone committed to or was asked to do, with the owner and deadline when \
     mentioned. Use [] when there are none; do not invent any.
-    Only use what is in the transcript. Do not add advice or commentary.
+    Only use what is in the transcript. Do not add advice or commentary. Never invent people, numbers, dates or \
+    to-dos; a short transcript gets a short summary.
     """
 
     static let partPrompt = """
@@ -68,7 +69,8 @@ public struct Summarizer: Sendable {
     - title: a few words naming the topic of this part.
     - summary: 2 to 4 sentences on what was said in this part.
     - key_points: up to 7 short points with the important facts, decisions, numbers and names.
-    - action_items: concrete to-dos mentioned in this part; [] when there are none; do not invent any.
+    - action_items: at most 3 concrete to-dos that someone committed to or was asked to do in this part; general \
+    advice and principles are not to-dos. [] when there are none; do not invent any.
     Only use what is in the text.
     """
 
@@ -80,7 +82,8 @@ public struct Summarizer: Sendable {
     - title: a short title for the whole recording, at most 12 words (or 20 Chinese characters), no quotes or date.
     - summary: 2 to 4 sentences covering the whole recording.
     - key_points: 3 to 8 of the most important points; merge duplicates.
-    - action_items: all to-dos from the parts, merged and deduplicated; [] when there are none.
+    - action_items: the to-dos from the parts, merged and deduplicated, at most 10; when there are more, keep the most \
+    concrete ones (an owner, a deadline or a number) and drop general advice. [] when there are none.
     Only use what is in the partial summaries.
     """
 
@@ -98,8 +101,35 @@ public struct Summarizer: Sendable {
         let total = max(han + kana + hangul + letters, 1)
         if Double(kana) / Double(total) > 0.1 { return "Write the JSON values in Japanese." }
         if Double(hangul) / Double(total) > 0.2 { return "Write the JSON values in Korean." }
-        if Double(han) / Double(total) > 0.2 { return "Write the JSON values in Chinese (用中文写，简繁体和转写稿一致)." }
+        if Double(han) / Double(total) > 0.2 {
+            // 只说「和转写稿一致」时，本机模型读多了局部摘要会漂到繁体，所以直接点名
+            return isTraditional(text) ? "Write the JSON values in Traditional Chinese (用繁體中文寫)."
+                : "Write the JSON values in Simplified Chinese (用简体中文写，不要用繁体字)."
+        }
         return "Write the JSON values in the same language as the transcript."
+    }
+
+    /// 转写稿是不是繁体：数一批简繁写法不同的常用字，繁体写法占多数才算
+    static func isTraditional(_ text: String) -> Bool {
+        let trad = Set("們這個來說時會對國學為與過還後發開關點經麼樣讓應實現問題電話機認識聽寫語記錄")
+        let simp = Set("们这个来说时会对国学为与过还后发开关点经么样让应实现问题电话机认识听写语记录")
+        var t = 0, s = 0
+        for ch in text {
+            if trad.contains(ch), !simp.contains(ch) { t += 1 } else if simp.contains(ch), !trad.contains(ch) { s += 1 }
+        }
+        return t > s
+    }
+
+    /// 转写少于这么多 token（约 40 个汉字或 30 个英文词）就不摘要
+    public static let minTokens = 60
+
+    /// 合并多块之后的上限：模型不听提示里的数量时兜底，免得两小时的录音列出几十条待办
+    static let maxKeyPoints = 8, maxActionItems = 10
+    static func capped(_ s: RecordingSummary) -> RecordingSummary {
+        var s = s
+        s.keyPoints = Array(s.keyPoints.prefix(maxKeyPoints))
+        s.actionItems = Array(s.actionItems.prefix(maxActionItems))
+        return s
     }
 
     // MARK: 分块
@@ -239,10 +269,13 @@ public struct Summarizer: Sendable {
 
     public enum Failure: Error, CustomStringConvertible {
         case empty
+        /// 转写太短，没有可摘要的内容（硬让模型写，它会编出一场会议）
+        case tooShort
         case unusable
         public var description: String {
             switch self {
             case .empty: return "empty transcript"
+            case .tooShort: return "transcript too short to summarise"
             case .unusable: return "the model's reply could not be used"
             }
         }
@@ -253,6 +286,7 @@ public struct Summarizer: Sendable {
     public func summarize(_ lines: [TimedLine], progress: (@Sendable (Double) -> Void)? = nil) async throws -> RecordingSummary {
         let chunks = Self.chunk(lines, budget: budget)
         guard !chunks.isEmpty else { throw Failure.empty }
+        guard Self.estimateTokens(lines.map(\.text).joined()) >= Self.minTokens else { throw Failure.tooShort }
         let lang = Self.languageLine(for: lines.map(\.text).joined())
         let session = service.makeSession(timeout: timeout)
         // 估计总请求数：每块一次，多块时再加合并
@@ -295,7 +329,7 @@ public struct Summarizer: Sendable {
                 merged.append(try await ask(Self.mergePrompt + "\n" + lang, user, session: session))
                 step()
             }
-            if merged.count == 1 { progress?(1); return merged[0] }
+            if merged.count == 1 { progress?(1); return Self.capped(merged[0]) }
             parts = merged
         }
     }

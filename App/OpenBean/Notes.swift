@@ -168,6 +168,9 @@ final class NoteService {
             if let url = summaryURL(id), let d = try? JSONEncoder().encode(stored) { try? d.write(to: url, options: .atomic) }
             errors[id] = nil
             Log.write("已摘要 \(id)：\(lines.count) 句，\(Int(Date().timeIntervalSince(t0))) 秒")
+        } catch Summarizer.Failure.tooShort {
+            Log.write("跳过摘要 \(id)：转写太短")
+            if manual { errors[id] = String(localized: "This recording is too short to summarise.") }
         } catch {
             Log.write("摘要失败 \(id)：\(error)")
             if manual {
@@ -231,7 +234,7 @@ final class NoteService {
             }
         }
         if target == nil {
-            let name = NoteTemplate.fileName(title: r.displayTitle, start: r.start) { fm.fileExists(atPath: dir.appendingPathComponent($0).path) }
+            let name = NoteTemplate.fileName(title: r.title, start: r.start) { fm.fileExists(atPath: dir.appendingPathComponent($0).path) }
             target = dir.appendingPathComponent(name)
         }
         guard let url = target else { return .skipped("") }

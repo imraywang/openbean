@@ -209,7 +209,7 @@ match those characters exactly. Lines without `=` work as before, and only the l
 Pick aliases you never say on purpose: a bare `cloud` would turn every real "cloud" into "Claude".
 
 **Automation:** `openbean://dictate/toggle` (also `dictate/start`, `dictate/stop`), `openbean://sync` and
-`openbean://open` (or `openbean://open/<recording id>`), `openbean://settings` (or `openbean://settings/<voice|polish|library|models>`) — for Shortcuts, Raycast or scripts (`open "openbean://dictate/toggle"`).
+`openbean://open` (or `openbean://open/<recording id>`), `openbean://summarize/<recording id>`, `openbean://notes/backfill`, `openbean://settings` (or `openbean://settings/<voice|polish|library|models>`) — for Shortcuts, Raycast or scripts (`open "openbean://dictate/toggle"`).
 
 **Voice typing history:** what you dictate is kept only on this Mac, in
 `~/Library/Application Support/openbean/dictation.json`, for the *Voice typing* page and the Overview totals.

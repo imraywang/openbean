@@ -195,7 +195,11 @@ struct SyncStatus: View {
         case let .downloading(_, done, total, f, _):
             VStack(alignment: .leading, spacing: 3) {
                 ProgressView(value: f).controlSize(.small)
-                Text("Downloading \(done + 1) of \(total)…").font(.caption2).foregroundStyle(.secondary)
+                if let left = library.syncSecondsLeft {
+                    Text("Downloading \(done + 1) of \(total) — about \(Self.phrase(left)) left").font(.caption2).foregroundStyle(.secondary)
+                } else {
+                    Text("Downloading \(done + 1) of \(total)…").font(.caption2).foregroundStyle(.secondary)
+                }
             }
         case let .wifi(msg):
             Text(msg).font(.caption2).foregroundStyle(.secondary).lineLimit(2)
@@ -213,18 +217,36 @@ struct SyncStatus: View {
                     }
                     .controlSize(.small)
                     .disabled(!device.isReady || device.activity != .idle)
+                    .help(estimate ?? "")
                 }
             } else {
-                Button { Task { await library.syncAll() } } label: {
-                    Text(pending > 0 ? "Sync \(pending) new" : "Sync")
+                VStack(alignment: .trailing, spacing: 4) {
+                    Button { Task { await library.syncAll() } } label: {
+                        Text(pending > 0 ? "Sync \(pending) new" : "Sync")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(!device.isReady || device.activity != .idle)
+                    if let estimate { Text(estimate).font(.caption2).foregroundStyle(.secondary) }
                 }
-                .buttonStyle(.borderedProminent)
-                .disabled(!device.isReady || device.activity != .idle)
             }
         }
     }
 
     private var pending: Int { library.recordings.filter { $0.onDevice && !$0.downloaded && !$0.isDictation }.count }
+
+    /// 「蓝牙约需 12 分钟」；没有要下的就没有
+    private var estimate: String? {
+        library.pendingSyncSeconds.map { String(localized: "About \(Self.phrase($0)) over Bluetooth") }
+    }
+
+    /// 时长的说法：不到 1 分钟 / 12 分钟 / 1 小时 35 分钟
+    static func phrase(_ seconds: Double) -> String {
+        switch SyncEstimate.display(seconds) {
+        case .underMinute: return String(localized: "less than a minute")
+        case let .minutes(m): return String(localized: "\(m) min")
+        case let .hours(h, m): return m == 0 ? String(localized: "\(h) h") : String(localized: "\(h) h \(m) min")
+        }
+    }
 }
 
 // MARK: - 录音库：列表 + 详情

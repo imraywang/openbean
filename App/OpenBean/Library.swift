@@ -47,6 +47,18 @@ final class LibraryStore {
 
     private(set) var recordings: [Recording] = []
     private(set) var sync: SyncState = .idle
+    /// 蓝牙同步估计还要多少秒（只在下载中有值）
+    private(set) var syncSecondsLeft: Double?
+    /// 记住的蓝牙下载速度（字节/秒），每次下载完更新；估算同步时长用
+    private var bluetoothRate: Double {
+        get { let v = UserDefaults.standard.double(forKey: "bluetoothBytesPerSecond"); return v > 0 ? v : SyncEstimate.defaultBytesPerSecond }
+        set { UserDefaults.standard.set(newValue, forKey: "bluetoothBytesPerSecond") }
+    }
+    /// 把还没下载的录音都经蓝牙下完大约要多少秒；没有要下的返回 nil
+    var pendingSyncSeconds: Double? {
+        let ms = pendingDownloads().reduce(0.0) { $0 + Double($1.durationMs) }
+        return ms > 0 ? SyncEstimate.seconds(bytes: SyncEstimate.audioBytes(durationMs: ms), bytesPerSecond: bluetoothRate) : nil
+    }
     private(set) var transcribing: [UInt32: Double] = [:]
     private var transcripts: [UInt32: [TranscriptSegment]] = [:]
     enum Filter: String, CaseIterable, Identifiable {
@@ -253,7 +265,7 @@ final class LibraryStore {
     func syncAll(ids: [UInt32]? = nil) async {
         guard case .idle = device.activity, !syncRunning else { return }
         syncRunning = true
-        defer { syncRunning = false }
+        defer { syncRunning = false; syncSecondsLeft = nil }
         await refreshDeviceList()
         let pending = pendingDownloads(ids: ids)
         guard !pending.isEmpty else { sync = .idle; return }
@@ -263,6 +275,10 @@ final class LibraryStore {
         for (n, r) in pending.enumerated() {
             if device.syncShouldYield { pauseForDictation(); return }
             sync = .downloading(id: r.id, done: n, total: pending.count, fraction: 0, kbps: 0)
+            // 排在后面的录音还有多少字节；加上这一条没下完的部分就是剩余量
+            let restBytes = SyncEstimate.audioBytes(durationMs: pending[(n + 1)...].reduce(0.0) { $0 + Double($1.durationMs) })
+            let known = bluetoothRate
+            syncSecondsLeft = SyncEstimate.seconds(bytes: restBytes + SyncEstimate.audioBytes(durationMs: Double(r.durationMs)), bytesPerSecond: known)
             let file = RecordingFile(id: r.id, endTime: nil, durationMs: r.durationMs)
             do {
                 // pull 在后台执行器上回调，这里切回主线程再碰界面状态
@@ -273,6 +289,9 @@ final class LibraryStore {
                         self?.sync = .downloading(id: r.id, done: n, total: pending.count,
                                                   fraction: expected > 0 ? Double(got) / Double(expected) : 0,
                                                   kbps: Double(got) / 1024 / max(elapsed, 0.1))
+                        // 这一条下了 5 秒以上才信它自己的速度，之前用记住的速度
+                        let rate = elapsed >= 5 && got > 0 ? Double(got) / elapsed : known
+                        self?.syncSecondsLeft = SyncEstimate.seconds(bytes: restBytes + Double(max(expected - got, 0)), bytesPerSecond: rate)
                     }
                 }
                 if device.syncShouldYield { pauseForDictation(); return }
@@ -281,6 +300,7 @@ final class LibraryStore {
                     continue
                 }
                 try saveAudio(t.audio, id: r.id)
+                if t.seconds >= 3 { bluetoothRate = SyncEstimate.blend(old: bluetoothRate, measured: Double(t.audio.count) / t.seconds) }
                 Log.write("已下载 \(r.id)（\(t.audio.count / 1024) KB，\(Int(t.seconds)) 秒）")
                 if settings.autoTranscribe { Task { await transcribe(r.id) } }
             } catch {

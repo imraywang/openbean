@@ -71,6 +71,12 @@ final class AppModel {
             if let tab = SettingsTab(rawValue: String(p.dropFirst(9))) { nav.settingsTab = tab }
             nav.section = .settings
             openMain?()
+        case let p where p.hasPrefix("summarize/"):
+            // openbean://summarize/<录音 id>：摘要（或重新摘要）一条已转写的录音
+            if let id = UInt32(p.dropFirst(10)), let r = library.recordings.first(where: { $0.id == id }),
+               library.notes.canSummarize(r) { library.notes.summarize(id) }
+        case "notes/backfill":
+            library.notes.backfillNotes()
         case let p where p.hasPrefix("open/"):
             if let id = UInt32(p.dropFirst(5)) { nav.show(recording: id, in: library) }
             openMain?()

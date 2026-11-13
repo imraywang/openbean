@@ -142,6 +142,36 @@
         }
       }
     },
+    "%lld h": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 小时"
+          }
+        }
+      }
+    },
+    "%lld h %lld min": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld 小时 %2$lld 分钟"
+          }
+        }
+      }
+    },
+    "%lld min": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 分钟"
+          }
+        }
+      }
+    },
     "%lld not synced": {
       "localizations": {
         "zh-Hans": {
@@ -242,6 +272,16 @@
         }
       }
     },
+    "About %@ over Bluetooth": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "蓝牙约需 %@"
+          }
+        }
+      }
+    },
     "About 100× faster than Bluetooth. Your Mac joins the recorder's own Wi‑Fi and is offline for about a minute, then reconnects to your usual network.": {
       "localizations": {
         "zh-Hans": {
@@ -338,6 +378,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "已允许"
+          }
+        }
+      }
+    },
+    "Any OpenAI-compatible server works: llama.cpp (llama-server), Ollama, LM Studio. It removes filler words, fixes likely homophones using your word list and keeps your wording.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "支持任意 OpenAI 兼容服务：llama.cpp（llama-server）、Ollama、LM Studio。会去掉口头禅、按个人词表纠正同音字，并保留你的说法。"
           }
         }
       }
@@ -542,6 +592,16 @@
         }
       }
     },
+    "Clean up each sentence with a local LLM": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "用本地大模型润色每一句"
+          }
+        }
+      }
+    },
     "Clean up each sentence with an LLM": {
       "localizations": {
         "zh-Hans": {
@@ -558,6 +618,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "用大模型润色"
+          }
+        }
+      }
+    },
+    "Clean up with local LLM": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本地大模型润色"
           }
         }
       }
@@ -898,6 +968,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Wi‑Fi 下载第 %1$lld/%2$lld 条… %3$lld%%"
+          }
+        }
+      }
+    },
+    "Downloading %lld of %lld — about %@ left": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在下载第 %1$lld/%2$lld 条，约剩 %3$@"
           }
         }
       }
@@ -1552,6 +1632,16 @@
         }
       }
     },
+    "OpenBean never pairs, unbinds, resets, deletes recordings on or updates the recorder.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OpenBean 不会对录音豆做配对、解绑、恢复出厂、删除录音或固件升级。"
+          }
+        }
+      }
+    },
     "Output": {
       "localizations": {
         "zh-Hans": {
@@ -1578,6 +1668,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "概览"
+          }
+        }
+      }
+    },
+    "Pauses": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "停顿"
           }
         }
       }
@@ -1872,6 +1972,16 @@
         }
       }
     },
+    "Search": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "搜索"
+          }
+        }
+      }
+    },
     "Search titles and transcripts": {
       "localizations": {
         "zh-Hans": {
@@ -2012,6 +2122,16 @@
         }
       }
     },
+    "Short pauses finalise a phrase; slightly longer ones become a comma, longer ones a full stop. A too-short phrase pause chops sentences and hurts accuracy. Restart OpenBean after changing it.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "短停顿定稿一句；稍长的停顿补逗号，更长的补句号。定稿停顿太短会把一句话切碎、错字变多。修改后需重启 OpenBean。"
+          }
+        }
+      }
+    },
     "Shortcut: %@": {
       "localizations": {
         "zh-Hans": {
@@ -2038,6 +2158,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "在访达中显示"
+          }
+        }
+      }
+    },
+    "Show library folder": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开录音库文件夹"
           }
         }
       }
@@ -2808,6 +2938,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "地址无效"
+          }
+        }
+      }
+    },
+    "less than a minute": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不到 1 分钟"
           }
         }
       }

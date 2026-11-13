@@ -123,7 +123,7 @@ final class SummarizerTests: XCTestCase {
         defer { stub.stop() }
         do {
             _ = try await Summarizer(service: LLMService(endpoint: stub.url), timeout: 10)
-                .summarize([TimedLine(start: 0, text: "猫")])
+                .summarize([TimedLine(start: 0, text: String(repeating: "今天我们聊一聊猫的事情。", count: 5))])
             XCTFail("expected failure")
         } catch Summarizer.Failure.unusable {
         } catch {
@@ -139,4 +139,27 @@ final class Locked<T>: @unchecked Sendable {
     init(_ v: T) { self.v = v }
     var value: T { l.lock(); defer { l.unlock() }; return v }
     func mutate(_ f: (inout T) -> Void) { l.lock(); f(&v); l.unlock() }
+
+    func testChineseScriptIsNamed() {
+        XCTAssertTrue(Summarizer.languageLine(for: "我们这个会开得还不错，问题都记录了").contains("Simplified"))
+        XCTAssertTrue(Summarizer.languageLine(for: "我們這個會開得還不錯，問題都記錄了").contains("Traditional"))
+    }
+
+    func testCapAfterMerge() {
+        let s = Summarizer.capped(RecordingSummary(title: "t", summary: "s", keyPoints: (0..<20).map { "k\($0)" },
+                                                   actionItems: (0..<45).map { "a\($0)" }))
+        XCTAssertEqual(s.keyPoints.count, 8)
+        XCTAssertEqual(s.actionItems.count, 10)
+        XCTAssertEqual(s.actionItems.first, "a0")
+    }
+
+    func testTooShortTranscriptIsNotSummarised() async {
+        // 不该发任何请求：地址指向没人监听的端口，若发了请求会得到网络错误而不是 tooShort
+        let s = Summarizer(service: LLMService(endpoint: URL(string: "http://127.0.0.1:9")!, model: "x"))
+        do {
+            _ = try await s.summarize([TimedLine(start: 0, text: "嗯，后面。")])
+            XCTFail("expected tooShort")
+        } catch Summarizer.Failure.tooShort {
+        } catch { XCTFail("unexpected \(error)") }
+    }
 }
