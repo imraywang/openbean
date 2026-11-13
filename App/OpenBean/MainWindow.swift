@@ -369,13 +369,18 @@ struct OverviewView: View {
     private var content: some View {
         VStack(alignment: .leading, spacing: 16) {
             hero
-            tiles
-            HStack(alignment: .top, spacing: 12) {
-                ActivityChart(recordings: recordings, log: model.log)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                recent.frame(minWidth: 260, maxWidth: 380, maxHeight: .infinity)
+            if recordings.isEmpty && model.log.entries.isEmpty {
+                // 还什么都没有：不摆一排 0 和空图表，告诉人从哪开始
+                gettingStarted.frame(maxHeight: .infinity, alignment: .top)
+            } else {
+                tiles
+                HStack(alignment: .top, spacing: 12) {
+                    ActivityChart(recordings: recordings, log: model.log)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    recent.frame(minWidth: 260, maxWidth: 380, maxHeight: .infinity)
+                }
+                .frame(minHeight: 280, maxHeight: .infinity)
             }
-            .frame(minHeight: 280, maxHeight: .infinity)
             statusStrip
         }
         .padding(24)
@@ -466,10 +471,11 @@ struct OverviewView: View {
             if list.isEmpty {
                 Text("No recordings yet").foregroundStyle(.secondary).padding(.vertical, 8)
             }
-            // 卡片多高就露出多少条，其余在卡片里滚动
-            ScrollView {
-            LazyVStack(alignment: .leading, spacing: 0) {
-            ForEach(Array(list.enumerated()), id: \.element.id) { i, r in
+            // 卡片多高就放几条整行（不露半行），其余去「查看全部」
+            GeometryReader { geo in
+            let n = max(1, min(list.count, Int((geo.size.height + 1) / (Self.recentRow + 1))))
+            VStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(list.prefix(n).enumerated()), id: \.element.id) { i, r in
                 Button { model.nav.show(recording: r.id, in: library) } label: {
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
@@ -479,20 +485,51 @@ struct OverviewView: View {
                         Spacer()
                         Text(LibraryStore.clock(r.duration)).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
                     }
-                    .padding(.vertical, 7)
+                    .frame(height: Self.recentRow)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                if i < list.count - 1 { Divider() }
+                if i < n - 1 { Divider() }
             }
             }
             }
-            .scrollIndicators(.never)
             .frame(minHeight: 120, idealHeight: 240, maxHeight: .infinity)
         }
         .padding(16)
         .frame(maxHeight: .infinity, alignment: .top)
         .background(RoundedRectangle(cornerRadius: 12).strokeBorder(.separator))
+    }
+
+    /// 最近录音一行的高度（两行字加上下留白）
+    private static let recentRow: CGFloat = 46
+
+    // 第一次用：三步入门
+    private var gettingStarted: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Getting started").font(.headline)
+            step(done: device.isReady, number: 1, title: "Connect your recorder",
+                 detail: "Take it out of its case. OpenBean finds it over Bluetooth.")
+            step(done: !model.log.entries.isEmpty, number: 2, title: "Try voice typing",
+                 detail: "Press the recorder's button, speak, then press it again. The text goes where your cursor is.")
+            step(done: !recordings.isEmpty, number: 3, title: "Sync your first recording",
+                 detail: "Recordings made on the recorder come to this Mac and are transcribed here.")
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 12).strokeBorder(.separator))
+    }
+
+    private func step(done: Bool, number: Int, title: LocalizedStringKey, detail: LocalizedStringKey) -> some View {
+        Label {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).fontWeight(.medium)
+                Text(detail).font(.callout).foregroundStyle(.secondary)
+            }
+        } icon: {
+            Image(systemName: done ? "checkmark.circle.fill" : "\(number).circle")
+                .foregroundStyle(done ? Color.green : Color.secondary)
+                .font(.title3)
+        }
     }
 
     private func recentStatus(_ r: Recording) -> String {
