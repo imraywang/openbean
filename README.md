@@ -18,6 +18,7 @@ searchable transcripts — all transcribed on your Mac, offline.
 |---|---|
 | **Voice typing** | The recorder's button (or a keyboard shortcut) starts and stops dictation; text is typed into any app |
 | **Library** | Sync recordings, play them, offline transcripts with click-to-seek, search, export Markdown |
+| **For agents** | A read-only MCP server lets your own agent (Claude Code, Claude Desktop, Cursor…) list, read and search your recordings |
 | Discover and connect | No pairing in system settings needed; reconnects automatically |
 | Device info | Battery, storage, firmware, recording state |
 | Recordings | List; download over BLE (~2× real time) or Wi‑Fi (~200× real time); decrypt; save as Ogg Opus |
@@ -235,6 +236,54 @@ turns them into time connected, time off the charger, voice-typing time, drain p
 voice typing, and projected battery life (`--since` / `--until` pick a day; app quits, disconnects, Mac sleep and
 charging are left out). The recorder only reports 10% steps, so wear it for a day before trusting the numbers.
 
+## For agents (MCP)
+
+`openbean-mcp` is a small read-only [MCP](https://modelcontextprotocol.io) server that ships inside OpenBean.app.
+Your own agent — Claude Code, Claude Desktop, Cursor or any other MCP client — starts it over stdio and can then
+list, read and search the recordings in the library on your Mac.
+
+**Connect it.** Settings → Library → *For agents (MCP)* shows the server's path, *Copy configuration* (a standard
+`mcpServers` snippet) and the command for Claude Code. With the app in Applications:
+
+```bash
+claude mcp add --transport stdio --scope user openbean -- /Applications/OpenBean.app/Contents/Helpers/openbean-mcp
+```
+
+Claude Desktop (Settings → Developer → Edit Config, then quit and reopen it), Cursor (`~/.cursor/mcp.json`) and
+other clients take the same `mcpServers` entry:
+
+```json
+{
+  "mcpServers": {
+    "openbean": { "command": "/Applications/OpenBean.app/Contents/Helpers/openbean-mcp", "args": [] }
+  }
+}
+```
+
+**Tools:**
+
+| Tool | Arguments | Returns |
+|---|---|---|
+| `list_recordings` | `from`, `to` (local dates `YYYY-MM-DD`, or `today` / `yesterday`), `query`, `limit` (default 20) | Newest first: id, start time, duration, title, whether it has a transcript and a summary, a one-line gist |
+| `get_recording` | `id` | Times, summary, key points, action items, path of its Markdown note, `openbean://open/<id>` link |
+| `get_transcript` | `id`, `start_seconds`, `end_seconds`, `max_chars` (default 6000) | Timestamped sentences; a long transcript is cut and the result says where to continue |
+| `search_recordings` | `query`, `from`, `to`, `limit` (default 10) | Matching recordings with snippets and timestamps. Case-insensitive substring match, so it works for Chinese |
+| `day_overview` | `date` (default today) | Every recording of that day with its summary and action items |
+
+Each result is text for the model plus `structuredContent`; times carry the UTC offset, and every result names the
+time zone and today's date. Recordings still only on the recorder are listed but have no transcript; voice typing
+clips are left out.
+
+**Privacy.** It is read-only: it can't change, delete or record anything, has no access to audio, the voice typing
+history or the recorder, and never goes online. It runs only while an agent has started it. But what it reads —
+transcripts and summaries — goes to the agent you connect and to the model behind it (often a cloud service), so
+connect only agents you would trust with your recordings.
+
+`--dev` reads the OpenBean Dev library (the copy inside OpenBean Dev.app does so by default); `--library <path>` or
+`OPENBEAN_LIBRARY=<path>` reads any data folder, e.g. a test copy. From source:
+`swift build -c release --product openbean-mcp`. It speaks MCP 2026-07-28 (stateless, `server/discover`) and the
+`initialize` handshake of 2025-11-25 back to 2024-11-05.
+
 ## Command-line tool (macOS 14+)
 
 ```bash
@@ -294,11 +343,12 @@ Done:
    summarised (title, summary, key points, to-dos) by the LLM service you configured, and land as one Markdown note
    each in a folder you choose, for example inside an Obsidian vault. Recordings can be deleted from the recorder
    once a complete copy is on the Mac.
+5. ✅ **For agents** — a read-only MCP server (stdio) over the recording library on your Mac: list recordings by
+   date, read transcripts and summaries, search ([details](#for-agents-mcp)). It does not touch Bluetooth and
+   nothing runs in the background.
 
 Next:
 
-5. **For agents (0.4)** — a read-only MCP server (stdio) over the recording library on your Mac: list recordings by
-   date, read transcripts and summaries, search. It does not touch Bluetooth and nothing runs in the background.
 6. **Meetings** — telling speakers apart, and a meeting-minutes note template.
 7. **Local API** — the rest of the picture: a service on `localhost` that publishes device state and live PCM audio,
    so other tools (note apps, Home Assistant) can use the recorder without touching Bluetooth.
@@ -416,6 +466,39 @@ bin/build-app && open ".build/OpenBean Dev.app"
 （按下后约 1 秒内的声音收不到）→ 再按一下结束。个人词表和日志在设置页。
 日志里还记了录音豆电量和每次语音输入的时长，戴一天后运行 `python3 -I Scripts/battery-report.py` 可以算出待机和语音输入的耗电与预计续航。
 
+### 给 agent 用（MCP）
+
+App 里带一个只读的 [MCP](https://modelcontextprotocol.io) 服务 `openbean-mcp`：你自己的 agent（Claude Code、Claude Desktop、Cursor
+或其他 MCP 客户端）通过 stdio 启动它，就能列出、读取、搜索这台 Mac 上录音库里的录音。
+
+**接入**：设置 → 录音库 →「给 agent 用（MCP）」里有服务的完整路径、「拷贝配置」（标准的 `mcpServers` 片段）和给 Claude Code 的命令。
+App 在「应用程序」文件夹里时：
+
+```bash
+claude mcp add --transport stdio --scope user openbean -- /Applications/OpenBean.app/Contents/Helpers/openbean-mcp
+```
+
+Claude Desktop（设置 → 开发者 → 编辑配置，改完退出重开）、Cursor（`~/.cursor/mcp.json`）等用同样的 `mcpServers` 配置，见上方英文说明。
+
+**工具**：
+
+| 工具 | 参数 | 返回 |
+|---|---|---|
+| `list_recordings` | `from`、`to`（本地日期 `YYYY-MM-DD`，或 `today` / `yesterday`）、`query`、`limit`（默认 20） | 新的在前：id、开始时间、时长、标题、有没有转写和摘要、一行摘要 |
+| `get_recording` | `id` | 时间、摘要、要点、待办、笔记文件路径、`openbean://open/<id>` 链接 |
+| `get_transcript` | `id`、`start_seconds`、`end_seconds`、`max_chars`（默认 6000） | 带时间戳的句子；太长会截断，并说明从哪里接着读 |
+| `search_recordings` | `query`、`from`、`to`、`limit`（默认 10） | 命中的录音、前后文片段和时间戳；按子串匹配、不分大小写，中文不用分词 |
+| `day_overview` | `date`（默认今天） | 这一天每条录音的摘要和待办 |
+
+结果既有给模型读的文字，也有结构化内容（`structuredContent`）；时间都带时区，每个结果都写明时区和今天的日期。
+还在录音豆上、没同步的录音会列出但没有转写；语音输入片段不出现。
+
+**隐私**：只读——不能修改、删除或录音，读不到音频、语音输入记录，也不碰录音豆、不联网；只在 agent 启动它时运行。
+但它读到的转写和摘要会交给你连接的那个 agent 和它背后的模型（常常是云端服务），只接你愿意把录音内容交给它的 agent。
+
+`--dev` 读开发版 OpenBean Dev 的录音库（开发版 App 里的那份默认就读开发版）；`--library <路径>` 或环境变量 `OPENBEAN_LIBRARY` 读任意目录（比如测试用的副本）。
+从源码编译：`swift build -c release --product openbean-mcp`。协议支持 MCP 2026-07-28（无状态，`server/discover`），以及 2025-11-25 到 2024-11-05 的 `initialize` 握手。
+
 ### 其他
 
 命令行工具 `bin/openbean` 可以扫描、读设备信息、下载并解密录音（蓝牙约 2 倍实时，Wi‑Fi 约 200 倍实时）、实时拉流、监听按键事件；
@@ -425,6 +508,6 @@ bin/build-app && open ".build/OpenBean Dev.app"
 openbean 不会做绑定/解绑、恢复出厂和固件升级。删除录音豆上的录音只有两种情况：你明确要求、且录音已经完整保存在本机；
 或者语音输入结束后，App 删掉它为这次语音输入新建的文件（可在设置里关闭）。
 
-0.3 已完成「录音自动进知识库」：自动同步、转写、摘要、每条录音一份 Markdown 笔记。下一步（0.4）：区分说话人和会议纪要模板；本地服务 API（让笔记软件、智能家居、AI 助手直接使用录音豆）。以后可能做：可选的云端语音识别、同步到第三方服务。不做：按键手势（按键只有开始和停止两种事件）。
+0.3 已完成「录音自动进知识库」：自动同步、转写、摘要、每条录音一份 Markdown 笔记。已完成：给 agent 用的只读 MCP 服务（见上）。下一步（0.4）：区分说话人和会议纪要模板；本地服务 API（让笔记软件、智能家居、AI 助手直接使用录音豆）。以后可能做：可选的云端语音识别、同步到第三方服务。不做：按键手势（按键只有开始和停止两种事件）。
 
 openbean 是独立项目，与 Anker 无关。协议是为了让你使用自己的设备而整理的，固件升级随时可能让它失效。
