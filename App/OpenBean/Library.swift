@@ -128,11 +128,13 @@ final class LibraryStore {
     func peaks(_ id: UInt32) -> [Float]? { peaksCache[id] }
 
     func loadPeaks(_ id: UInt32) async {
-        #if DEMO
-        // 演示版没有音频文件，只有造好的 peaks.json
-        if peaksCache[id] == nil, let d = try? Data(contentsOf: folder(id).appendingPathComponent("peaks.json")),
-           let p = try? JSONDecoder().decode([Float].self, from: d) { peaksCache[id] = p }
-        return
+        #if DEMO || DEBUG
+        // 演示版、预览没有音频文件，只有造好的 peaks.json
+        if Flavor.isFake {
+            if peaksCache[id] == nil, let d = try? Data(contentsOf: folder(id).appendingPathComponent("peaks.json")),
+               let p = try? JSONDecoder().decode([Float].self, from: d) { peaksCache[id] = p }
+            return
+        }
         #endif
         guard peaksCache[id] == nil, FileManager.default.fileExists(atPath: audioURL(id).path) else { return }
         let cache = folder(id).appendingPathComponent("peaks.json")
@@ -167,8 +169,8 @@ final class LibraryStore {
         return out.map { min($0 / max(ref, 1e-4), 1) }
     }
 
-    #if DEMO
-    /// 演示版：直接摆出同步和转写进度
+    #if DEMO || DEBUG
+    /// 演示版、预览：直接摆出同步和转写进度
     func demoSet(sync: SyncState, secondsLeft: Double? = nil, transcribing: [UInt32: Double] = [:]) {
         self.sync = sync
         syncSecondsLeft = secondsLeft

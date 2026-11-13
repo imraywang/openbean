@@ -5,12 +5,18 @@ import SwiftUI
 /// 首次启动：连接录音豆 → 下载语音模型 → 打字权限 → 试一试
 struct OnboardingView: View {
     let model: AppModel
-    @State private var step = 0
+    @State private var step: Int
     @State private var trusted = Typist.trusted
     @State private var tryText = ""
     @Environment(\.dismissWindow) private var dismiss
     private let tick = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
     private let steps = 5
+
+    /// step：从第几步开始（预览用；正常都从 0 开始）
+    init(model: AppModel, step: Int = 0) {
+        self.model = model
+        _step = State(initialValue: step)
+    }
 
     var body: some View {
         VStack(spacing: 0) {

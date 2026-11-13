@@ -12,7 +12,8 @@
 //   onboarding/<0–4>   close/onboarding|main   window/main|onboarding/<宽>x<高>   appearance/light|dark|auto
 //   trusted/yes|no   models/ready|missing|downloading   menu/open   ping   quit
 // 数据档：启动参数 -demoProfile empty 用空数据目录 openbean-demo-empty（第一次用：空库、没连过设备、向导未完成）。
-#if DEMO
+// Debug 构建里也编进来：Xcode 预览（Previews.swift）用同一套假数据，见 Flavor.isPreview。
+#if DEMO || DEBUG
 import AppKit
 import Observation
 import OpenBeanKit
@@ -42,7 +43,7 @@ final class DemoState {
 enum DemoData {
     /// 在建任何存储之前调用：设置每次启动都重置成固定值；默认数据档的数据目录是空的就生成一套假录音
     static func prepare() {
-        let d = UserDefaults.standard
+        let d = Flavor.defaults
         let empty = DemoState.isEmpty
         let notes = AppPaths.support.appendingPathComponent("Notes")
         if !empty { try? FileManager.default.createDirectory(at: notes, withIntermediateDirectories: true) }
@@ -506,9 +507,12 @@ final class DemoController {
         bringToFront("main")
     }
 
-    /// 选一条有代表性的录音
     private func pick(_ what: String) -> UInt32? {
-        guard let lib = model?.library else { return nil }
+        model.flatMap { Self.pick(what, in: $0.library) }
+    }
+
+    /// 选一条有代表性的录音：summary、untranscribed、ondevice、long、none 或录音 id
+    static func pick(_ what: String, in lib: LibraryStore) -> UInt32? {
         let all = lib.recordings.filter { !$0.isDictation }
         switch what {
         case "summary": return all.first { lib.notes.summary($0.id) != nil }?.id
@@ -522,6 +526,11 @@ final class DemoController {
 
     func apply(state name: String) {
         guard let m = model else { return }
+        Self.apply(state: name, to: m)
+    }
+
+    /// 把一种设备状态摆到某个 AppModel 上（演示版的链接和 Xcode 预览共用）
+    static func apply(state name: String, to m: AppModel) {
         let d = m.device
         m.library.demoSet(sync: .idle)
         m.dictation.demoSet(phase: .idle)

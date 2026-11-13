@@ -76,13 +76,15 @@ final class Dictation {
         self.device = device
         self.settings = settings
         decoder = try? OpusDecoder()
-        #if !DEMO
+        #if DEMO || DEBUG
+        if !Flavor.isFake { loadRecognizer() }
+        #else
         loadRecognizer()
         #endif
     }
 
-    #if DEMO
-    /// 演示版：直接摆出一次语音输入的状态（悬浮条、菜单栏图标用）
+    #if DEMO || DEBUG
+    /// 演示版、预览：直接摆出一次语音输入的状态（悬浮条、菜单栏图标用）
     func demoSet(phase: Phase, level: Float = 0, since: Date? = nil, polishing: Int = 0, error: String? = nil,
                  finalText: String = "", typedCount: Int = 0, clipboard: Bool = false) {
         // 悬浮条盯着 phase 和 lastError：值没变就不写，免得触发它自己的切换

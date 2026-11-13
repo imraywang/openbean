@@ -24,8 +24,8 @@ final class DeviceController {
     private(set) var activity: Activity = .idle
     /// 听写要用连接时置位，正在进行的同步看到后尽快让出
     private(set) var syncShouldYield = false
-    #if DEMO
-    /// 演示版从不连接：用到才建（建 Link 就会初始化 CoreBluetooth、弹蓝牙权限）
+    #if DEMO || DEBUG
+    /// 演示版、预览从不连接：用到才建（建 Link 就会初始化 CoreBluetooth、弹蓝牙权限）
     @ObservationIgnored lazy var link = Link()
     #else
     let link = Link()
@@ -43,8 +43,8 @@ final class DeviceController {
 
     private let lastDeviceFile = AppPaths.support.appendingPathComponent("last-device.txt")
 
-    #if DEMO
-    var isReady: Bool { state == .ready }
+    #if DEMO || DEBUG
+    var isReady: Bool { state == .ready && (session != nil || Flavor.isFake) }
     #else
     var isReady: Bool { state == .ready && session != nil }
     #endif
@@ -61,8 +61,8 @@ final class DeviceController {
 
     /// 忘掉这台设备：下次重新扫描
     func forget() {
-        #if DEMO
-        return
+        #if DEMO || DEBUG
+        if Flavor.isFake { return }
         #endif
         try? FileManager.default.removeItem(at: lastDeviceFile)
         link.disconnect()
@@ -202,8 +202,8 @@ final class DeviceController {
                   + "recorder=\(Self.field(battery))")
     }
 
-    #if DEMO
-    /// 演示版：直接摆出一种连接状态
+    #if DEMO || DEBUG
+    /// 演示版、预览：直接摆出一种连接状态
     func demoApply(state: State, info: DeviceInfo?, activity: Activity) {
         self.state = state
         self.info = info

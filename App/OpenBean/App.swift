@@ -7,9 +7,9 @@ import SwiftUI
 @MainActor
 final class AppModel {
     static let shared = AppModel()
-    #if DEMO
-    /// 演示版：在建任何存储之前先准备假数据和设置（属性按声明顺序初始化）
-    private let demoPrepared: Void = DemoData.prepare()
+    #if DEMO || DEBUG
+    /// 演示版、Xcode 预览：在建任何存储之前先准备假数据和设置（属性按声明顺序初始化）
+    private let demoPrepared: Void = Flavor.isFake ? DemoData.prepare() : ()
     #endif
     let settings = Settings()
     let device = DeviceController()
@@ -154,6 +154,10 @@ final class Delegate: NSObject, NSApplicationDelegate {
     private var started = false
 
     func applicationDidFinishLaunching(_ n: Notification) {
+        #if DEBUG
+        // Xcode 预览也会把整个 App 跑起来：不连录音豆、不注册快捷键、不检查更新，也不去碰正在运行的那份
+        if Flavor.isPreview { return }
+        #endif
         // 只允许一份在跑：两份会同时抢录音豆的蓝牙连接，谁都连不上
         let me = ProcessInfo.processInfo.processIdentifier
         let others = NSRunningApplication.runningApplications(withBundleIdentifier: Bundle.main.bundleIdentifier ?? "")

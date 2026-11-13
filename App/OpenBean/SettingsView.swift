@@ -247,8 +247,8 @@ private struct PolishSettings: View {
     }
 
     private func check() async {
-        #if DEMO
-        status = .ok; return // 演示版不连任何服务
+        #if DEMO || DEBUG
+        if Flavor.isFake { status = .ok; return } // 演示版、预览不连任何服务
         #endif
         guard let url else { status = .unreachable(String(localized: "invalid address")); return }
         checking = true

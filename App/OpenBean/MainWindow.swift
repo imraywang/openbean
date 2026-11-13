@@ -273,7 +273,7 @@ struct LibraryPage: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .searchable(text: $query, placement: .toolbar, prompt: "Search titles and transcripts")
-        #if DEMO
+        #if DEMO || DEBUG
         .onChange(of: DemoState.shared.query, initial: true) { _, q in query = q }
         #endif
         .navigationTitle("Library")

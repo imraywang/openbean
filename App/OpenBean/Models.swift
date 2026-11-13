@@ -30,8 +30,8 @@ final class ModelStore: NSObject, URLSessionDownloadDelegate {
     /// 下载完成后通知（重新加载识别器）
     var onReady: () -> Void = {}
 
-    #if DEMO
-    /// 演示版：不看磁盘，直接摆出模型状态
+    #if DEMO || DEBUG
+    /// 演示版、预览：不看磁盘，直接摆出模型状态
     func demoSet(_ s: State) {
         state = s
         appleReady = true

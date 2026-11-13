@@ -89,7 +89,7 @@ final class HUDController {
         }
     }
 
-    #if DEMO
+    #if DEMO || DEBUG
     /// 演示版：直接摆出悬浮条的某个状态（不自动隐藏）；返回悬浮条窗口，截图用
     func demoShow(_ mode: Mode) {
         if mode == .hidden {

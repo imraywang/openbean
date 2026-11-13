@@ -97,6 +97,9 @@ everyday copy. Switch its state with links such as `openbean-demo://demo/state/s
 `bin/ui-shots [folder]` builds it, steps through every page and state in light and dark, saves window screenshots
 (default `.build/ui-shots`) and writes a contact sheet, `index.html`. It needs Screen Recording permission for the
 terminal it runs in, and brings the demo windows to the front for a minute or two.
+The same made-up data feeds the SwiftUI previews in `App/OpenBean/Previews.swift` (Debug builds only): open the
+project in Xcode, open that file and pick a preview in the canvas. Previews keep their data in
+`Application Support/openbean-preview` and never start Bluetooth, the shortcut or the updater.
 
 **Releases** are built with `bin/release`: Developer ID signing with the hardened runtime (Sparkle's nested helpers
 included), a DMG, notarization and stapling, then an EdDSA signature for Sparkle and a new item in `appcast.xml`
@@ -391,6 +394,8 @@ bin/build-app && open ".build/OpenBean Dev.app"
 `openbean-demo://demo/hud/listening` 这类链接切状态（完整列表在 `App/OpenBean/Demo.swift` 开头）。
 `bin/ui-shots [目录]` 编译演示版，浅色、深色各把每个页面和状态截一遍（默认放 `.build/ui-shots`），并生成联系表 `index.html`。
 运行它的终端需要「屏幕与系统录音」权限；截图的一两分钟里演示版窗口会弹到前台。
+同一套假数据也用在 SwiftUI 预览里（`App/OpenBean/Previews.swift`，只在 Debug 构建里）：用 Xcode 打开工程、打开这个文件，在画布里选预览。
+预览的数据放在 `Application Support/openbean-preview`，不开蓝牙、不注册快捷键、不检查更新。
 
 首次启动有设置向导：连接录音豆、下载语音模型（约 240 MB）、授予权限。打字进其他 App 需要在「系统设置 → 隐私与安全性 → 辅助功能」
 （部分版本叫 Device Control and Data Access）里打开 OpenBean。
