@@ -55,6 +55,11 @@ final class LibraryStore {
         set { UserDefaults.standard.set(newValue, forKey: "bluetoothBytesPerSecond") }
     }
     /// 把还没下载的录音都经蓝牙下完大约要多少秒；没有要下的返回 nil
+    /// 把一条录音经蓝牙下完大约要多少秒（和 pendingSyncSeconds 同一套算法）
+    func downloadSeconds(_ r: Recording) -> Double {
+        SyncEstimate.seconds(bytes: SyncEstimate.audioBytes(durationMs: Double(r.durationMs)), bytesPerSecond: bluetoothRate)
+    }
+
     var pendingSyncSeconds: Double? {
         let ms = pendingDownloads().reduce(0.0) { $0 + Double($1.durationMs) }
         return ms > 0 ? SyncEstimate.seconds(bytes: SyncEstimate.audioBytes(durationMs: ms), bytesPerSecond: bluetoothRate) : nil

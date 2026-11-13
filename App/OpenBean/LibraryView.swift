@@ -366,7 +366,8 @@ struct RecordingDetail: View {
                 Button("Download over Bluetooth") { Task { await library.syncAll(ids: [recording.id]) } }
                     .buttonStyle(.borderedProminent)
                     .disabled(!device.isReady || device.activity != .idle)
-                Text("about \(LibraryStore.clock(recording.duration / 1.9))").font(.caption).foregroundStyle(.secondary)
+                // 和侧栏、概览的「蓝牙约需 N 分钟」同一套算法和说法
+                Text("About \(SyncStatus.phrase(library.downloadSeconds(recording))) over Bluetooth").font(.caption).foregroundStyle(.secondary)
             }
             if recording.duration > 600 {
                 Button("Download over Wi‑Fi (faster)…") { confirmWifi = true }
