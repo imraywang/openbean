@@ -141,6 +141,21 @@ struct RecordingList: View {
     }
 }
 
+/// 没有标题的录音怎么称呼（列表、概览共用）：今天只写时间；昨天写「昨天」加时间（列表里组标题已经写了就只写时间）；
+/// 一周内写星期几加时间；今年写月日加时间；更早的才带年份
+enum RelativeDate {
+    static func name(_ d: Date, grouped: Bool = false, now: Date = Date()) -> String {
+        let cal = Calendar.current
+        let time = d.formatted(date: .omitted, time: .shortened)
+        if cal.isDateInToday(d) { return time }
+        if cal.isDateInYesterday(d) { return grouped ? time : String(localized: "Yesterday \(time)") }
+        let days = cal.dateComponents([.day], from: cal.startOfDay(for: d), to: cal.startOfDay(for: now)).day ?? 99
+        if days < 7 { return d.formatted(.dateTime.weekday(.abbreviated).hour().minute()) }
+        if cal.isDate(d, equalTo: now, toGranularity: .year) { return d.formatted(.dateTime.month().day().hour().minute()) }
+        return d.formatted(date: .abbreviated, time: .shortened)
+    }
+}
+
 struct RecordingRow: View {
     let recording: Recording
     let snippet: String?
@@ -163,8 +178,8 @@ struct RecordingRow: View {
 
     private var title: String {
         if let t = recording.title, !t.isEmpty { return t }
-        return recording.start.formatted(date: Calendar.current.isDateInToday(recording.start) || Calendar.current.isDateInYesterday(recording.start) ? .omitted : .abbreviated,
-                                         time: .shortened)
+        // 列表按今天 / 昨天 / 本周 / 月分了组，组标题已经说了是哪天
+        return RelativeDate.name(recording.start, grouped: true)
     }
 
     private var subtitle: String {

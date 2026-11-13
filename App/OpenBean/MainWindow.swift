@@ -479,7 +479,7 @@ struct OverviewView: View {
                 Button { model.nav.show(recording: r.id, in: library) } label: {
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(r.title?.isEmpty == false ? r.title! : r.start.formatted(.dateTime.month().day().hour().minute())).font(.callout.weight(.medium)).lineLimit(1)
+                            Text(r.title?.isEmpty == false ? r.title! : RelativeDate.name(r.start)).font(.callout.weight(.medium)).lineLimit(1)
                             Text(recentStatus(r)).font(.caption).foregroundStyle(library.transcribing[r.id] != nil ? Color.accentColor : .secondary)
                         }
                         Spacer()
