@@ -311,7 +311,6 @@ Not planned: gestures on the recorder's button. The button only reports start an
 
 Known gaps:
 
-- The "put back into the case" sync trigger follows community notes and has not been confirmed on hardware yet.
 - Ending voice typing or *Stop recording* now pauses and then stops the recorder (`18/82 00`), so the file is closed
   and the next session starts a new one; after voice typing the app then deletes that file (if the setting is on and
   every safety check passes). Verified on hardware as pause → stop (the recorder's blinking yellow light goes out within
