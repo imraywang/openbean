@@ -11,7 +11,7 @@ import Security
 enum AppPaths {
     static let support: URL = {
         let u = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent(Flavor.isDev ? "openbean-dev" : "openbean")
+            .appendingPathComponent(Flavor.dataFolder)
         try? FileManager.default.createDirectory(at: u, withIntermediateDirectories: true)
         return u
     }()
@@ -79,6 +79,10 @@ enum Keychain {
     }
 
     static func get(_ account: String) -> String? {
+        #if DEMO || DEBUG
+        // 演示版、预览不碰钥匙串（服务名和正式版、开发版相同，读了会弹授权框）
+        if Flavor.isFake { return nil }
+        #endif
         var q = query(account)
         q[kSecReturnData as String] = true
         var out: CFTypeRef?
@@ -87,6 +91,9 @@ enum Keychain {
     }
 
     static func set(_ value: String, for account: String) {
+        #if DEMO || DEBUG
+        if Flavor.isFake { return }
+        #endif
         SecItemDelete(query(account) as CFDictionary)
         guard !value.isEmpty else { return }
         var q = query(account)
@@ -99,7 +106,7 @@ enum Keychain {
 /// 设置（UserDefaults）
 @MainActor @Observable
 final class Settings {
-    private let d = UserDefaults.standard
+    private let d = Flavor.defaults
     var typeIntoApp: Bool { didSet { d.set(typeIntoApp, forKey: "typeIntoApp") } }
     var polishEnabled: Bool { didSet { d.set(polishEnabled, forKey: "polishEnabled") } }
     var polishEndpoint: String { didSet { d.set(polishEndpoint, forKey: "polishEndpoint") } }
@@ -181,7 +188,12 @@ final class Settings {
 
 /// 用键盘事件把文字打进当前焦点所在的应用（需要辅助功能权限）。
 enum Typist {
-    static var trusted: Bool { AXIsProcessTrusted() }
+    static var trusted: Bool {
+        #if DEMO || DEBUG
+        if Flavor.isFake { return DemoState.trustedValue }
+        #endif
+        return AXIsProcessTrusted()
+    }
 
     static func requestTrust() {
         let key = kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String
@@ -266,8 +278,32 @@ enum Typist {
 /// 可以装在同一台机器上互不影响。开发版不自动更新，免得被正式包覆盖。
 enum Flavor {
     static let isDev = Bundle.main.bundleIdentifier?.hasSuffix(".dev") ?? false
+    #if DEMO
+    /// 演示版（OPENBEAN_FLAVOR=demo bin/build-app，编译条件 DEMO）：假数据、不碰蓝牙，截界面用，见 Demo.swift
+    static let isDemo = true
+    static let isPreview = false
+    static let schemes: Set<String> = ["openbean-demo"]
+    static let dataFolder = DemoState.dataFolder
+    #else
+    static let isDemo = false
+    #if DEBUG
+    /// Xcode 预览（Previews.swift）：和演示版用同一套假数据（数据目录 openbean-preview），不碰蓝牙和钥匙串
+    static let isPreview = ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] != nil
+    #else
+    static let isPreview = false
+    #endif
     /// 这个 App 认的链接前缀。开发版也认 openbean://，这样已有的笔记链接和快捷指令照常能用
     static let schemes: Set<String> = isDev ? ["openbean-dev", "openbean"] : ["openbean"]
+    static let dataFolder = isPreview ? "openbean-preview" : isDev ? "openbean-dev" : "openbean"
+    #endif
+    /// 用假数据（演示版、Xcode 预览）
+    static var isFake: Bool { isDemo || isPreview }
+    /// 设置存在哪：预览和 Debug 版同一个应用标识（dev.openbean.app），不能写进正式版的设置
+    static let defaults: UserDefaults = isPreview ? UserDefaults(suiteName: "dev.openbean.preview") ?? .standard : .standard
+    /// 开发版、演示版、预览不自动更新
+    static var updates: Bool { !isDev && !isFake }
+    /// 菜单栏图标旁的小标记：开发版 D，演示版 DEMO
+    static var badge: String? { isDemo ? "DEMO" : isDev ? "D" : nil }
 }
 
 /// 全局快捷键（Carbon 热键，不需要额外权限）

@@ -10,7 +10,7 @@ import Sparkle
 /// appcast.xml 由 bin/release 签名 DMG 后写入仓库根目录。
 @MainActor @Observable
 final class Updater: NSObject {
-    /// 开发版不建更新器：它不该被正式包覆盖
+    /// 开发版、演示版不建更新器：它不该被正式包覆盖
     @ObservationIgnored private var controller: SPUStandardUpdaterController?
     @ObservationIgnored private var watch: AnyCancellable?
 
@@ -25,7 +25,7 @@ final class Updater: NSObject {
 
     override init() {
         super.init()
-        guard !Flavor.isDev else { return }
+        guard Flavor.updates else { return }
         // startingUpdater: true 即启动时开始按计划在后台检查
         let c = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: self)
         controller = c

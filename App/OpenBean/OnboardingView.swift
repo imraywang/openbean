@@ -5,12 +5,18 @@ import SwiftUI
 /// 首次启动：连接录音豆 → 下载语音模型 → 打字权限 → 试一试
 struct OnboardingView: View {
     let model: AppModel
-    @State private var step = 0
+    @State private var step: Int
     @State private var trusted = Typist.trusted
     @State private var tryText = ""
     @Environment(\.dismissWindow) private var dismiss
     private let tick = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
     private let steps = 5
+
+    /// step：从第几步开始（预览用；正常都从 0 开始）
+    init(model: AppModel, step: Int = 0) {
+        self.model = model
+        _step = State(initialValue: step)
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -50,6 +56,9 @@ struct OnboardingView: View {
         }
         .frame(width: 560, height: 420)
         .onReceive(tick) { _ in trusted = Typist.trusted }
+        #if DEMO
+        .onChange(of: DemoState.shared.onboardingStep, initial: true) { _, s in step = s; trusted = Typist.trusted }
+        #endif
     }
 
     private func header(_ icon: String, _ title: LocalizedStringKey, _ text: LocalizedStringKey) -> some View {
@@ -74,6 +83,7 @@ struct OnboardingView: View {
                 Label("Sync recordings to your Mac and get searchable transcripts.", systemImage: "music.note.list")
                 Label("Speech is recognised on this Mac, offline.", systemImage: "lock")
             }
+            .labelStyle(FixedIconLabel())
         }
     }
 
@@ -88,7 +98,7 @@ struct OnboardingView: View {
                     Text("Connected to \(model.device.deviceName)")
                 case let .failed(e):
                     ProgressView().controlSize(.small)
-                    Text("Still looking… \(e)").foregroundStyle(.secondary)
+                    Text("Still looking… \(model.device.problem?.advice ?? e)").foregroundStyle(.secondary)
                 default:
                     ProgressView().controlSize(.small)
                     Text("Searching…").foregroundStyle(.secondary)
@@ -128,6 +138,16 @@ struct OnboardingView: View {
                 .font(.body)
                 .frame(height: 110)
                 .overlay(RoundedRectangle(cornerRadius: 6).stroke(.quaternary))
+        }
+    }
+}
+
+/// 图标列固定宽度：几个图标宽窄不一，文字也能左对齐
+private struct FixedIconLabel: LabelStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            configuration.icon.frame(width: 22, alignment: .center)
+            configuration.title
         }
     }
 }

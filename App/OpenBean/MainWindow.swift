@@ -81,7 +81,7 @@ struct MainView: View {
         case .library: LibraryPage(model: model)
         case .dictation: DictationHistoryView(log: model.log, settings: model.settings)
         case .recorder:
-            DeviceView(device: model.device, dictation: model.dictation)
+            DeviceView(device: model.device, dictation: model.dictation, library: model.library)
                 .navigationTitle("Recorder")
         case .settings: SettingsPage(model: model)
         }
@@ -131,10 +131,13 @@ struct NavSidebar: View {
         }
     }
 
+    /// 侧栏数字只数要处理的：还在录音豆上没下载、或下载了还没转写的录音（0 不显示）
     private func badge(_ s: MainSection) -> Int {
         switch s {
-        case .library: return model.library.recordings.filter { !$0.isDictation }.count
-        case .dictation: return model.log.entries.count
+        case .library:
+            return model.library.recordings.filter { r in
+                !r.isDictation && ((r.onDevice && !r.downloaded) || (r.downloaded && !r.transcribed))
+            }.count
         default: return 0
         }
     }
@@ -151,7 +154,7 @@ struct DeviceFooter: View {
             Divider().padding(.horizontal, -12)
             Button(action: open) {
                 HStack(spacing: 8) {
-                    Circle().fill(device.isReady ? Color.accentColor : Color.secondary.opacity(0.5)).frame(width: 7, height: 7)
+                    Circle().fill(device.isReady ? Color.green : Color.secondary.opacity(0.5)).frame(width: 7, height: 7)
                     VStack(alignment: .leading, spacing: 1) {
                         Text(device.deviceName).font(.callout.weight(.medium)).lineLimit(1)
                         Text(DeviceFooter.status(device, library)).font(.caption).foregroundStyle(.secondary).lineLimit(1)
@@ -210,7 +213,16 @@ struct SyncStatus: View {
         case let .failed(e):
             Text("Sync failed: \(e)").font(.caption2).foregroundStyle(.red).lineLimit(2)
         case .idle:
-            if compact {
+            if !device.isReady {
+                // 没连上时不放一个点不动的同步按钮：说清楚新录音还在录音豆上、连上后才能同步
+                if pending > 0 {
+                    Text("\(pending) new recordings are on the recorder. Sync them once it connects.")
+                        .font(.caption2).foregroundStyle(.secondary)
+                        .multilineTextAlignment(compact ? .leading : .trailing)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: compact ? .infinity : 220, alignment: compact ? .leading : .trailing)
+                }
+            } else if compact {
                 if pending > 0 {
                     Button { Task { await library.syncAll() } } label: {
                         Label("Sync \(pending) new", systemImage: "arrow.triangle.2.circlepath").frame(maxWidth: .infinity)
@@ -257,7 +269,45 @@ struct LibraryPage: View {
 
     var body: some View {
         let library = model.library
-        HStack(spacing: 0) {
+        Group {
+            // 一条录音都没有：整页一个空状态（不再左边「没有录音」、右边「选择一条录音」）
+            if library.recordings.allSatisfy(\.isDictation) {
+                emptyLibrary
+            } else {
+                columns
+            }
+        }
+        .searchable(text: $query, placement: .toolbar, prompt: "Search titles and transcripts")
+        #if DEMO || DEBUG
+        .onChange(of: DemoState.shared.query, initial: true) { _, q in query = q }
+        #endif
+        .navigationTitle("Library")
+        .onAppear {
+            // 第一次进来默认选最近一条
+            if library.selection == nil { library.selection = library.visible.first?.id }
+        }
+    }
+
+    private var emptyLibrary: some View {
+        let device = model.device
+        return ContentUnavailableView {
+            Label("No recordings yet", systemImage: "waveform")
+        } description: {
+            Text(device.isReady
+                 ? "Recordings you make on the recorder show up here after you sync them to this Mac."
+                 : "Take the recorder out of its case to connect. Its recordings show up here after you sync them.")
+        } actions: {
+            if device.isReady {
+                Button("Sync") { Task { await model.library.syncAll() } }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(device.activity != .idle)
+            }
+        }
+    }
+
+    private var columns: some View {
+        let library = model.library
+        return HStack(spacing: 0) {
             RecordingList(library: library, nav: model.nav,
                           selection: Binding(get: { library.selection }, set: { library.selection = $0 }),
                           query: $query)
@@ -271,12 +321,6 @@ struct LibraryPage: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
-        .searchable(text: $query, placement: .toolbar, prompt: "Search titles and transcripts")
-        .navigationTitle("Library")
-        .onAppear {
-            // 第一次进来默认选最近一条
-            if library.selection == nil { library.selection = library.visible.first?.id }
         }
     }
 }
@@ -328,13 +372,18 @@ struct OverviewView: View {
     private var content: some View {
         VStack(alignment: .leading, spacing: 16) {
             hero
-            tiles
-            HStack(alignment: .top, spacing: 12) {
-                ActivityChart(recordings: recordings, log: model.log)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                recent.frame(minWidth: 260, maxWidth: 380, maxHeight: .infinity)
+            if recordings.isEmpty && model.log.entries.isEmpty {
+                // 还什么都没有：不摆一排 0 和空图表，告诉人从哪开始
+                gettingStarted.frame(maxHeight: .infinity, alignment: .top)
+            } else {
+                tiles
+                HStack(alignment: .top, spacing: 12) {
+                    ActivityChart(recordings: recordings, log: model.log)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    recent.frame(minWidth: 260, maxWidth: 380, maxHeight: .infinity)
+                }
+                .frame(minHeight: 280, maxHeight: .infinity)
             }
-            .frame(minHeight: 280, maxHeight: .infinity)
             statusStrip
         }
         .padding(24)
@@ -349,7 +398,8 @@ struct OverviewView: View {
         // 两行：上面是设备和同步，下面三个数平分宽度，窗口窄时也不会挤出去
         return VStack(alignment: .leading, spacing: 18) {
             HStack(spacing: 14) {
-                BeanBadge(size: 44, color: device.isReady ? .accentColor : .white.opacity(0.15))
+                // 没连上时用不透明的灰底：半透明的底会让镂空的声波看不见，只剩一团白色豆子
+                BeanBadge(size: 44, color: device.isReady ? .accentColor : Color(white: 0.42))
                 VStack(alignment: .leading, spacing: 3) {
                     Text(device.deviceName).font(.headline)
                     Text(heroStatus(info)).font(.caption).foregroundStyle(.white.opacity(0.7)).lineLimit(1)
@@ -368,8 +418,15 @@ struct OverviewView: View {
                                note: pending > 0 ? Text("\(pending) not synced") : Text("All synced"))
                 }
             } else {
-                Text(device.isReady ? "Reading the recorder…" : "Take the recorder out of its case to connect.")
-                    .font(.callout).foregroundStyle(.white.opacity(0.7))
+                if case .failed = device.state, let p = device.problem {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(p.title).font(.callout.weight(.semibold))
+                        Text(p.advice).font(.callout).foregroundStyle(.white.opacity(0.7))
+                    }
+                } else {
+                    Text(device.isReady ? "Reading the recorder…" : "Take the recorder out of its case to connect.")
+                        .font(.callout).foregroundStyle(.white.opacity(0.7))
+                }
             }
         }
         .foregroundStyle(.white)
@@ -418,33 +475,65 @@ struct OverviewView: View {
             if list.isEmpty {
                 Text("No recordings yet").foregroundStyle(.secondary).padding(.vertical, 8)
             }
-            // 卡片多高就露出多少条，其余在卡片里滚动
-            ScrollView {
-            LazyVStack(alignment: .leading, spacing: 0) {
-            ForEach(Array(list.enumerated()), id: \.element.id) { i, r in
+            // 卡片多高就放几条整行（不露半行），其余去「查看全部」
+            GeometryReader { geo in
+            let n = max(1, min(list.count, Int((geo.size.height + 1) / (Self.recentRow + 1))))
+            VStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(list.prefix(n).enumerated()), id: \.element.id) { i, r in
                 Button { model.nav.show(recording: r.id, in: library) } label: {
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(r.title?.isEmpty == false ? r.title! : r.start.formatted(.dateTime.month().day().hour().minute())).font(.callout.weight(.medium)).lineLimit(1)
+                            Text(r.title?.isEmpty == false ? r.title! : RelativeDate.name(r.start)).font(.callout.weight(.medium)).lineLimit(1)
                             Text(recentStatus(r)).font(.caption).foregroundStyle(library.transcribing[r.id] != nil ? Color.accentColor : .secondary)
                         }
                         Spacer()
                         Text(LibraryStore.clock(r.duration)).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
                     }
-                    .padding(.vertical, 7)
+                    .frame(height: Self.recentRow)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                if i < list.count - 1 { Divider() }
+                if i < n - 1 { Divider() }
             }
             }
             }
-            .scrollIndicators(.never)
             .frame(minHeight: 120, idealHeight: 240, maxHeight: .infinity)
         }
         .padding(16)
         .frame(maxHeight: .infinity, alignment: .top)
         .background(RoundedRectangle(cornerRadius: 12).strokeBorder(.separator))
+    }
+
+    /// 最近录音一行的高度（两行字加上下留白）
+    private static let recentRow: CGFloat = 46
+
+    // 第一次用：三步入门
+    private var gettingStarted: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Getting started").font(.headline)
+            step(done: device.isReady, number: 1, title: "Connect your recorder",
+                 detail: "Take it out of its case. OpenBean finds it over Bluetooth.")
+            step(done: !model.log.entries.isEmpty, number: 2, title: "Try voice typing",
+                 detail: "Press the recorder's button, speak, then press it again. The text goes where your cursor is.")
+            step(done: !recordings.isEmpty, number: 3, title: "Sync your first recording",
+                 detail: "Recordings made on the recorder come to this Mac and are transcribed here.")
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 12).strokeBorder(.separator))
+    }
+
+    private func step(done: Bool, number: Int, title: LocalizedStringKey, detail: LocalizedStringKey) -> some View {
+        Label {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).fontWeight(.medium)
+                Text(detail).font(.callout).foregroundStyle(.secondary)
+            }
+        } icon: {
+            Image(systemName: done ? "checkmark.circle.fill" : "\(number).circle")
+                .foregroundStyle(done ? Color.green : Color.secondary)
+                .font(.title3)
+        }
     }
 
     private func recentStatus(_ r: Recording) -> String {

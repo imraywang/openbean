@@ -89,6 +89,19 @@ permissions. macOS asks for **Bluetooth**; to type into other apps OpenBean also
 
 To work on the app in Xcode: `cd App && xcodegen generate && open OpenBean.xcodeproj`.
 
+**Demo build and UI screenshots.** `OPENBEAN_FLAVOR=demo bin/build-app` builds **OpenBean Demo**
+(`dev.openbean.app.demo`, data in `~/Library/Application Support/openbean-demo`, only `openbean-demo://` links) with
+the `DEMO` compile condition: a fixed set of made-up recordings, transcripts and summaries, and a fake recorder.
+It never starts Bluetooth, loads speech models, calls an LLM or touches the keychain, so it can run next to your
+everyday copy. Switch its state with links such as `openbean-demo://demo/state/syncing` or
+`openbean-demo://demo/hud/listening` (the full list is at the top of `App/OpenBean/Demo.swift`).
+`bin/ui-shots [folder]` builds it, steps through every page and state in light and dark, saves window screenshots
+(default `.build/ui-shots`) and writes a contact sheet, `index.html`. It needs Screen Recording permission for the
+terminal it runs in, and brings the demo windows to the front for a minute or two.
+The same made-up data feeds the SwiftUI previews in `App/OpenBean/Previews.swift` (Debug builds only): open the
+project in Xcode, open that file and pick a preview in the canvas. Previews keep their data in
+`Application Support/openbean-preview` and never start Bluetooth, the shortcut or the updater.
+
 **Releases** are built with `bin/release`: Developer ID signing with the hardened runtime (Sparkle's nested helpers
 included), a DMG, notarization and stapling, then an EdDSA signature for Sparkle and a new item in `appcast.xml`
 (`bin/release --no-notarize` skips notarization and writes the appcast only to `.build/release/`). It needs the
@@ -441,6 +454,15 @@ bin/build-app && open ".build/OpenBean Dev.app"
 
 编出来的是 **OpenBean Dev**，和正式版是两个 App：应用标识、数据目录（`Application Support/openbean-dev`）、系统权限都分开，
 菜单栏图标旁有个小 D，不自动更新，可以和正式版装在同一台机器上。两个不要同时开，否则都会连录音豆、都响应按键。
+
+**演示版和界面截图**：`OPENBEAN_FLAVOR=demo bin/build-app` 编出 **OpenBean Demo**（`dev.openbean.app.demo`，数据在
+`Application Support/openbean-demo`，只认 `openbean-demo://`），编译条件 `DEMO`：一套虚构的录音、转写和摘要，一个假的录音豆；
+不开蓝牙、不加载语音模型、不调用大模型、不碰钥匙串，可以和日常用的那份同时运行。用 `openbean-demo://demo/state/syncing`、
+`openbean-demo://demo/hud/listening` 这类链接切状态（完整列表在 `App/OpenBean/Demo.swift` 开头）。
+`bin/ui-shots [目录]` 编译演示版，浅色、深色各把每个页面和状态截一遍（默认放 `.build/ui-shots`），并生成联系表 `index.html`。
+运行它的终端需要「屏幕与系统录音」权限；截图的一两分钟里演示版窗口会弹到前台。
+同一套假数据也用在 SwiftUI 预览里（`App/OpenBean/Previews.swift`，只在 Debug 构建里）：用 Xcode 打开工程、打开这个文件，在画布里选预览。
+预览的数据放在 `Application Support/openbean-preview`，不开蓝牙、不注册快捷键、不检查更新。
 
 首次启动有设置向导：连接录音豆、下载语音模型（约 240 MB）、授予权限。打字进其他 App 需要在「系统设置 → 隐私与安全性 → 辅助功能」
 （部分版本叫 Device Control and Data Access）里打开 OpenBean。

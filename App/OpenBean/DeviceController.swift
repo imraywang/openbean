@@ -22,9 +22,16 @@ final class DeviceController {
     private(set) var battery: Int?
     private(set) var deviceName = "soundcore Work"
     private(set) var activity: Activity = .idle
+    /// 最近一次连接失败的原因（state 为 .failed 时有意义），界面据此说人话
+    private(set) var problem: ConnectionProblem?
     /// 听写要用连接时置位，正在进行的同步看到后尽快让出
     private(set) var syncShouldYield = false
+    #if DEMO || DEBUG
+    /// 演示版、预览从不连接：用到才建（建 Link 就会初始化 CoreBluetooth、弹蓝牙权限）
+    @ObservationIgnored lazy var link = Link()
+    #else
     let link = Link()
+    #endif
     private(set) var session: D3200Session?
     /// 设备事件（主线程）
     var onEvent: (DeviceEvent) -> Void = { _ in }
@@ -38,7 +45,11 @@ final class DeviceController {
 
     private let lastDeviceFile = AppPaths.support.appendingPathComponent("last-device.txt")
 
+    #if DEMO || DEBUG
+    var isReady: Bool { state == .ready && (session != nil || Flavor.isFake) }
+    #else
     var isReady: Bool { state == .ready && session != nil }
+    #endif
 
     func start() {
         guard loop == nil else { return }
@@ -52,6 +63,9 @@ final class DeviceController {
 
     /// 忘掉这台设备：下次重新扫描
     func forget() {
+        #if DEMO || DEBUG
+        if Flavor.isFake { return }
+        #endif
         try? FileManager.default.removeItem(at: lastDeviceFile)
         link.disconnect()
     }
@@ -80,6 +94,7 @@ final class DeviceController {
                 return
             } catch {
                 state = .failed("\(error)")
+                problem = ConnectionProblem(error)
                 Log.write("连接失败（\(delay) 秒后重试）：\(error)")
                 try? await Task.sleep(nanoseconds: delay * 1_000_000_000)
                 delay = min(delay * 2, 30)
@@ -190,6 +205,17 @@ final class DeviceController {
                   + "recorder=\(Self.field(battery))")
     }
 
+    #if DEMO || DEBUG
+    /// 演示版、预览：直接摆出一种连接状态
+    func demoApply(state: State, info: DeviceInfo?, activity: Activity, problem: ConnectionProblem? = nil) {
+        self.state = state
+        self.problem = problem
+        self.info = info
+        battery = info?.micBattery
+        self.activity = activity
+    }
+    #endif
+
     // MARK: 连接仲裁
 
     /// 听写开始：同步要让出连接
@@ -232,6 +258,61 @@ final class DeviceController {
             Log.write("已结束录音" + (id.map { "（1A/0A file=\($0)）" } ?? "（没等到 1A/0A）"))
         } catch {
             Log.write("结束录音失败：\(error)")
+        }
+    }
+}
+
+/// 连接失败的原因，给人看的说法和下一步。只是把 Link 抛出的错误归类，不影响连接流程；原始错误照旧写日志
+enum ConnectionProblem: Equatable {
+    case bluetoothOff, noPermission, notFound, lost, other
+
+    init(_ error: Error) {
+        switch error as? LinkError {
+        // 这两句是 Link.stateName 的开头
+        case let .bluetooth(s)?: self = s.hasPrefix("没有蓝牙权限") ? .noPermission : s.hasPrefix("蓝牙已关闭") ? .bluetoothOff : .other
+        // 「GATT 服务」「写特征」是连上了但不像录音豆
+        case let .missing(s)?: self = s.hasPrefix("GATT") || s.hasPrefix("写特征") ? .other : .notFound
+        case .timeout?, .disconnected?: self = .lost
+        case nil: self = .other
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .bluetoothOff: return String(localized: "Bluetooth is off")
+        case .noPermission: return String(localized: "OpenBean isn't allowed to use Bluetooth")
+        case .notFound: return String(localized: "Can't find your recorder")
+        case .lost: return String(localized: "The connection dropped")
+        case .other: return String(localized: "Couldn't connect to the recorder")
+        }
+    }
+
+    var advice: String {
+        switch self {
+        case .bluetoothOff: return String(localized: "Turn on Bluetooth in Control Center or System Settings. OpenBean connects as soon as it's on.")
+        case .noPermission: return String(localized: "Turn on OpenBean in System Settings → Privacy & Security → Bluetooth.")
+        case .notFound: return String(localized: "Take the recorder out of its case, or press the button on the case to wake it. OpenBean keeps looking.")
+        case .lost: return String(localized: "Keep the recorder near this Mac. OpenBean reconnects by itself.")
+        case .other: return String(localized: "OpenBean keeps trying. If it doesn't connect in a minute, put the recorder back in its case and take it out again.")
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .bluetoothOff, .noPermission: return "antenna.radiowaves.left.and.right.slash"
+        case .notFound: return "magnifyingglass"
+        case .lost, .other: return "exclamationmark.triangle"
+        }
+    }
+
+    /// 能帮上忙的系统设置页
+    var settings: (label: String, url: URL)? {
+        switch self {
+        case .bluetoothOff:
+            return (String(localized: "Open Bluetooth Settings"), URL(string: "x-apple.systempreferences:com.apple.Bluetooth-Settings.extension")!)
+        case .noPermission:
+            return (String(localized: "Open Privacy Settings"), URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Bluetooth")!)
+        default: return nil
         }
     }
 }

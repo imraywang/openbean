@@ -141,6 +141,21 @@ struct RecordingList: View {
     }
 }
 
+/// 没有标题的录音怎么称呼（列表、概览共用）：今天只写时间；昨天写「昨天」加时间（列表里组标题已经写了就只写时间）；
+/// 一周内写星期几加时间；今年写月日加时间；更早的才带年份
+enum RelativeDate {
+    static func name(_ d: Date, grouped: Bool = false, now: Date = Date()) -> String {
+        let cal = Calendar.current
+        let time = d.formatted(date: .omitted, time: .shortened)
+        if cal.isDateInToday(d) { return time }
+        if cal.isDateInYesterday(d) { return grouped ? time : String(localized: "Yesterday \(time)") }
+        let days = cal.dateComponents([.day], from: cal.startOfDay(for: d), to: cal.startOfDay(for: now)).day ?? 99
+        if days < 7 { return d.formatted(.dateTime.weekday(.abbreviated).hour().minute()) }
+        if cal.isDate(d, equalTo: now, toGranularity: .year) { return d.formatted(.dateTime.month().day().hour().minute()) }
+        return d.formatted(date: .abbreviated, time: .shortened)
+    }
+}
+
 struct RecordingRow: View {
     let recording: Recording
     let snippet: String?
@@ -163,8 +178,8 @@ struct RecordingRow: View {
 
     private var title: String {
         if let t = recording.title, !t.isEmpty { return t }
-        return recording.start.formatted(date: Calendar.current.isDateInToday(recording.start) || Calendar.current.isDateInYesterday(recording.start) ? .omitted : .abbreviated,
-                                         time: .shortened)
+        // 列表按今天 / 昨天 / 本周 / 月分了组，组标题已经说了是哪天
+        return RelativeDate.name(recording.start, grouped: true)
     }
 
     private var subtitle: String {
@@ -243,6 +258,9 @@ struct RecordingDetail: View {
         .onAppear {
             title = recording.title ?? ""
             if recording.downloaded { player.load(library.audioURL(recording.id)) }
+            #if DEMO || DEBUG
+            if Flavor.isFake { player.demoDuration(recording.duration) } // 演示版、预览没有音频，时长按录音算
+            #endif
         }
         .task(id: recording.downloaded) { await library.loadPeaks(recording.id) }
         .onChange(of: recording.downloaded) { _, now in if now { player.load(library.audioURL(recording.id)) } }
@@ -363,7 +381,8 @@ struct RecordingDetail: View {
                 Button("Download over Bluetooth") { Task { await library.syncAll(ids: [recording.id]) } }
                     .buttonStyle(.borderedProminent)
                     .disabled(!device.isReady || device.activity != .idle)
-                Text("about \(LibraryStore.clock(recording.duration / 1.9))").font(.caption).foregroundStyle(.secondary)
+                // 和侧栏、概览的「蓝牙约需 N 分钟」同一套算法和说法
+                Text("About \(SyncStatus.phrase(library.downloadSeconds(recording))) over Bluetooth").font(.caption).foregroundStyle(.secondary)
             }
             if recording.duration > 600 {
                 Button("Download over Wi‑Fi (faster)…") { confirmWifi = true }
@@ -407,6 +426,10 @@ final class PlayerModel {
         audio?.prepareToPlay()
         duration = audio?.duration ?? 0
     }
+
+    #if DEMO || DEBUG
+    func demoDuration(_ d: Double) { if audio == nil { duration = d } }
+    #endif
 
     func toggle() { playing ? pause() : play(from: nil) }
 

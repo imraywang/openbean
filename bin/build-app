@@ -12,16 +12,21 @@ security find-identity -p codesigning 2>/dev/null | grep -q "\"$SIGN_ID\"" || SI
 # 默认编「开发版」OpenBean Dev：应用标识、数据目录（Application Support/openbean-dev）、链接前缀都和正式版分开，
 # 两个可以装在同一台机器上；开发版不自动更新。要编和正式版同一身份的包：OPENBEAN_FLAVOR=release bin/build-app
 FLAVOR="${OPENBEAN_FLAVOR:-dev}"
+# 演示版 OpenBean Demo（OPENBEAN_FLAVOR=demo）：编译条件 DEMO，假数据、不碰蓝牙，截界面用（见 App/OpenBean/Demo.swift、bin/ui-shots）。
+# 单独的 derivedData，不和开发版的编译缓存互相冲掉
+DERIVED=App/build; EXTRA=()
 if [[ "$FLAVOR" == dev ]]; then BUNDLE_ID=dev.openbean.app.dev; OUT=".build/OpenBean Dev.app"
+elif [[ "$FLAVOR" == demo ]]; then BUNDLE_ID=dev.openbean.app.demo; OUT=".build/OpenBean Demo.app"
+  DERIVED=App/build-demo; EXTRA=(SWIFT_ACTIVE_COMPILATION_CONDITIONS=DEMO)
 else BUNDLE_ID=dev.openbean.app; OUT=.build/OpenBean.app; fi
 # 下载 Sparkle 等公开包不需要凭据；不加 netrc 的话 xcodebuild 会去钥匙串查 github.com 的密码，弹窗卡住
 xcodebuild -project App/OpenBean.xcodeproj -scheme OpenBean -configuration Release \
-  -derivedDataPath App/build CODE_SIGN_IDENTITY="$SIGN_ID" PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID" \
+  -derivedDataPath "$DERIVED" CODE_SIGN_IDENTITY="$SIGN_ID" PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID" "${EXTRA[@]}" \
   -packageAuthorizationProvider netrc -quiet build
 rm -rf "$OUT"
 mkdir -p .build
 # 移动而不是拷贝：留在 App/build 里的那份同名 App 会被系统登记，openbean:// 链接可能交给它而不是正在运行的这份
-mv App/build/Build/Products/Release/OpenBean.app "$OUT"
+mv "$DERIVED/Build/Products/Release/OpenBean.app" "$OUT"
 # 只读 MCP 服务 openbean-mcp（Swift 包里的独立可执行文件）放进 Contents/Helpers。
 # 单独的编译目录：不和 swift build 默认的 .build/release 混在一起
 swift build -c release --arch arm64 --product openbean-mcp --scratch-path App/build/mcp -q
@@ -35,6 +40,13 @@ if [[ "$FLAVOR" == dev ]]; then
   /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName 'OpenBean Dev'" -c "Set :CFBundleName 'OpenBean Dev'" \
     -c "Set :CFBundleURLTypes:0:CFBundleURLName $BUNDLE_ID" \
     -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes:0 string openbean-dev" \
+    -c "Set :SUEnableAutomaticChecks false" "$PL"
+elif [[ "$FLAVOR" == demo ]]; then
+  # 只认 openbean-demo://（替换掉 openbean，免得抢正式版、开发版的链接）；不自动更新
+  PL="$OUT/Contents/Info.plist"
+  /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName 'OpenBean Demo'" -c "Set :CFBundleName 'OpenBean Demo'" \
+    -c "Set :CFBundleURLTypes:0:CFBundleURLName $BUNDLE_ID" \
+    -c "Set :CFBundleURLTypes:0:CFBundleURLSchemes:0 openbean-demo" \
     -c "Set :SUEnableAutomaticChecks false" "$PL"
 fi
 # 加了 Helpers 里的文件（开发版还改了 Info.plist），用同一个证书重签整个 App

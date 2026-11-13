@@ -6,5 +6,6 @@
 Vendor/
 App/OpenBean.xcodeproj/
 App/build/
+App/build-demo/
 App/build-release/
 __pycache__/

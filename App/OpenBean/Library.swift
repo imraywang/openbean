@@ -52,6 +52,11 @@ final class LibraryStore {
         set { UserDefaults.standard.set(newValue, forKey: "bluetoothBytesPerSecond") }
     }
     /// 把还没下载的录音都经蓝牙下完大约要多少秒；没有要下的返回 nil
+    /// 把一条录音经蓝牙下完大约要多少秒（和 pendingSyncSeconds 同一套算法）
+    func downloadSeconds(_ r: Recording) -> Double {
+        SyncEstimate.seconds(bytes: SyncEstimate.audioBytes(durationMs: Double(r.durationMs)), bytesPerSecond: bluetoothRate)
+    }
+
     var pendingSyncSeconds: Double? {
         let ms = pendingDownloads().reduce(0.0) { $0 + Double($1.durationMs) }
         return ms > 0 ? SyncEstimate.seconds(bytes: SyncEstimate.audioBytes(durationMs: ms), bytesPerSecond: bluetoothRate) : nil
@@ -125,6 +130,14 @@ final class LibraryStore {
     func peaks(_ id: UInt32) -> [Float]? { peaksCache[id] }
 
     func loadPeaks(_ id: UInt32) async {
+        #if DEMO || DEBUG
+        // 演示版、预览没有音频文件，只有造好的 peaks.json
+        if Flavor.isFake {
+            if peaksCache[id] == nil, let d = try? Data(contentsOf: folder(id).appendingPathComponent("peaks.json")),
+               let p = try? JSONDecoder().decode([Float].self, from: d) { peaksCache[id] = p }
+            return
+        }
+        #endif
         guard peaksCache[id] == nil, FileManager.default.fileExists(atPath: audioURL(id).path) else { return }
         let cache = folder(id).appendingPathComponent("peaks.json")
         if let d = try? Data(contentsOf: cache), let p = try? JSONDecoder().decode([Float].self, from: d) {
@@ -157,6 +170,15 @@ final class LibraryStore {
         let ref = out.sorted()[min(out.count - 1, Int(Double(out.count) * 0.98))]
         return out.map { min($0 / max(ref, 1e-4), 1) }
     }
+
+    #if DEMO || DEBUG
+    /// 演示版、预览：直接摆出同步和转写进度
+    func demoSet(sync: SyncState, secondsLeft: Double? = nil, transcribing: [UInt32: Double] = [:]) {
+        self.sync = sync
+        syncSecondsLeft = secondsLeft
+        self.transcribing = transcribing
+    }
+    #endif
 
     // MARK: 索引
 

@@ -1,0 +1,236 @@
+#!/bin/zsh
+# 截下演示版 OpenBean Demo 的每个页面和状态（浅色、深色各一套），生成联系表 index.html 和 index.md。
+# 全是假数据（App/OpenBean/Demo.swift），不碰蓝牙、不碰正式版和开发版的数据。
+#
+#   bin/ui-shots [输出目录] [--no-build] [--lang zh-Hans|en] [--only light|dark]
+#
+# 输出目录默认 .build/ui-shots（被 .gitignore 忽略）。没有 .build/OpenBean Demo.app 或者没加 --no-build 时先编译演示版。
+# 需要「屏幕与系统录音」权限（给运行这个脚本的终端 / App）；没有时会提示并退出，不会截出空白图。
+# 截图期间演示版的窗口会弹到前台，别在这一两分钟里打字。
+set -e
+ROOT="${0:A:h:h}"
+cd "$ROOT"
+
+OUT=.build/ui-shots; BUILD=1; LANG_ID=zh-Hans; ONLY=""
+while (( $# )); do
+  case "$1" in
+    --no-build) BUILD=0 ;;
+    --lang) LANG_ID="$2"; shift ;;
+    --only) ONLY="$2"; shift ;;
+    -h|--help) sed -n '2,10p' "$0"; exit 0 ;;
+    *) OUT="$1" ;;
+  esac
+  shift
+done
+
+APP="$ROOT/.build/OpenBean Demo.app"
+BUNDLE_ID=dev.openbean.app.demo
+SUPPORT="$HOME/Library/Application Support"
+HELPER="$ROOT/.build/ui-shots-helper"
+
+# 小帮手：查屏幕录制权限、找菜单窗口
+if [[ ! -x "$HELPER" || "$ROOT/Scripts/ui-shots-helper.swift" -nt "$HELPER" ]]; then
+  mkdir -p .build
+  swiftc -O -o "$HELPER" Scripts/ui-shots-helper.swift
+fi
+if ! "$HELPER" preflight; then
+  cat >&2 <<'EOF'
+没有屏幕录制权限，截出来的窗口会是空白。
+打开「系统设置 → 隐私与安全性 → 屏幕与系统录音」，给运行这个脚本的终端（Terminal、iTerm、Claude 等）打开开关，
+重开那个终端后再运行 bin/ui-shots。
+EOF
+  "$HELPER" request >/dev/null 2>&1 || true
+  exit 2
+fi
+
+if (( BUILD )) || [[ ! -d "$APP" ]]; then OPENBEAN_FLAVOR=demo bin/build-app; fi
+
+mkdir -p "$OUT"
+OUT="${OUT:A}"
+rm -f "$OUT"/*.png(N) "$OUT/manifest.tsv"
+SEQ=0
+ACK=""
+PID=""
+
+quit_demo() {
+  pkill -f "$APP/Contents/MacOS/" 2>/dev/null || true
+  for _ in {1..50}; do pgrep -f "$APP/Contents/MacOS/" >/dev/null || return 0; sleep 0.1; done
+  pkill -9 -f "$APP/Contents/MacOS/" 2>/dev/null || true
+}
+
+# 发一条 openbean-demo://demo/<命令>，等 App 写回同一个 seq
+go() {
+  SEQ=$((SEQ + 1))
+  # 不加 -g：让演示版到前台，截出来的是活动窗口的样子
+  open "openbean-demo://demo/$1?seq=$SEQ"
+  for _ in {1..120}; do
+    if [[ -f "$ACK" ]] && [[ "$(plutil -extract seq raw -o - "$ACK" 2>/dev/null)" == "$SEQ" ]]; then return 0; fi
+    sleep 0.1
+  done
+  echo "演示版没有回应：$1" >&2
+  return 1
+}
+
+win() { plutil -extract "windows.$1" raw -o - "$ACK" 2>/dev/null || true; }
+
+# shot <编号> <名字> <窗口角色> <说明>
+shot() {
+  local id file
+  id=$(win "$3")
+  file="$1-$2-$MODE.png"
+  if [[ -z "$id" ]]; then echo "  没有窗口 $3，跳过 $file" >&2; return 0; fi
+  screencapture -x -o -l "$id" "$OUT/$file"
+  printf '%s\t%s\t%s\t%s\t%s\n' "$1" "$2" "$MODE" "$file" "$4" >> "$OUT/manifest.tsv"
+  echo "  $file"
+}
+
+launch() {
+  quit_demo
+  local dir="$SUPPORT/openbean-demo"
+  [[ "$1" == empty ]] && dir="$SUPPORT/openbean-demo-empty"
+  # 每次都从同一套假数据开始（只删演示版自己的目录和设置）
+  rm -rf "$dir" "$HOME/Library/Saved Application State/$BUNDLE_ID.savedState"
+  defaults delete "$BUNDLE_ID" >/dev/null 2>&1 || true
+  ACK="$dir/demo-ack.json"
+  open -n -g "$APP" --args -demoProfile "$1" -AppleLanguages "($LANG_ID)"
+  sleep 1.5
+  go ping
+  PID=$(plutil -extract pid raw -o - "$ACK")
+}
+
+# 默认数据档：一套假录音，已连接
+pass_default() {
+  go "appearance/$MODE"
+  go "state/connected"
+  go "page/overview"; go "window/main/1180x760"
+  shot 01 overview main "概览（默认尺寸 1180×760）"
+  go "window/main/960x600"
+  shot 02 overview-narrow main "概览（最小尺寸 960×600）"
+  go "window/main/1180x760"
+  go "select/summary";       shot 03 library-summary main "录音库：选中一条有摘要的录音"
+  go "window/main/960x600";  shot 04 library-summary-narrow main "录音库：最小尺寸"
+  go "window/main/1180x760"
+  go "select/untranscribed"; shot 05 library-untranscribed main "录音库：已下载、没转写"
+  go "select/ondevice";      shot 06 library-ondevice main "录音库：还在录音豆上、没下载"
+  go "select/long";          shot 07 library-long main "录音库：两小时的长录音"
+  go "select/none";          shot 08 library-noselection main "录音库：没有选中"
+  go "search/%E5%AE%9A%E4%BB%B7"; shot 09 library-search main "录音库：搜索「定价」"
+  go "search/zzzz";          shot 10 library-search-empty main "录音库：搜索没有结果"
+  go "filter/onRecorder";    shot 11 library-filter-onrecorder main "录音库：筛选「只在录音豆上」"
+  go "filter/dictation";     shot 12 library-filter-dictation main "录音库：筛选「语音输入片段」"
+  go "filter/all"
+  go "page/dictation";       shot 13 voice-typing main "语音输入记录"
+  go "page/recorder";        shot 14 recorder-connected main "录音豆：已连接、空闲"
+  go "state/syncing";        shot 15 recorder-syncing main "录音豆：正在同步（进度和预计时间）"
+  go "page/overview";        shot 16 overview-syncing main "概览：正在同步、正在转写"
+  go "select/summary";       shot 17 library-syncing main "录音库：同步中（侧栏底部进度）"
+  go "page/recorder"
+  go "state/dictating";      shot 18 recorder-dictating main "录音豆：正在语音输入"
+  go "state/recording";      shot 19 recorder-recording main "录音豆：正在录音（只录音）"
+  go "state/low-battery";    shot 20 recorder-low-battery main "录音豆：低电量"
+  go "state/charging";       shot 21 recorder-charging main "录音豆：在充电盒里充电"
+  go "state/searching";      shot 22 recorder-searching main "录音豆：搜索中"
+  go "page/overview";        shot 23 overview-searching main "概览：没连上录音豆"
+  go "page/recorder"
+  go "state/failed";         shot 24 recorder-failed main "录音豆：找不到录音豆"
+  go "state/bluetooth-off";  shot 24 recorder-bluetooth-off main "录音豆：蓝牙关闭"
+  go "state/no-permission";  shot 24 recorder-no-permission main "录音豆：没有蓝牙权限"
+  go "page/overview";        shot 24 overview-failed main "概览：连接失败"
+  go "page/recorder"
+  go "state/connected"
+  go "page/settings/voice";   shot 25 settings-voice main "设置：语音输入"
+  go "page/settings/polish";  shot 26 settings-polish main "设置：润色"
+  go "page/settings/library"; shot 27 settings-library main "设置：录音库"
+  go "page/settings/models";  shot 28 settings-models main "设置：模型与关于"
+  go "window/main/960x600";   shot 29 settings-voice-narrow main "设置：最小尺寸"
+  go "window/main/1180x760"
+  go "page/overview"
+  # 菜单栏：图标（各状态）和点开的菜单
+  local rect
+  for st in connected syncing dictating searching; do
+    go "state/$st"
+    rect=$(plutil -extract statusRect raw -o - "$ACK" 2>/dev/null || true)
+    if [[ -n "$rect" ]]; then
+      screencapture -x -R "$rect" "$OUT/30-status-$st-$MODE.png"
+      printf '%s\t%s\t%s\t%s\t%s\n' 30 "status-$st" "$MODE" "30-status-$st-$MODE.png" "菜单栏图标：$st" >> "$OUT/manifest.tsv"
+      echo "  30-status-$st-$MODE.png"
+    fi
+  done
+  go "state/connected"
+  go "menu/open"; sleep 1.2
+  local mid
+  mid=$("$HELPER" menu "$PID" | head -1)
+  if [[ -n "$mid" ]]; then
+    screencapture -x -o -l "$mid" "$OUT/31-menu-$MODE.png"
+    printf '%s\t%s\t%s\t%s\t%s\n' 31 menu "$MODE" "31-menu-$MODE.png" "菜单栏菜单（已连接）" >> "$OUT/manifest.tsv"
+    echo "  31-menu-$MODE.png"
+  else
+    echo "  菜单没打开，跳过 31-menu" >&2
+  fi
+  sleep 5.5 # 菜单 6 秒后自己关
+  # 语音输入悬浮条（固定深色，只在浅色这一遍截）
+  if [[ "$MODE" == light ]]; then
+    local n=40
+    for h in starting listening polishing wrapping typed copied nothing error; do
+      go "hud/$h"; shot $n "hud-$h" hud "语音输入悬浮条：$h"; n=$((n + 1))
+    done
+    go "hud/hidden"
+  fi
+}
+
+# 空数据档：第一次用，没连过录音豆、没下载模型、没有辅助功能权限
+pass_empty() {
+  go "appearance/$MODE"
+  go "trusted/no"
+  local n=50
+  for step in 0 1 2 3 4; do
+    go "onboarding/$step"; shot $n "onboarding-$((step + 1))" onboarding "首次使用向导：第 $((step + 1)) 步"; n=$((n + 1))
+  done
+  go "close/onboarding"
+  go "page/overview"; go "window/main/1180x760"
+  shot 55 empty-overview main "空状态：概览"
+  go "page/library";   shot 56 empty-library main "空状态：录音库"
+  go "page/dictation"; shot 57 empty-voice-typing main "空状态：语音输入记录"
+  go "page/recorder";  shot 58 empty-recorder main "空状态：录音豆（从没连上）"
+  go "page/settings/models"; shot 59 empty-settings-models main "空状态：模型没下载"
+}
+
+trap quit_demo EXIT
+MODES=(light dark)
+[[ -n "$ONLY" ]] && MODES=("$ONLY")
+echo "截图 → $OUT"
+launch default
+for MODE in $MODES; do echo "默认数据 · $MODE"; pass_default; done
+launch empty
+for MODE in $MODES; do echo "空数据 · $MODE"; pass_empty; done
+open -g "openbean-demo://demo/quit"; sleep 1
+quit_demo
+
+# 联系表
+python3 -I - "$OUT" <<'EOF'
+import sys, html, collections
+from pathlib import Path
+out = Path(sys.argv[1])
+rows = [l.split('\t') for l in (out / 'manifest.tsv').read_text().splitlines() if l]
+shots = collections.OrderedDict()
+for num, name, mode, f, cap in rows:
+    shots.setdefault((num, name), {'cap': cap})[mode] = f
+md = ['# OpenBean 界面截图（演示版、假数据）', '']
+for (num, name), s in shots.items():
+    md.append(f"## {num} {name} — {s['cap']}")
+    md += [f"![{m}]({s[m]})" for m in ('light', 'dark') if m in s] + ['']
+(out / 'index.md').write_text('\n'.join(md))
+cards = []
+for (num, name), s in shots.items():
+    imgs = ''.join(f'<a href="{html.escape(s[m])}"><img loading="lazy" src="{html.escape(s[m])}" alt="{m}"><span>{m}</span></a>'
+                   for m in ('light', 'dark') if m in s)
+    cards.append(f'<section><h2>{num} · {html.escape(name)}</h2><p>{html.escape(s["cap"])}</p><div class="pair">{imgs}</div></section>')
+(out / 'index.html').write_text(f'''<!doctype html><meta charset="utf-8"><title>OpenBean UI shots</title>
+<style>body{{font:14px -apple-system,system-ui;margin:24px;background:#f4f4f5;color:#222}}
+@media(prefers-color-scheme:dark){{body{{background:#1c1c1e;color:#eee}}}}
+section{{margin:0 0 28px}}h2{{font-size:15px;margin:0}}p{{margin:2px 0 8px;opacity:.7}}
+.pair{{display:flex;gap:12px;flex-wrap:wrap}}.pair a{{display:block;background:repeating-conic-gradient(#ccc 0 25%,#eee 0 50%) 0 0/16px 16px;padding:6px;border-radius:8px;text-decoration:none;color:inherit}}
+img{{max-width:640px;max-height:420px;display:block}}span{{font-size:11px;opacity:.6}}</style>
+<h1>OpenBean 界面截图</h1><p>演示版（假数据）。点图看原图。</p>{"".join(cards)}''')
+print(f"{len(rows)} 张截图，联系表：{out / 'index.html'}")
+EOF
