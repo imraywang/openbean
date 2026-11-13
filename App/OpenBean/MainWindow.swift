@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import OpenBeanKit
+import OpenBeanLibrary
 import Observation
 import SwiftUI
 
@@ -514,15 +515,18 @@ struct DictationHistoryView: View {
         return String(localized: "Delete \(leftover.count) voice-typing files (\(LibraryStore.clock(total)) in total) from the recorder?")
     }
 
+    /// 按天分组，和「今天」页同一个分天函数（一天从凌晨 4 点算）：凌晨 1 点的语音输入算前一天
     private var sections: [(title: String, items: [DictationEntry])] {
-        let cal = Calendar.current
+        let b = DayBoundary(startHour: settings.dayStartHour)
+        let today = b.day(of: Date()), yesterday = b.day(today, offsetBy: -1)
         var order: [String] = []
         var groups: [String: [DictationEntry]] = [:]
         for e in log.entries {
+            let day = b.day(of: e.date)
             let key: String
-            if cal.isDateInToday(e.date) { key = String(localized: "Today") }
-            else if cal.isDateInYesterday(e.date) { key = String(localized: "Yesterday") }
-            else { key = e.date.formatted(date: .abbreviated, time: .omitted) }
+            if day == today { key = String(localized: "Today") }
+            else if day == yesterday { key = String(localized: "Yesterday") }
+            else { key = day.formatted(date: .abbreviated, time: .omitted) }
             if groups[key] == nil { order.append(key) }
             groups[key, default: []].append(e)
         }

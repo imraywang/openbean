@@ -209,6 +209,8 @@ enum DemoData {
         let items: [(Int, Int, Int, Double, String, String?, Bool)] = [
             (0, 11, 48, 19, "好的，我下午三点前把修改后的方案发到群里，大家有问题直接在文档里评论。", "Slack", false),
             (0, 9, 20, 12, "提醒自己：今天要给刘经理回电话，确认咖啡袋的起订量。", "Notes", false),
+            // 凌晨 1:20：按「一天从 4 点算」归到昨天
+            (0, 1, 20, 6, "睡了，明早再说。", "微信", false),
             (1, 22, 5, 31, "Thanks for the quick turnaround. I left a few comments on the onboarding copy — mostly wording, nothing blocking.", "Mail", false),
             (1, 16, 40, 8, "收到，晚上回复你。", "微信", false),
             (1, 10, 2, 44, "把同步失败的重试逻辑改成指数退避，最多重试五次，每次失败都写日志，最后一次失败要在界面上提示用户。", "Cursor", false),

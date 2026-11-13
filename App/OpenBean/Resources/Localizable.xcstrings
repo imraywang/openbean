@@ -92,16 +92,6 @@
         }
       }
     },
-    "%@ transcribed": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已转写 %@"
-          }
-        }
-      }
-    },
     "%@, %@": {
       "localizations": {
         "zh-Hans": {
@@ -118,26 +108,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "%@，充电中"
-          }
-        }
-      }
-    },
-    "%lld": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld"
-          }
-        }
-      }
-    },
-    "%lld characters": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld 字"
           }
         }
       }
@@ -212,16 +182,6 @@
         }
       }
     },
-    "%lld not synced": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld 条未同步"
-          }
-        }
-      }
-    },
     "%lld notes saved": {
       "localizations": {
         "zh-Hans": {
@@ -252,16 +212,6 @@
         }
       }
     },
-    "%lld on this Mac": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mac 上 %lld 条"
-          }
-        }
-      }
-    },
     "%lld open to-dos": {
       "localizations": {
         "zh-Hans": {
@@ -288,26 +238,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "%1$lld 条录音 · %2$@"
-          }
-        }
-      }
-    },
-    "%lld times": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld 次"
-          }
-        }
-      }
-    },
-    "%lld%%": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld%%"
           }
         }
       }
@@ -442,26 +372,6 @@
         }
       }
     },
-    "All synced": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已全部同步"
-          }
-        }
-      }
-    },
-    "All time": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "全部"
-          }
-        }
-      }
-    },
     "All transcribed recordings have notes": {
       "localizations": {
         "zh-Hans": {
@@ -552,26 +462,6 @@
         }
       }
     },
-    "Button: record only": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "按键：只录音"
-          }
-        }
-      }
-    },
-    "Button: voice typing": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "按键：语音输入"
-          }
-        }
-      }
-    },
     "Can't find your recorder": {
       "localizations": {
         "zh-Hans": {
@@ -588,16 +478,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "充电盒固件"
-          }
-        }
-      }
-    },
-    "Characters typed": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "输入字数"
           }
         }
       }
@@ -1332,16 +1212,6 @@
         }
       }
     },
-    "Firmware %@": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "固件 %@"
-          }
-        }
-      }
-    },
     "For agents (MCP)": {
       "localizations": {
         "zh-Hans": {
@@ -1502,36 +1372,6 @@
         }
       }
     },
-    "LLM clean-up off": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "润色：关"
-          }
-        }
-      }
-    },
-    "LLM clean-up on": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "润色：开"
-          }
-        }
-      }
-    },
-    "Last 14 days": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "最近 14 天"
-          }
-        }
-      }
-    },
     "Let your own AI agent (Claude Code, Claude Desktop, Cursor…) read your recordings: list them by date, read summaries and transcripts, and search what was said.": {
       "localizations": {
         "zh-Hans": {
@@ -1578,16 +1418,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "正在寻找录音豆…"
-          }
-        }
-      }
-    },
-    "Minutes recorded": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "录音分钟"
           }
         }
       }
@@ -1932,16 +1762,6 @@
         }
       }
     },
-    "On the recorder": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "设备上的录音"
-          }
-        }
-      }
-    },
     "On your recorder": {
       "localizations": {
         "zh-Hans": {
@@ -2122,16 +1942,6 @@
         }
       }
     },
-    "Overview": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "概览"
-          }
-        }
-      }
-    },
     "Paste the configuration into your agent's mcpServers settings (Claude Desktop: Settings → Developer → Edit Config), or run the command in Terminal for Claude Code. Read-only: it can't change, delete or record anything, and can't reach audio or voice typing. It runs only while an agent starts it. The transcripts and summaries it reads go to the agent you connect and the model behind it.": {
       "localizations": {
         "zh-Hans": {
@@ -2148,16 +1958,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "停顿与排版"
-          }
-        }
-      }
-    },
-    "Period": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "时间范围"
           }
         }
       }
@@ -2282,26 +2082,6 @@
         }
       }
     },
-    "Reading the recorder…": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "正在读取录音豆…"
-          }
-        }
-      }
-    },
-    "Recent recordings": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "最近录音"
-          }
-        }
-      }
-    },
     "Reconnecting to your usual network…": {
       "localizations": {
         "zh-Hans": {
@@ -2328,16 +2108,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "录制快捷键"
-          }
-        }
-      }
-    },
-    "Recorded": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "录音时长"
           }
         }
       }
@@ -2388,16 +2158,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "录音"
-          }
-        }
-      }
-    },
-    "Recordings": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "录音文件"
           }
         }
       }
@@ -2582,16 +2342,6 @@
         }
       }
     },
-    "See all": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "查看全部"
-          }
-        }
-      }
-    },
     "Select a recording": {
       "localizations": {
         "zh-Hans": {
@@ -2608,16 +2358,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "SenseVoice 和语音检测模型已就绪"
-          }
-        }
-      }
-    },
-    "SenseVoice on this Mac": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "识别：SenseVoice 本地"
           }
         }
       }
@@ -3302,16 +3042,6 @@
         }
       }
     },
-    "This month": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "本月"
-          }
-        }
-      }
-    },
     "This note was edited after OpenBean wrote it.": {
       "localizations": {
         "zh-Hans": {
@@ -3378,16 +3108,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "录音"
-          }
-        }
-      }
-    },
-    "Times recorded": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "录音次数"
           }
         }
       }
@@ -3488,16 +3208,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "下载后自动转写"
-          }
-        }
-      }
-    },
-    "Transcribed": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已转写"
           }
         }
       }
@@ -3638,16 +3348,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "在 Mac 上直接使用你的 soundcore Work 录音豆，不需要官方 App，也不经过云端。"
-          }
-        }
-      }
-    },
-    "Value": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "数值"
           }
         }
       }
@@ -3808,16 +3508,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "不到 1 分钟"
-          }
-        }
-      }
-    },
-    "of %@": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "共 %@"
           }
         }
       }
