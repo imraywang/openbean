@@ -11,21 +11,28 @@ let usage = """
   scan [--all]            扫描附近的录音豆（--all 顺带列出其他有名字的蓝牙设备）
   info                    连接并读取设备信息（只读）
   list                    设备信息 + 录音文件列表（只读）
-  pull [id|latest|shortest|longest] [--max 秒]
-                          ECDH 握手后经 BLE 拉一个文件，解密并封装成 .ogg（默认 shortest）
+  pull [id|latest|shortest|longest] [--max 秒] [--marks] [--offset N] [--resume-test]
+                          ECDH 握手后经 BLE 拉一个文件，解密并封装成 .ogg（默认 shortest）。
+                          真机实验用（都只读）：
+                            --marks        打印每个 1A/12 包、flags 不为 0 的单元，和一行标记摘要
+                            --offset N     1A/07 请求里的 offset 填 N（设备认不认、单位是什么未实测）
+                            --resume-test  断点续传实验：完整拉一遍做基准 → 再拉到一半停 →
+                                           按线上字节 / 解密字节 / 毫秒 / 片数各续传一次，逐片和基准比对。
+                                           结果另存为 resume-test-<id>.txt
   wifi [id|longest|...] [--max 秒]
                           经 Wi‑Fi 热点通道拉文件：让设备开热点 → Mac 临时加入 → WebSocket 拉取
                           → 关热点 → Mac 重连原来的网络。期间 Mac 断网
   watch [秒数] [--handshake] [--time] [--list]
                           只连接和监听，不发控制命令，打印设备主动发来的所有帧（默认 90 秒）。
                           排查用：连上后先做一次加密握手（--handshake）、对时（--time）、读文件列表（--list）
-  live [秒数] [--pause-only] [--then TT/II[:载荷]] [--hold 秒] [--delete-new --yes]
+  live [秒数] [--pause-only] [--then TT/II[:载荷]] [--hold 秒] [--delete-new --yes] [--marks]
                           让录音豆开始录音，实时拉流若干秒（默认 15），然后暂停、再结束录音（18/82 00，收尾文件）。
                           排查用：
                             --pause-only  只暂停不结束（文件还开着，下次开始会续写）
                             --then        停下之后再发一条命令，例如 --then 1A/11:01；载荷是十六进制
                             --hold        发 --then 之前和之后各观察多少秒（默认 20），期间打印收到的帧
                             --delete-new  最后删掉这次新出现的那一个文件（不需要本机副本；要带 --yes）
+                            --marks       同 pull：实时流里的 1A/12 和 flags；另外打印实时流期间收到的所有非 1A/08 帧
   delete <id> --yes [--local 路径 | --dev]
                           ⚠️ 删除录音豆上的一个录音（1A/10，删了不能恢复）。
                           只有本机副本存在、且解码时长和设备上的一致时才删；默认核对 App 录音库里的
@@ -83,6 +90,9 @@ let withHandshake = flag("--handshake"), withTime = flag("--time"), withList = f
 let pauseOnly = flag("--pause-only"), deleteNew = flag("--delete-new")
 let thenArg = option("--then")
 let holdSeconds = option("--hold").flatMap(Double.init) ?? 20
+// 真机实验：重点标记、断点续传
+let showMarks = flag("--marks"), resumeTestMode = flag("--resume-test")
+let pullOffset = option("--offset").flatMap { UInt32($0) }
 let confirmed = args.contains("--yes")
 args.removeAll { $0 == "--yes" }
 guard let command = args.first else { print(usage); exit(0) }
@@ -210,6 +220,18 @@ func parseFrame(_ s: String) throws -> [UInt8] {
     return Frame.encode(type: type, id: id, payload: payload)
 }
 
+/// --marks：传输期间收到的所有非 1A/08 帧都打一行（时间从现在算起），看按键时有没有别的帧
+func watchNonSlicePackets() {
+    let t0 = Date()
+    link.sync {
+        link.onEvent = { p in
+            guard !(Rx.isTransport(p) && p.id == Rx.fileSlice) else { return }
+            say(String(format: "  [%7.2f s] %02X/%02X st=%02X len=%d  %@", Date().timeIntervalSince(t0), p.type, p.id, p.status,
+                       p.raw.count, p.raw.prefix(40).hex + (p.raw.count > 40 ? " …" : "")))
+        }
+    }
+}
+
 func save(_ t: Transfer, tag: String) {
     let base = outDir.appendingPathComponent("\(t.fileId)\(tag)")
     let rawURL = base.appendingPathExtension("opus.raw")
@@ -290,14 +312,30 @@ do {
         }
         guard let file else { throw LinkError.missing("文件 \(which)（共 \(files.count) 条）") }
         say("拉取 \(file.id)（\(fmtDate(file.startDate))，\(fmtDur(file.durationSeconds))，约 \(file.wireBytes / 1024) KB）…")
-        var lastPrint = Date.distantPast
-        let t = try await s.pull(file, maxSeconds: maxSeconds) { got, expected, elapsed in
-            guard Date().timeIntervalSince(lastPrint) > 2 else { return }
-            lastPrint = Date()
+        final class Throttle: @unchecked Sendable { var last = Date.distantPast }
+        let throttle = Throttle()
+        let printer: (Int, Int, Double) async -> Void = { got, expected, elapsed in
+            guard Date().timeIntervalSince(throttle.last) > 2 else { return }
+            throttle.last = Date()
             let pct = expected > 0 ? Double(got) / Double(expected) * 100 : 0
             say(String(format: "  %5.1f%%  %d / %d KB  %.1f KB/s", pct, got / 1024, expected / 1024, Double(got) / 1024 / max(elapsed, 0.1)))
         }
-        save(t, tag: "")
+        if resumeTestMode {
+            let lines = try await resumeTest(session: s, file: file, say: say, progress: printer)
+            let url = outDir.appendingPathComponent("resume-test-\(file.id).txt")
+            try? (lines.joined(separator: "\n") + "\n").write(to: url, atomically: true, encoding: .utf8)
+            say("\n结果已存到 \(url.path)")
+            break
+        }
+        if showMarks { watchNonSlicePackets() }
+        let t = try await s.pull(file, offset: pullOffset ?? 0, maxSeconds: maxSeconds,
+                                 diagnostics: showMarks || pullOffset != nil ? TransferDiagnostics() : nil, progress: printer)
+        link.sync { link.onEvent = nil }
+        save(t, tag: pullOffset.map { "-offset\($0)" } ?? "")
+        if let o = pullOffset {
+            say("  offset      请求 \(o)；文件头 \(t.heads.count) 个：" + t.heads.map { "fileId=\($0.fileId) size=\($0.size) err=\($0.errorCode)" }.joined(separator: "；"))
+        }
+        if showMarks { markReport(t).forEach(say) }
 
     case "wifi":
         try await connectDevice()
@@ -416,10 +454,13 @@ do {
         say("  会话密钥已建立\n同步时间…")
         try await s.syncTime()
         say("开始录音并实时拉流 \(Int(secs)) 秒，对着录音豆说话…")
-        let t = try await s.live(seconds: secs, finish: !pauseOnly) { got, elapsed in
+        if showMarks { watchNonSlicePackets() }
+        let t = try await s.live(seconds: secs, finish: !pauseOnly, diagnostics: showMarks ? TransferDiagnostics() : nil) { got, elapsed in
             say(String(format: "  %4.0fs  收到 %6.1f KB ≈ %4.1f 秒音频", elapsed, Double(got) / 1024, Double(got) / 160 * 0.02))
         }
+        link.sync { link.onEvent = nil }
         save(t, tag: "-live")
+        if showMarks { markReport(t).forEach(say) }
         if thenFrame != nil || deleteNew {
             let t0 = Date()
             link.onPacket = { p in

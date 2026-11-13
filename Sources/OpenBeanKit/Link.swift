@@ -221,7 +221,8 @@ public final class Link: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         guard ch.uuid == UUIDs.notify, let v = ch.value else { return }
         rxBytes += v.count
         for pkt in assembler.feed(Array(v)) {
-            if verbose, !(Rx.isTransport(pkt) && (pkt.id == Rx.fileSlice || pkt.id == Rx.fileSliceMark)) {
+            // 普通音频片太多不打印；1A/12（可能是重点标记）照常打印
+            if verbose, !(Rx.isTransport(pkt) && pkt.id == Rx.fileSlice) {
                 log("\(pkt)  \(pkt.raw.prefix(48).hex)\(pkt.raw.count > 48 ? " …" : "")")
             }
             onPacket?(pkt)

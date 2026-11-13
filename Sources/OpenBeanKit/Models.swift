@@ -133,15 +133,27 @@ public struct FileHead {
 }
 
 /// 1A/08、1A/12 切片：从第 9 字节起，每单元 `seq u32 | flags u8 | 160 字节数据 | 1 字节填充`。
-public struct Slice { public let seq: UInt32; public let data: [UInt8] }
+/// `flags` 的含义没人测过（社区笔记只写了字段名）；重点标记可能在这里，也可能在 1A/12 这个包类型上。
+/// 1A/12 的布局也只是按 1A/08 推的，没有抓包样本。
+public struct Slice {
+    public let seq: UInt32
+    public let flags: UInt8
+    public let data: [UInt8]
+    public init(seq: UInt32, flags: UInt8 = 0, data: [UInt8]) {
+        self.seq = seq
+        self.flags = flags
+        self.data = data
+    }
+}
 
 public func parseSlices(frame r: [UInt8]) -> [Slice] {
     var out: [Slice] = []
     var i = 9
     while r.count - i >= 165 {
         let seq = readU32(r, i)
+        let flags = r[i + 4]
         i += 5
-        out.append(Slice(seq: seq, data: Array(r[i..<(i + 160)])))
+        out.append(Slice(seq: seq, flags: flags, data: Array(r[i..<(i + 160)])))
         i += 160
         if i < r.count { i += 1 }
     }
