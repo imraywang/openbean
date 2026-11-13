@@ -102,6 +102,16 @@
         }
       }
     },
+    "%@, %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@，%@"
+          }
+        }
+      }
+    },
     "%@, charging": {
       "localizations": {
         "zh-Hans": {
@@ -578,6 +588,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "立即检查"
+          }
+        }
+      }
+    },
+    "Check the recorder for new recordings": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "检查录音豆上有没有新录音"
           }
         }
       }
@@ -1452,16 +1472,6 @@
         }
       }
     },
-    "Models": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "模型"
-          }
-        }
-      }
-    },
     "Move OpenBean to the Applications folder first: the path changes when the app moves.": {
       "localizations": {
         "zh-Hans": {
@@ -2152,6 +2162,16 @@
         }
       }
     },
+    "Recordings you make on the recorder show up here after you sync them to this Mac with Sync in the toolbar.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在录音豆上录的音，用工具栏里的「同步」传到这台 Mac 后会出现在这里。"
+          }
+        }
+      }
+    },
     "Recordings you make on the recorder show up here after you sync them to this Mac.": {
       "localizations": {
         "zh-Hans": {
@@ -2208,6 +2228,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "重试"
+          }
+        }
+      }
+    },
+    "Retry sync": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重试同步"
           }
         }
       }
@@ -2378,16 +2408,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "设置向导…"
-          }
-        }
-      }
-    },
-    "Settings": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "设置"
           }
         }
       }
@@ -2682,6 +2702,16 @@
         }
       }
     },
+    "Sync paused": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "同步已暂停"
+          }
+        }
+      }
+    },
     "Sync paused for dictation": {
       "localizations": {
         "zh-Hans": {
@@ -2728,6 +2758,36 @@
           "stringUnit": {
             "state": "translated",
             "value": "正在同步"
+          }
+        }
+      }
+    },
+    "Syncing %lld of %lld": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在同步第 %1$lld/%2$lld 条"
+          }
+        }
+      }
+    },
+    "Syncing recordings from the recorder": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在从录音豆同步录音"
+          }
+        }
+      }
+    },
+    "Syncing: %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在同步：%@"
           }
         }
       }
@@ -2848,6 +2908,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "录音豆正在录音，请先停下。"
+          }
+        }
+      }
+    },
+    "The recorder isn't connected": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "录音豆没连上"
+          }
+        }
+      }
+    },
+    "The recorder stopped answering.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "录音豆没有回应。"
           }
         }
       }
@@ -3202,16 +3282,6 @@
         }
       }
     },
-    "Used by the Voice typing page and the Overview totals": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "「语音输入」页和概览统计都靠它"
-          }
-        }
-      }
-    },
     "Value": {
       "localizations": {
         "zh-Hans": {
@@ -3238,6 +3308,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "语音输入"
+          }
+        }
+      }
+    },
+    "Voice typing is using the recorder": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "语音输入正在用录音豆"
           }
         }
       }

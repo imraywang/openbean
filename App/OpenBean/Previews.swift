@@ -63,6 +63,14 @@ private struct PreviewFrame<Content: View>: View {
 #Preview("主窗口 · 录音库 · 在录音豆上") {
     PreviewFrame { MainView(model: PreviewFixtures.model(section: .library, select: "ondevice")) }
 }
+#Preview("主窗口 · 录音库 · 正在同步") {
+    PreviewFrame { MainView(model: PreviewFixtures.model("syncing", section: .library, select: "summary")) }
+}
+#Preview("主窗口 · 录音库 · 正在同步 · 深色") {
+    PreviewFrame(dark: true) { MainView(model: PreviewFixtures.model("syncing", section: .library, select: "summary")) }
+}
+#Preview("主窗口 · 录音豆 · 同步失败") { PreviewFrame { MainView(model: PreviewFixtures.model("sync-failed", section: .recorder)) } }
+#Preview("主窗口 · 录音豆 · 没连上") { PreviewFrame { MainView(model: PreviewFixtures.model("searching", section: .recorder)) } }
 #Preview("主窗口 · 语音输入记录") { PreviewFrame { MainView(model: PreviewFixtures.model(section: .dictation)) } }
 
 // MARK: - 单独的页面和部件（不带侧栏，改单个视图时更快）

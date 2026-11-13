@@ -64,6 +64,13 @@ struct MainView: View {
             page(nav.section)
                 .id(nav.section)
                 .transition(.opacity)
+                // 整个窗口只有这一个同步入口：每一页的工具栏右边都是它
+                .toolbar {
+                    ToolbarItem(placement: .primaryAction) {
+                        SyncToolbarButton(device: model.device, library: model.library)
+                    }
+                    // macOS 26.1 起可以加 .visibilityPriority(.high)，部署目标是 26.0，先不用
+                }
         }
         .animation(reduceMotion ? nil : .easeOut(duration: 0.18), value: nav.section)
         .frame(minWidth: 960, minHeight: 600)
@@ -135,7 +142,7 @@ struct NavSidebar: View {
     }
 }
 
-/// 侧栏底部：录音豆状态 + 同步进度。点名字去「录音豆」页。
+/// 侧栏底部：只放录音豆状态（不放按钮；同步在工具栏）。点它去「录音豆」页。
 struct DeviceFooter: View {
     let device: DeviceController
     let library: LibraryStore
@@ -157,7 +164,8 @@ struct DeviceFooter: View {
             }
             .buttonStyle(.plain)
             .help("Show recorder details")
-            SyncStatus(device: device, library: library, compact: true)
+            .accessibilityLabel(Text("\(device.deviceName), \(DeviceFooter.status(device, library))"))
+            .accessibilityHint(Text("Show recorder details"))
         }
         .padding(.horizontal, 12)
         .padding(.bottom, 10)
@@ -169,7 +177,11 @@ struct DeviceFooter: View {
             let b = device.battery.map { "\($0)%" } ?? ""
             switch device.activity {
             case .dictating: return String(localized: "Listening") + (b.isEmpty ? "" : " · \(b)")
-            case .syncing: return String(localized: "Syncing") + (b.isEmpty ? "" : " · \(b)")
+            case .syncing:
+                if case let .downloading(_, done, total, _, _) = library.sync {
+                    return String(localized: "Syncing \(done + 1) of \(total)")
+                }
+                return String(localized: "Syncing") + (b.isEmpty ? "" : " · \(b)")
             case .idle: return b.isEmpty ? String(localized: "Connected") : String(localized: "Connected · \(b)")
             }
         case .connecting: return String(localized: "Connecting…")
@@ -179,11 +191,10 @@ struct DeviceFooter: View {
     }
 }
 
-/// 同步进度 / 同步按钮（侧栏底部和概览共用）
+/// 同步进度的说明（录音豆页的一节）。空闲时什么都不画：同步按钮只在工具栏里
 struct SyncStatus: View {
     let device: DeviceController
     let library: LibraryStore
-    var compact = false
 
     var body: some View {
         switch library.sync {
@@ -205,42 +216,8 @@ struct SyncStatus: View {
         case let .failed(e):
             Text("Sync failed: \(e)").font(.caption2).foregroundStyle(.red).lineLimit(2)
         case .idle:
-            if !device.isReady {
-                // 没连上时不放一个点不动的同步按钮：说清楚新录音还在录音豆上、连上后才能同步
-                if pending > 0 {
-                    Text("\(pending) new recordings are on the recorder. Sync them once it connects.")
-                        .font(.caption2).foregroundStyle(.secondary)
-                        .multilineTextAlignment(compact ? .leading : .trailing)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: compact ? .infinity : 220, alignment: compact ? .leading : .trailing)
-                }
-            } else if compact {
-                if pending > 0 {
-                    Button { Task { await library.syncAll() } } label: {
-                        Label("Sync \(pending) new", systemImage: "arrow.triangle.2.circlepath").frame(maxWidth: .infinity)
-                    }
-                    .controlSize(.small)
-                    .disabled(!device.isReady || device.activity != .idle)
-                    .help(estimate ?? "")
-                }
-            } else {
-                VStack(alignment: .trailing, spacing: 4) {
-                    Button { Task { await library.syncAll() } } label: {
-                        Text(pending > 0 ? "Sync \(pending) new" : "Sync")
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(!device.isReady || device.activity != .idle)
-                    if let estimate { Text(estimate).font(.caption2).foregroundStyle(.secondary) }
-                }
-            }
+            EmptyView()
         }
-    }
-
-    private var pending: Int { library.recordings.filter { $0.onDevice && !$0.downloaded && !$0.isDictation }.count }
-
-    /// 「蓝牙约需 12 分钟」；没有要下的就没有
-    private var estimate: String? {
-        library.pendingSyncSeconds.map { String(localized: "About \(Self.phrase($0)) over Bluetooth") }
     }
 
     /// 时长的说法：不到 1 分钟 / 12 分钟 / 1 小时 35 分钟
@@ -250,6 +227,80 @@ struct SyncStatus: View {
         case let .minutes(m): return String(localized: "\(m) min")
         case let .hours(h, m): return m == 0 ? String(localized: "\(h) h") : String(localized: "\(h) h \(m) min")
         }
+    }
+}
+
+/// 工具栏里的同步按钮：整个主窗口唯一的同步入口。
+/// 空闲时是「同步 N 条新录音」（没有新的就只是图标）；下载中是进度环加「第 2 / 5 条 · 约 12 分钟」，点开看详情；
+/// 没连上时变灰，悬停说明原因；失败时变成「重试」。
+struct SyncToolbarButton: View {
+    let device: DeviceController
+    let library: LibraryStore
+    @State private var showDetail = false
+
+    private var pending: Int { library.recordings.filter { $0.onDevice && !$0.downloaded && !$0.isDictation }.count }
+
+    var body: some View {
+        switch library.sync {
+        case let .downloading(_, done, total, f, _):
+            Button { showDetail.toggle() } label: {
+                HStack(spacing: 6) {
+                    ProgressView(value: f).progressViewStyle(.circular).controlSize(.small)
+                    Text(progressLine(done: done, total: total)).monospacedDigit()
+                }
+            }
+            .help("Syncing recordings from the recorder")
+            .accessibilityLabel(Text("Syncing: \(progressLine(done: done, total: total))"))
+            .popover(isPresented: $showDetail, arrowEdge: .bottom) {
+                SyncStatus(device: device, library: library)
+                    .frame(width: 260).padding(14)
+            }
+        case .listing:
+            Label { Text("Checking…") } icon: { ProgressView().controlSize(.small) }
+                .labelStyle(.titleAndIcon)
+                .help("Checking the recorder…")
+        case let .wifi(msg):
+            Label(msg, systemImage: "wifi").labelStyle(.titleAndIcon).lineLimit(1).frame(maxWidth: 220)
+        case .paused:
+            Label("Sync paused", systemImage: "pause.circle")
+                .labelStyle(.titleAndIcon)
+                .help("Sync paused for dictation")
+        case let .failed(e):
+            Button { Task { await library.syncAll() } } label: {
+                Label("Retry sync", systemImage: "exclamationmark.arrow.triangle.2.circlepath")
+                    .labelStyle(.titleAndIcon)
+            }
+            .disabled(!device.isReady || device.activity != .idle)
+            .help(String(localized: "Sync failed: \(e)"))
+        case .idle:
+            Button { Task { await library.syncAll() } } label: {
+                if pending > 0 {
+                    Label("Sync \(pending) new", systemImage: "arrow.triangle.2.circlepath").labelStyle(.titleAndIcon)
+                } else {
+                    Label("Sync", systemImage: "arrow.triangle.2.circlepath")
+                }
+            }
+            .disabled(!device.isReady || device.activity != .idle)
+            .help(idleHelp)
+        }
+    }
+
+    /// 「第 2 / 5 条 · 约 12 分钟」
+    private func progressLine(done: Int, total: Int) -> String {
+        let n = String(localized: "\(done + 1) of \(total)")
+        guard let left = library.syncSecondsLeft else { return n }
+        return n + " · " + SyncStatus.phrase(left)
+    }
+
+    private var idleHelp: String {
+        if !device.isReady {
+            return pending > 0
+                ? String(localized: "\(pending) new recordings are on the recorder. Sync them once it connects.")
+                : String(localized: "The recorder isn't connected")
+        }
+        if device.activity == .dictating { return String(localized: "Voice typing is using the recorder") }
+        if let s = library.pendingSyncSeconds { return String(localized: "About \(SyncStatus.phrase(s)) over Bluetooth") }
+        return String(localized: "Check the recorder for new recordings")
     }
 }
 
@@ -286,14 +337,8 @@ struct LibraryPage: View {
             Label("No recordings yet", systemImage: "waveform")
         } description: {
             Text(device.isReady
-                 ? "Recordings you make on the recorder show up here after you sync them to this Mac."
+                 ? "Recordings you make on the recorder show up here after you sync them to this Mac with Sync in the toolbar."
                  : "Take the recorder out of its case to connect. Its recordings show up here after you sync them.")
-        } actions: {
-            if device.isReady {
-                Button("Sync") { Task { await model.library.syncAll() } }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(device.activity != .idle)
-            }
         }
     }
 
@@ -397,7 +442,6 @@ struct OverviewView: View {
                     Text(heroStatus(info)).font(.caption).foregroundStyle(.white.opacity(0.7)).lineLimit(1)
                 }
                 Spacer(minLength: 12)
-                SyncStatus(device: device, library: library).fixedSize()
             }
             if let info {
                 let used = Double(Int(info.totalKB) - Int(info.freeKB)), total = Double(max(info.totalKB, 1))

@@ -5,7 +5,7 @@
 // 只为看界面和截图（bin/ui-shots）。整个文件只在编译条件 DEMO 下存在，正式版和开发版里没有这些代码。
 //
 // 切状态用链接 openbean-demo://demo/<命令>[?seq=N]，带 seq 时处理完写 <数据目录>/demo-ack.json（截图脚本据此等待并取窗口号）：
-//   state/connected|searching|connecting|failed|bluetooth-off|no-permission|lost|syncing|dictating|recording|low-battery|charging
+//   state/connected|searching|connecting|failed|bluetooth-off|no-permission|lost|syncing|sync-failed|dictating|recording|low-battery|charging
 //   hud/hidden|starting|listening|polishing|wrapping|typed|copied|nothing|error
 //   page/overview|library|dictation|recorder   settings/voice|polish|library|agent|about（设置窗口）
 //   select/summary|untranscribed|ondevice|long|none   search/<词>   filter/all|transcribed|onRecorder|dictation
@@ -557,6 +557,9 @@ final class DemoController {
         case "dictating":
             d.demoApply(state: .ready, info: DemoData.info(), activity: .dictating)
             m.dictation.demoSet(phase: .listening, level: 0.55, since: Date().addingTimeInterval(-14))
+        case "sync-failed":
+            d.demoApply(state: .ready, info: DemoData.info(), activity: .idle)
+            m.library.demoSet(sync: .failed(String(localized: "The recorder stopped answering.")))
         case "recording": d.demoApply(state: .ready, info: DemoData.info(recording: true), activity: .idle)
         case "low-battery": d.demoApply(state: .ready, info: DemoData.info(battery: 10, caseBattery: 20), activity: .idle)
         case "charging": d.demoApply(state: .ready, info: DemoData.info(battery: 60, charging: true, caseCharging: true), activity: .idle)

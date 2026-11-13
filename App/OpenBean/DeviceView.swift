@@ -27,7 +27,7 @@ struct DeviceView: View {
             // 正在同步（或在读录音豆的文件列表）：进度也放在这页，不只在侧栏底部
             if library.sync != .idle {
                 Section {
-                    SyncStatus(device: device, library: library, compact: true)
+                    SyncStatus(device: device, library: library)
                 }
             }
 
