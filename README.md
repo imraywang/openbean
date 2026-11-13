@@ -96,8 +96,12 @@ script says what is missing. To ship a version:
 
 1. In `App/project.yml` set `MARKETING_VERSION` and add 1 to `CURRENT_PROJECT_VERSION` (the build number Sparkle
    compares; the script refuses a build or version already in `appcast.xml`).
-2. Run `bin/release`. It updates `appcast.xml` at the repo root.
-3. Create the GitHub release `v<version>` with the DMG and its `.sha256`, then commit and push `appcast.xml` to
+2. Write the release notes in Markdown: `docs/release-notes/<version>.en.md`, plus `<version>.zh-Hans.md` for
+   Simplified Chinese if you like. They are embedded in `appcast.xml` (`<description sparkle:format="markdown"
+   xml:lang="…">`, Sparkle 2.9+) and shown in the update window in the user's language, English otherwise. Without
+   them the update window shows no notes.
+3. Run `bin/release`. It updates `appcast.xml` at the repo root.
+4. Create the GitHub release `v<version>` with the DMG and its `.sha256`, then commit and push `appcast.xml` to
    `master`. Installed copies read the feed from there, so push only after the DMG is downloadable.
 
 **Why the signing certificate:** macOS remembers permissions per code signature. With ad-hoc signing every rebuild
