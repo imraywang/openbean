@@ -16,8 +16,16 @@ let usage = """
   wifi [id|longest|...] [--max 秒]
                           经 Wi‑Fi 热点通道拉文件：让设备开热点 → Mac 临时加入 → WebSocket 拉取
                           → 关热点 → Mac 重连原来的网络。期间 Mac 断网
-  watch [秒数]            只连接和监听，不发控制命令，打印设备主动发来的所有帧（默认 90 秒）
-  live [秒数]             让录音豆开始录音，实时拉流若干秒（默认 15），然后暂停录音
+  watch [秒数] [--handshake] [--time] [--list]
+                          只连接和监听，不发控制命令，打印设备主动发来的所有帧（默认 90 秒）。
+                          排查用：连上后先做一次加密握手（--handshake）、对时（--time）、读文件列表（--list）
+  live [秒数] [--pause-only] [--then TT/II[:载荷]] [--hold 秒] [--delete-new --yes]
+                          让录音豆开始录音，实时拉流若干秒（默认 15），然后暂停、再结束录音（18/82 00，收尾文件）。
+                          排查用：
+                            --pause-only  只暂停不结束（文件还开着，下次开始会续写）
+                            --then        停下之后再发一条命令，例如 --then 1A/11:01；载荷是十六进制
+                            --hold        发 --then 之前和之后各观察多少秒（默认 20），期间打印收到的帧
+                            --delete-new  最后删掉这次新出现的那一个文件（不需要本机副本；要带 --yes）
   delete <id> --yes [--local 路径 | --dev]
                           ⚠️ 删除录音豆上的一个录音（1A/10，删了不能恢复）。
                           只有本机副本存在、且解码时长和设备上的一致时才删；默认核对 App 录音库里的
@@ -29,7 +37,7 @@ let usage = """
   --id <UUID>             指定 CoreBluetooth 设备标识（默认用上次连接的那台，或扫描信号最强的）
   -v                      打印每条收发的帧
 
-不会发送：绑定/解绑、恢复出厂、OTA。删除文件只有 delete 子命令会发，且必须带 --yes。
+不会发送：绑定/解绑、恢复出厂、OTA。删除文件只有 delete 和 live --delete-new 会发，且都必须带 --yes。
 """
 
 var args = Array(CommandLine.arguments.dropFirst())
@@ -57,9 +65,24 @@ let localPath: String? = {
     defer { args.removeSubrange(i...(i + 1)) }
     return args[i + 1]
 }()
+/// 取出一个开关（并从参数里去掉）
+func flag(_ name: String) -> Bool {
+    defer { args.removeAll { $0 == name } }
+    return args.contains(name)
+}
+/// 取出一个带值的选项（并从参数里去掉）
+func option(_ name: String) -> String? {
+    guard let i = args.firstIndex(of: name), i + 1 < args.count else { return nil }
+    defer { args.removeSubrange(i...(i + 1)) }
+    return args[i + 1]
+}
 /// delete 默认核对正式版 App 的录音库；--dev 改用开发版（OpenBean Dev）的
-let devLibrary = args.contains("--dev")
-args.removeAll { $0 == "--dev" }
+let devLibrary = flag("--dev")
+// watch / live 的排查选项
+let withHandshake = flag("--handshake"), withTime = flag("--time"), withList = flag("--list")
+let pauseOnly = flag("--pause-only"), deleteNew = flag("--delete-new")
+let thenArg = option("--then")
+let holdSeconds = option("--hold").flatMap(Double.init) ?? 20
 let confirmed = args.contains("--yes")
 args.removeAll { $0 == "--yes" }
 guard let command = args.first else { print(usage); exit(0) }
@@ -170,6 +193,21 @@ func restoreWifi(ifc: String, ssid: String, deviceIP: String) async {
         if let ip = interfaceIP(ifc), !sameSubnet(ip, deviceIP), !ip.hasPrefix("169.254") { say("  已重连，本机 IP \(ip)"); return }
     }
     say("  45 秒内没重连上，请手动在菜单栏选回原来的 Wi‑Fi")
+}
+
+/// 解析 --then 的 TT/II[:十六进制载荷]，例如 1A/11:01、18/82:00
+func parseFrame(_ s: String) throws -> [UInt8] {
+    let bad = LinkError.missing("--then 的格式：TT/II[:十六进制载荷]，例如 1A/11:01")
+    let parts = s.split(separator: ":", omittingEmptySubsequences: false).map(String.init)
+    let ti = parts[0].split(separator: "/").map { UInt8($0, radix: 16) }
+    guard parts.count <= 2, ti.count == 2, let type = ti[0], let id = ti[1] else { throw bad }
+    let h = Array(parts.count > 1 ? parts[1] : "")
+    guard h.count % 2 == 0 else { throw bad }
+    let payload = try stride(from: 0, to: h.count, by: 2).map { i -> UInt8 in
+        guard let b = UInt8(String(h[i...i + 1]), radix: 16) else { throw bad }
+        return b
+    }
+    return Frame.encode(type: type, id: id, payload: payload)
 }
 
 func save(_ t: Transfer, tag: String) {
@@ -333,10 +371,14 @@ do {
         say("解了 \(frames) 帧，\(samples) 个采样（每帧 \(frames > 0 ? samples / frames : 0)），耗时 \(String(format: "%.0f", Date().timeIntervalSince(t0) * 1000)) ms → \(outURL.path)")
 
     case "watch":
+        // --handshake / --time / --list：连上后多做一步，用来排查是哪一步改变了录音豆的状态（比如指示灯）
         let secs = Double(args.dropFirst().first ?? "90") ?? 90
         try await connectDevice()
         let s = session()
         if let info = try await s.deviceInfo() { say("\n" + info.description + "\n") }
+        if withHandshake { try await s.handshake(); say("已做加密握手（2E/01）") }
+        if withTime { try await s.syncTime(); say("已对时（01/A6）") }
+        if withList { let n = try await s.listFiles().count; say("已读文件列表（1B/0E），\(n) 条") }
         let t0 = Date()
         link.onPacket = { p in
             let t = String(format: "%6.2f s", Date().timeIntervalSince(t0))
@@ -349,25 +391,59 @@ do {
         if let info = try await s.deviceInfo() {
             say("\n结束时 录音中=\(info.recording.map { $0 ? "是" : "否" } ?? "?")")
             if info.recording == true {
-                _ = try? await link.request(Cmd.pauseRecord(), label: "暂停录音") { $0.type == 0x18 && $0.id == 0x82 }
-                say("（测试中开始的录音已暂停）")
+                // 暂停再结束（真机测过的顺序），录音豆把这段收尾成一个文件
+                try? await s.pauseRecording()
+                _ = try? await s.stopRecording()
+                say("（测试中开始的录音已结束）")
             }
         }
 
     case "live":
+        // 排查选项见用法：--pause-only / --then / --hold / --delete-new
+        let thenFrame = try thenArg.map(parseFrame)
+        if deleteNew, !confirmed { throw LinkError.missing("--delete-new 会删除录音豆上的文件，要同时带 --yes") }
         let secs = Double(args.dropFirst().first ?? "15") ?? 15
         try await connectDevice()
         let s = session()
         if let info = try await s.deviceInfo() { say("\n" + info.description + "\n") }
+        let before = Set(try await s.listFiles().map(\.id))
+        say("开始前设备上 \(before.count) 条")
         say("ECDH 握手…")
         try await s.handshake()
         say("  会话密钥已建立\n同步时间…")
         try await s.syncTime()
         say("开始录音并实时拉流 \(Int(secs)) 秒，对着录音豆说话…")
-        let t = try await s.live(seconds: secs) { got, elapsed in
+        let t = try await s.live(seconds: secs, finish: !pauseOnly) { got, elapsed in
             say(String(format: "  %4.0fs  收到 %6.1f KB ≈ %4.1f 秒音频", elapsed, Double(got) / 1024, Double(got) / 160 * 0.02))
         }
         save(t, tag: "-live")
+        if thenFrame != nil || deleteNew {
+            let t0 = Date()
+            link.onPacket = { p in
+                say(String(format: "%6.2f s  %02X/%02X st=%02X len=%d  %@", Date().timeIntervalSince(t0), p.type, p.id, p.status, p.raw.count, p.raw.prefix(40).hex))
+            }
+            say("\n已\(pauseOnly ? "暂停" : "结束录音")。观察 \(Int(holdSeconds)) 秒（看灯）…")
+            try await Task.sleep(nanoseconds: UInt64(holdSeconds * 1e9))
+            if let f = thenFrame {
+                say(">>> 发送 \(f.hex)。再观察 \(Int(holdSeconds)) 秒（看灯有没有变）…")
+                try link.send(f)
+                try await Task.sleep(nanoseconds: UInt64(holdSeconds * 1e9))
+            }
+            link.sync { link.onPacket = nil }
+            let info = try await s.deviceInfo()
+            say("录音中=\(info?.recording.map { $0 ? "是" : "否" } ?? "?")")
+            let after = try await s.listFiles()
+            let fresh = after.filter { !before.contains($0.id) }
+            say("现在设备上 \(after.count) 条；这次新出现：" + fresh.map { "\($0.id)（\(String(format: "%.1f", $0.durationSeconds)) 秒）" }.joined(separator: "，"))
+            if deleteNew {
+                if fresh.count == 1, let f = fresh.first {
+                    do {
+                        let left = try await s.deleteFile(id: f.id) { _ in }
+                        say("已删除测试文件 \(f.id)，设备上还有 \(left.count) 条")
+                    } catch { say("测试文件 \(f.id) 没删掉：\(error)") }
+                } else { say("新出现的文件不是正好一个，不删") }
+            }
+        }
 
     case "delete":
         guard let arg = args.dropFirst().first, let id = UInt32(arg) else { throw LinkError.missing("参数：要删除的录音 id（数字）") }
