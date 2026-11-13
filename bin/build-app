@@ -14,5 +14,6 @@ xcodebuild -project App/OpenBean.xcodeproj -scheme OpenBean -configuration Relea
   -derivedDataPath App/build CODE_SIGN_IDENTITY="$SIGN_ID" -packageAuthorizationProvider netrc -quiet build
 rm -rf .build/OpenBean.app
 mkdir -p .build
-cp -R App/build/Build/Products/Release/OpenBean.app .build/OpenBean.app
+# 移动而不是拷贝：留在 App/build 里的那份同名 App 会被系统登记，openbean:// 链接可能交给它而不是正在运行的这份
+mv App/build/Build/Products/Release/OpenBean.app .build/OpenBean.app
 echo "已编译：$ROOT/.build/OpenBean.app"

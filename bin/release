@@ -69,7 +69,8 @@ xcodebuild -project App/OpenBean.xcodeproj -scheme OpenBean -configuration Relea
   CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY="$SIGN_ID" DEVELOPMENT_TEAM="$TEAM" \
   ENABLE_HARDENED_RUNTIME=YES OTHER_CODE_SIGN_FLAGS="--timestamp" CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO \
   build
-ditto App/build-release/Build/Products/Release/OpenBean.app "$APP"
+# 移动而不是拷贝，不在 App/build-release 里留第二份同名 App（原因见 bin/build-app）
+mv App/build-release/Build/Products/Release/OpenBean.app "$APP"
 
 # Sparkle 私钥要在钥匙串里，且和 App 里的公钥是一对；不然发出去的更新没人能装（公证前就拦下）
 [[ -x $SPARKLE_BIN/sign_update ]] || { echo "没找到 Sparkle 工具：$SPARKLE_BIN"; exit 1; }
