@@ -59,6 +59,89 @@ public enum DeletePolicy {
     }
 }
 
+/// 语音输入结束后，能不能删掉这次用的设备文件。这是对 `DeletePolicy` 的唯一例外：不要求本机副本，
+/// 但只适用于「App 自己发开始命令、录音豆为这次语音输入新建的文件」。纯函数，方便测试。
+///
+/// 录音豆没有「结束文件」命令，只有暂停：暂停后再开始会续写同一个文件，而且不发新文件通知 1A/06。
+/// 所以续写的旧文件（可能混着别的录音）、靠猜的文件号，一律不删。
+public enum DictationDeletePolicy {
+    /// 设备时长允许比本次会话多出的秒数（发命令、回包的时间差）
+    public static let slack: Double = 5
+
+    /// 一次语音输入留下的证据，在 App 里边听写边记
+    public struct Evidence: Equatable, Sendable {
+        /// 这次用的设备文件
+        public var fileId: UInt32
+        /// 这次是 App 发的开始命令（不是在录音豆上按的键）
+        public var startedByApp: Bool
+        /// 发开始命令前录音豆在不在录音；nil = 没读到
+        public var recordingBeforeStart: Bool?
+        /// 发开始命令之后收到的新文件通知（1A/06）里的文件号
+        public var notifiedNew: Set<UInt32>
+        /// 发开始命令前读到的设备文件列表；没读就是 nil
+        public var filesBeforeStart: Set<UInt32>?
+        /// 发开始命令的时刻
+        public var startedAt: Date
+
+        public init(fileId: UInt32, startedByApp: Bool, recordingBeforeStart: Bool?, notifiedNew: Set<UInt32>,
+                    filesBeforeStart: Set<UInt32>? = nil, startedAt: Date) {
+            self.fileId = fileId
+            self.startedByApp = startedByApp
+            self.recordingBeforeStart = recordingBeforeStart
+            self.notifiedNew = notifiedNew
+            self.filesBeforeStart = filesBeforeStart
+            self.startedAt = startedAt
+        }
+
+        /// 有证据说明这个文件是这次新建的：收到了指向它的 1A/06，或者开始前的列表里没有它
+        public var provenNew: Bool {
+            if notifiedNew.contains(fileId) { return true }
+            if let before = filesBeforeStart { return !before.contains(fileId) }
+            return false
+        }
+    }
+
+    public enum Refusal: Error, Equatable, CustomStringConvertible {
+        case busy
+        case recording
+        /// 不是 App 发的开始命令
+        case notStartedByApp
+        /// 开始前录音豆就在录音（或读不到状态），可能接管了别人的录音
+        case recorderWasRecording
+        /// 没有证据说明是新建的（猜的文件号、续写的旧文件）
+        case notProvenNew
+        case notOnRecorder
+        /// 设备上的时长比本次会话长，说明文件里还有别的内容
+        case tooLong(device: Double, session: Double)
+
+        public var description: String {
+            switch self {
+            case .busy: return "连接正忙"
+            case .recording: return "录音豆正在录音"
+            case .notStartedByApp: return "不是 App 发的开始命令"
+            case .recorderWasRecording: return "开始前录音豆就在录音（或读不到状态）"
+            case .notProvenNew: return "没有证据说明是这次新建的文件（猜的或续写的）"
+            case .notOnRecorder: return "录音豆上没有这个文件"
+            case let .tooLong(d, s): return String(format: "设备上 %.1f 秒，本次只有 %.1f 秒，对不上", d, s)
+            }
+        }
+    }
+
+    /// 返回 nil 表示可以删。deviceSeconds 是删之前刚读到的设备时长（列表里没有就是 nil），
+    /// sessionSeconds 是从发开始命令到现在的秒数。
+    public static func check(_ e: Evidence, deviceSeconds: Double?, sessionSeconds: Double,
+                             recorderRecording: Bool?, busy: Bool) -> Refusal? {
+        if busy { return .busy }
+        if recorderRecording != false { return .recording }
+        guard e.startedByApp else { return .notStartedByApp }
+        guard e.recordingBeforeStart == false else { return .recorderWasRecording }
+        guard e.provenNew else { return .notProvenNew }
+        guard let device = deviceSeconds else { return .notOnRecorder }
+        if device > sessionSeconds + slack { return .tooLong(device: device, session: sessionSeconds) }
+        return nil
+    }
+}
+
 public enum DeleteError: Error, CustomStringConvertible {
     case refused(DeletePolicy.Refusal)
     /// 设备回包 status 不是成功

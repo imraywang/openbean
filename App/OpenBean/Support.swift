@@ -141,7 +141,12 @@ final class Settings {
     var notesEnabled: Bool { didSet { d.set(notesEnabled, forKey: "notesEnabled") } }
     /// 笔记文件夹（如 Obsidian 库里的某个文件夹）；空 = 没选
     var notesFolder: String { didSet { d.set(notesFolder, forKey: "notesFolder") } }
+    /// 语音输入结束后，从录音豆删掉 App 为这次语音输入新建的文件
+    var deleteDictationAudio: Bool { didSet { d.set(deleteDictationAudio, forKey: "deleteDictationAudio") } }
     @ObservationIgnored var onHotkeyChange: (() -> Void)?
+
+    /// 「语音输入后删设备文件」的默认值（只改这一处）
+    static let deleteDictationAudioDefault = true
 
     init() {
         d.register(defaults: ["typeIntoApp": true, "polishEnabled": false,
@@ -150,7 +155,8 @@ final class Settings {
                               "hotkey": Hotkey.Preset.optionSpace.rawValue, "autoTranscribe": true,
                               "onboardingDone": false, "buttonDictates": true, "readySound": true,
                               "keepHistory": true, "autoSync": true, "summarizeRecordings": false,
-                              "notesEnabled": false, "notesFolder": ""])
+                              "notesEnabled": false, "notesFolder": "",
+                              "deleteDictationAudio": Self.deleteDictationAudioDefault])
         typeIntoApp = d.bool(forKey: "typeIntoApp")
         polishEnabled = d.bool(forKey: "polishEnabled")
         polishEndpoint = d.string(forKey: "polishEndpoint") ?? ""
@@ -169,6 +175,7 @@ final class Settings {
         summarizeRecordings = d.bool(forKey: "summarizeRecordings")
         notesEnabled = d.bool(forKey: "notesEnabled")
         notesFolder = d.string(forKey: "notesFolder") ?? ""
+        deleteDictationAudio = d.bool(forKey: "deleteDictationAudio")
     }
 }
 

@@ -29,7 +29,14 @@ final class AppModel {
         library.onListRefreshed = { [weak self] in self?.autoSync.listRefreshed() }
         device.onConnected = { [weak self] in Task { await self?.library.refreshDeviceList() } }
         dictation.onStarted = { [weak self] id in self?.library.markDictation(id) }
-        dictation.onFinished = { [weak self] in self?.library.resumeIfNeeded() }
+        // 先删这次语音输入的设备文件（占着连接），再让暂停的同步继续
+        dictation.onFinished = { [weak self] evidence in
+            Task { @MainActor in
+                if let evidence { await self?.library.deleteDictationFile(evidence) }
+                self?.library.resumeIfNeeded()
+            }
+        }
+        dictation.cleanupRunning = { [weak self] in self?.library.deletingFromRecorder != nil }
         dictation.onEntry = { [weak self] in self?.log.add($0) }
         Hotkey.shared.onPress = { [weak self] in
             guard let self else { return }

@@ -399,6 +399,43 @@ final class LibraryStore {
         }
     }
 
+    // MARK: 删除语音输入用过的设备文件
+
+    /// 语音输入结束后删掉这次用的设备文件。只删 App 为语音输入新建的文件（规则见 DictationDeletePolicy），
+    /// 不需要本机副本。失败只写日志，不打扰用户；删成功后 merge 会把这条去掉（设备上没有、本机也没下载）。
+    func deleteDictationFile(_ e: DictationDeletePolicy.Evidence) async {
+        guard settings.deleteDictationAudio else { return }
+        let id = e.fileId
+        // 先只看证据（设备时长、录音状态到了设备上再用最新的查），证据不够就不占连接
+        if let refusal = DictationDeletePolicy.check(e, deviceSeconds: 0, sessionSeconds: 0, recorderRecording: false, busy: false) {
+            Log.write("语音输入文件 \(id) 不删：\(refusal)")
+            return
+        }
+        guard recorderIdle, device.beginSync(), let s = device.session else {
+            Log.write("语音输入文件 \(id) 不删：\(DictationDeletePolicy.Refusal.busy)")
+            return
+        }
+        defer { device.endSync() }
+        deletingFromRecorder = id
+        defer { deletingFromRecorder = nil }
+        do {
+            let after = try await s.deleteFile(id: id) { f in
+                // 列表刚读完再问一次录音状态：这期间按了录音豆的键，录音豆可能正在续写这个文件
+                let recording = try await s.deviceInfo()?.recording
+                let secs = Date().timeIntervalSince(e.startedAt)
+                if let refusal = DictationDeletePolicy.check(e, deviceSeconds: f.durationSeconds, sessionSeconds: secs,
+                                                             recorderRecording: recording, busy: false) {
+                    throw refusal
+                }
+            }
+            merge(after)
+            Log.write("已从录音豆删除语音输入文件 \(id)，设备上还有 \(after.count) 条")
+        } catch {
+            Log.write("语音输入文件 \(id) 没删：\(error)")
+            if let files = try? await s.listFiles() { merge(files) }
+        }
+    }
+
     // MARK: Wi‑Fi 快速同步
 
     /// 经录音豆的 Wi‑Fi 热点下载（Mac 会暂时断网约一分钟）

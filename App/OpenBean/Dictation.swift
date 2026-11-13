@@ -103,7 +103,10 @@ final class Dictation {
     var onStarted: (UInt32) -> Void = { _ in }
     /// 设备页「开始录音」：下一次开始录音事件不触发听写
     var ignoreNextStart = false
-    var onFinished: () -> Void = {}
+    /// 一次语音输入结束；带着这次用的设备文件和「它是不是 App 新建的」证据，录音库据此决定删不删
+    var onFinished: (DictationDeletePolicy.Evidence?) -> Void = { _ in }
+    /// 录音库正在删上一次语音输入的设备文件：这时开始新的语音输入，录音豆可能续写那个正要删的文件
+    var cleanupRunning: () -> Bool = { false }
     /// 一次输入结束（有文字时），用于语音输入记录
     var onEntry: (DictationEntry) -> Void = { _ in }
     private var targetApp: String?
@@ -112,6 +115,10 @@ final class Dictation {
     private var currentFile: UInt32 = 0
     /// 正在进行的「只录音」：开始时刻和文件号
     private var recordOnly: (since: Date, fileId: UInt32)?
+    /// 这次语音输入是 App 发的开始命令：发命令的时刻，和发之前录音豆在不在录（nil = 没读到）
+    private var appStart: (at: Date, recordingBefore: Bool?)?
+    /// App 发开始命令之后收到的新文件通知（1A/06）里的文件号
+    private var notifiedNew: Set<UInt32> = []
 
     // MARK: 设备事件
 
@@ -126,6 +133,8 @@ final class Dictation {
                 recordOnly = (Date(), fileId)
                 return
             }
+            // 记下来：这是「这个文件是这次新建的」的证据（删设备文件时要用）
+            if appStart != nil { notifiedNew.insert(fileId) }
             // 没等到通知、已经按文件列表里最新的一条开始了，结果通知晚到、说的是另一个新文件：换过去
             if phase != .idle, guessedFile, fileId != currentFile {
                 switchFile(to: fileId, why: "新录音的通知到了")
@@ -183,8 +192,13 @@ final class Dictation {
         guard let s = device.session else { Log.write("语音输入没开始：录音豆没连上"); return }
         let t0 = Date(), starting = phase == .idle
         defer { if starting, phase != .idle { Log.write(String(format: "语音输入启动用了 %.0f ms", Date().timeIntervalSince(t0) * 1000)) } }
+        // 开始没成功（没进入听写）就不留「App 发过开始命令」的记录，免得之后按键开始的听写被当成 App 开始的
+        defer { if starting, phase == .idle { appStart = nil; notifiedNew = [] } }
         do {
             if phase == .idle {
+                // 上一次语音输入的设备文件还在删：等它删完再开始（最多 5 秒），免得录音豆续写那个文件、然后被删掉
+                for _ in 0..<50 where cleanupRunning() { try? await Task.sleep(nanoseconds: 100_000_000) }
+                if cleanupRunning() { Log.write("语音输入没开始：还在删上一次的设备文件"); return }
                 // 录音豆其实已经在录、App 却不知道（App 重启时错过了开始事件）：这时再发「开始」设备不理，
                 // 语音输入就一直起不来。按键是「语音输入」时这段录音没人要，先停掉再开始；
                 // 按键是「只录音」时可能是正在录的会议，不动它
@@ -202,6 +216,9 @@ final class Dictation {
                     try? await Task.sleep(nanoseconds: 600_000_000)
                 }
                 guessedFile = false
+                // 读不到状态（info 为 nil）或在录，都记下来；只有确定没在录，结束后才可能删设备文件
+                appStart = (Date(), info?.recording)
+                notifiedNew = []
                 try await s.startRecording()
                 marks.append(String(format: "开始回包 %.0f", Date().timeIntervalSince(t0) * 1000))
                 // 设备新建录音文件时会报文件号（1A/06），但要 1 秒多才到；续写上一个文件时根本不报。
@@ -447,6 +464,11 @@ final class Dictation {
             Log.write("battery event=dictation seconds=\(secs) recorder=\(DeviceController.field(device.battery)) file=\(currentFile)")
         }
         startedAt = nil
+        let evidence = currentFile == 0 ? nil : DictationDeletePolicy.Evidence(
+            fileId: currentFile, startedByApp: appStart != nil, recordingBeforeStart: appStart?.recordingBefore,
+            notifiedNew: notifiedNew, startedAt: appStart?.at ?? Date())
+        appStart = nil
+        notifiedNew = []
         if !finalText.isEmpty, settings.keepHistory {
             let since = listeningSince ?? Date()
             onEntry(DictationEntry(date: since, duration: Date().timeIntervalSince(since), text: finalText,
@@ -454,6 +476,6 @@ final class Dictation {
         }
         device.endDictation()
         phase = .idle
-        onFinished()
+        onFinished(evidence)
     }
 }

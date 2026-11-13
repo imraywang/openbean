@@ -95,6 +95,10 @@ private struct VoiceSettings: View {
                     Text("Keep voice typing history on this Mac")
                     Text("Used by the Voice typing page and the Overview totals")
                 }
+                Toggle(isOn: $settings.deleteDictationAudio) {
+                    Text("Delete voice-typing audio from the recorder")
+                    Text("Only files OpenBean created for voice typing are deleted. Deleted audio can't be recovered.")
+                }
             }
 
             Section {

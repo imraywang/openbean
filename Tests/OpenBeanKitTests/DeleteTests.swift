@@ -52,6 +52,62 @@ final class DeleteTests: XCTestCase {
         XCTAssertEqual(check(downloaded: false, busy: true), .busy)
     }
 
+    // MARK: 语音输入文件
+
+    private let t0 = Date(timeIntervalSince1970: 1_800_000_000)
+
+    private func evidence(file: UInt32 = 9, byApp: Bool = true, recordingBefore: Bool? = false,
+                          notified: Set<UInt32> = [9], before: Set<UInt32>? = nil) -> DictationDeletePolicy.Evidence {
+        .init(fileId: file, startedByApp: byApp, recordingBeforeStart: recordingBefore, notifiedNew: notified,
+              filesBeforeStart: before, startedAt: t0)
+    }
+
+    private func dcheck(_ e: DictationDeletePolicy.Evidence, device: Double? = 12, session: Double = 12,
+                        recording: Bool? = false, busy: Bool = false) -> DictationDeletePolicy.Refusal? {
+        DictationDeletePolicy.check(e, deviceSeconds: device, sessionSeconds: session, recorderRecording: recording, busy: busy)
+    }
+
+    func testDictationNewFileCanBeDeleted() {
+        // 收到了指向它的 1A/06
+        XCTAssertNil(dcheck(evidence()))
+        // 没收到通知，但开始前的列表里没有它
+        XCTAssertNil(dcheck(evidence(notified: [], before: [1, 2, 3])))
+        // 设备时长比会话长一点点（在余量内）
+        XCTAssertNil(dcheck(evidence(), device: 16.9, session: 12))
+    }
+
+    func testDictationGuessedFileIsKept() {
+        // 按上一次的文件号猜的：没有通知、也没有开始前的列表
+        XCTAssertEqual(dcheck(evidence(notified: [])), .notProvenNew)
+        // 通知说的是另一个文件
+        XCTAssertEqual(dcheck(evidence(notified: [10])), .notProvenNew)
+    }
+
+    func testDictationContinuedFileIsKept() {
+        // 续写的旧文件：开始前的列表里就有它，也没有通知
+        XCTAssertEqual(dcheck(evidence(notified: [], before: [9, 2, 1])), .notProvenNew)
+        // 就算证据弄错了，续写的文件设备时长也会超出本次会话
+        XCTAssertEqual(dcheck(evidence(), device: 1200, session: 12), .tooLong(device: 1200, session: 12))
+    }
+
+    func testDictationTooLongIsKept() {
+        XCTAssertEqual(dcheck(evidence(), device: 17.1, session: 12), .tooLong(device: 17.1, session: 12))
+    }
+
+    func testDictationRecordingIsKept() {
+        XCTAssertEqual(dcheck(evidence(), recording: true), .recording)
+        XCTAssertEqual(dcheck(evidence(), recording: nil), .recording)
+        XCTAssertEqual(dcheck(evidence(), busy: true), .busy)
+        // 开始前录音豆就在录：可能接管了别人的录音
+        XCTAssertEqual(dcheck(evidence(recordingBefore: true)), .recorderWasRecording)
+        XCTAssertEqual(dcheck(evidence(recordingBefore: nil)), .recorderWasRecording)
+    }
+
+    func testDictationOtherRefusals() {
+        XCTAssertEqual(dcheck(evidence(byApp: false)), .notStartedByApp)
+        XCTAssertEqual(dcheck(evidence(), device: nil), .notOnRecorder)
+    }
+
     func testVerifyAfterDelete() throws {
         func f(_ id: UInt32) -> RecordingFile { RecordingFile(id: id, endTime: nil, durationMs: 1000) }
         let before = [f(3), f(2), f(1)]
