@@ -167,4 +167,16 @@ final class Locked<T>: @unchecked Sendable {
         let s = Summarizer.parse(#"{"title":"t","summary":"s","action_items":["发报告给张经理 [无]","订会议室 (None)","周五前交稿 [李雷]"]}"#)
         XCTAssertEqual(s?.actionItems, ["发报告给张经理", "订会议室", "周五前交稿 [李雷]"])
     }
+
+    func testGlossaryReachesPromptAndOutput() async throws {
+        let stub = try StubServer { _ in #"{"title":"cloud code 用法","summary":"讲了 cloud code 的用法。","key_points":["comit 之前先测试"]}"# }
+        defer { stub.stop() }
+        let s = try await Summarizer(service: LLMService(endpoint: stub.url), timeout: 10,
+                                     glossary: ["Claude Code = cloud code", "commit = comit"])
+            .summarize([TimedLine(start: 0, text: String(repeating: "今天讲一下 cloud code 怎么用，comit 之前要先测试。", count: 3))])
+        XCTAssertEqual(s.title, "Claude Code 用法")
+        XCTAssertEqual(s.keyPoints, ["commit 之前先测试"])
+        XCTAssertTrue(Summarizer.termsLine(["Claude Code = cloud code", "录音豆"]).contains("Claude Code, 录音豆"))
+        XCTAssertEqual(Summarizer.termsLine([]), "")
+    }
 }

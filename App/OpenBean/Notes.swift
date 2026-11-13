@@ -150,7 +150,7 @@ final class NoteService {
         summarizing[id] = 0.02
         let t0 = Date()
         do {
-            let s = try await Summarizer(service: service).summarize(lines) { p in
+            let s = try await Summarizer(service: service, glossary: AppPaths.readGlossary()).summarize(lines) { p in
                 Task { @MainActor [weak self] in
                     if self?.summarizing[id] != nil { self?.summarizing[id] = max(p, 0.02) }
                 }

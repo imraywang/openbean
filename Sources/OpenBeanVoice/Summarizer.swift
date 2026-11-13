@@ -37,9 +37,13 @@ public struct Summarizer: Sendable {
     public let maxOutput: Int
     /// 单次请求超时：本机模型读几千 token 再写摘要可能要几分钟
     public let timeout: TimeInterval
+    /// 个人词表（原始行，可带 `词 = 误听写法`）：提示模型按这些词改认错的词，输出再过一遍同音纠正
+    public let glossary: [String]
 
-    public init(service: LLMService, budget: Int = 1800, maxOutput: Int = 1000, timeout: TimeInterval? = nil) {
+    public init(service: LLMService, budget: Int = 1800, maxOutput: Int = 1000, timeout: TimeInterval? = nil,
+                glossary: [String] = []) {
         self.service = service
+        self.glossary = glossary
         self.budget = max(budget, 200)
         self.maxOutput = maxOutput
         self.timeout = timeout ?? (service.isLocal ? 300 : 120)
@@ -130,6 +134,20 @@ public struct Summarizer: Sendable {
         s.keyPoints = Array(s.keyPoints.prefix(maxKeyPoints))
         s.actionItems = Array(s.actionItems.prefix(maxActionItems))
         return s
+    }
+
+    /// 提示词里的词表一行：只放正确写法，最多 60 个，免得挤占上下文
+    static func termsLine(_ glossary: [String]) -> String {
+        let terms = GlossaryCorrector.canonicalTerms(glossary).prefix(60)
+        guard !terms.isEmpty else { return "" }
+        return "\nThe speaker's own terms: " + terms.joined(separator: ", ") + ". Speech recognition often gets these wrong. "
+            + "When a word in the transcript sounds like one of them and the context fits, write the term as spelled here."
+    }
+
+    /// 摘要的每个字段过一遍词表纠正
+    static func corrected(_ s: RecordingSummary, with c: GlossaryCorrector) -> RecordingSummary {
+        RecordingSummary(title: c.correct(s.title).text, summary: c.correct(s.summary).text,
+                         keyPoints: s.keyPoints.map { c.correct($0).text }, actionItems: s.actionItems.map { c.correct($0).text })
     }
 
     // MARK: 分块
@@ -290,7 +308,8 @@ public struct Summarizer: Sendable {
         let chunks = Self.chunk(lines, budget: budget)
         guard !chunks.isEmpty else { throw Failure.empty }
         guard Self.estimateTokens(lines.map(\.text).joined()) >= Self.minTokens else { throw Failure.tooShort }
-        let lang = Self.languageLine(for: lines.map(\.text).joined())
+        let lang = Self.languageLine(for: lines.map(\.text).joined()) + Self.termsLine(glossary)
+        let corrector = GlossaryCorrector(terms: glossary)
         let session = service.makeSession(timeout: timeout)
         // 估计总请求数：每块一次，多块时再加合并
         let total = Double(chunks.count + (chunks.count > 1 ? max(1, chunks.count / 4) : 0))
@@ -305,7 +324,7 @@ public struct Summarizer: Sendable {
                 s = try await ask(Self.chunkPrompt + "\n" + lang, user, session: session)
             }
             progress?(1)
-            return s
+            return Self.corrected(s, with: corrector)
         }
 
         // 各块的局部摘要；某一块失败就重试一次，再不行跳过（只要还有别的块）
@@ -332,7 +351,7 @@ public struct Summarizer: Sendable {
                 merged.append(try await ask(Self.mergePrompt + "\n" + lang, user, session: session))
                 step()
             }
-            if merged.count == 1 { progress?(1); return Self.capped(merged[0]) }
+            if merged.count == 1 { progress?(1); return Self.corrected(Self.capped(merged[0]), with: corrector) }
             parts = merged
         }
     }
