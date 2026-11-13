@@ -297,10 +297,11 @@ Done:
 
 Next:
 
-5. **Meetings (0.4)** — telling speakers apart, and a meeting-minutes note template.
-6. **Local API (0.4)** — a background service on `localhost` that publishes device state, live PCM audio, transcripts
-   and recordings, so other tools (note apps, Home Assistant, agents via MCP) can use the recorder without touching
-   Bluetooth.
+5. **For agents (0.4)** — a read-only MCP server (stdio) over the recording library on your Mac: list recordings by
+   date, read transcripts and summaries, search. It does not touch Bluetooth and nothing runs in the background.
+6. **Meetings** — telling speakers apart, and a meeting-minutes note template.
+7. **Local API** — the rest of the picture: a service on `localhost` that publishes device state and live PCM audio,
+   so other tools (note apps, Home Assistant) can use the recorder without touching Bluetooth.
 
 Later, maybe: optional cloud speech recognition for recordings in the library (voice typing stays on-device);
 sending notes to third-party services.
@@ -315,7 +316,10 @@ Known gaps:
   and the next session starts a new one; after voice typing the app then deletes that file (if the setting is on and
   every safety check passes). Verified on hardware as pause → stop (the recorder's blinking yellow light goes out within
   15 s); stopping without a pause is not tested yet. The typed text is not affected either way.
-- The first ~1 s after pressing the button is lost.
+- Voice typing is ready about 0.35 s after the shortcut when you use it back to back, and about 1.1 s after a pause:
+  the recorder itself takes about a second to open a new file when it has been idle. What you say in that time is lost.
+- Voice typing started with the recorder's button (not the shortcut) leaves its file on the recorder; clear those
+  with *Delete voice-typing files from recorder…* in the library.
 - The word list only fixes other mis-hearings that you declare as aliases.
 - Code comments are in Chinese.
 
