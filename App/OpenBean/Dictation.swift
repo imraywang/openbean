@@ -133,7 +133,7 @@ final class Dictation {
         var transcriber: LiveTranscriber?
         var transcriberError: String?
         var targetApp: String?
-        var words: [String] = []
+        var glossary = GlossaryCorrector(terms: [])
         var polisher: Polisher?
         /// 各步耗时，写进启动分段日志
         var steps: [String] = []
@@ -156,6 +156,8 @@ final class Dictation {
         let polishURL = settings.polishEnabled ? URL(string: settings.polishEndpoint) : nil
         let key = settings.polishAPIKey, model = settings.polishModel
         let focus = settings.typeIntoApp && Typist.trusted
+        // 提示音要等音频输出起来（实测在调用线程上挡 440–500 ms）：现在先静音播一次把输出叫醒，到时真正的提示音就快了
+        if settings.readySound { ReadySound.warmUp() }
         preparing = Task { @MainActor in
             var p = Prepared()
             // 最慢的是识别器（SpeechAnalyzer 准备），先让它跑起来，其余的和它并行
@@ -169,16 +171,24 @@ final class Dictation {
             // 先问一次焦点：顺便让 Electron 类应用把辅助功能打开，到真正打字时就能分清输入框和画布
             if focus { _ = Typist.focus() }
             step("焦点")
-            // 每次开始都重读词表，改了词表下一次就生效
-            p.words = AppPaths.readGlossary()
-            step("词表")
+            // 每次开始都重读词表，改了词表下一次就生效；内容没变就复用上一次的纠正器，
+            // 变了在后台建（第一次要给每个字查拼音，实测 30 条约 25 ms），不占主线程
+            let words = AppPaths.readGlossary()
+            if let c = Self.glossaryCache, c.words == words {
+                p.glossary = c.corrector
+                step("词表（复用）")
+            } else {
+                p.glossary = await Task.detached(priority: .userInitiated) { GlossaryCorrector(terms: words) }.value
+                Self.glossaryCache = (words, p.glossary)
+                step("词表")
+            }
             // 本机服务先探一下（1 秒），没开就不润色；云端不探，免得拖慢开始，请求失败时那句原样输出
             if let url = polishURL {
                 let usable = Polisher.isLocal(url) ? await Polisher.isUp(url) : true
                 if usable {
                     // 润色只拿词条本身，误听别名不给（免得大模型把别名当成要用的词）
                     p.polisher = Polisher(endpoint: url, apiKey: key, model: model,
-                                          glossary: GlossaryCorrector.canonicalTerms(p.words))
+                                          glossary: GlossaryCorrector.canonicalTerms(words))
                 }
                 step("润色服务")
             }
@@ -189,6 +199,9 @@ final class Dictation {
             return p
         }
     }
+
+    /// 上一次的词表和纠正器：词表没变就复用
+    private static var glossaryCache: (words: [String], corrector: GlossaryCorrector)?
 
     private static func makeTranscriber() async -> (transcriber: LiveTranscriber?, error: String?, ms: Double) {
         let t0 = Date()
@@ -428,7 +441,7 @@ final class Dictation {
         trace?.marks.append("准备（" + p.steps.joined(separator: "，") + "）")
         trace?.mark("准备好")
         targetApp = p.targetApp
-        glossary = GlossaryCorrector(terms: p.words)
+        glossary = p.glossary
         polisher = p.polisher
         guard let t = p.transcriber else {
             lastError = "识别器：\(p.transcriberError ?? "?")"
@@ -445,10 +458,12 @@ final class Dictation {
         t.onPCM = { [weak self] buf, _ in self?.toSenseVoice(buf) }
         transcriber = t
         for b in early { t.append(b) }
+        trace?.mark("接识别器（先攒 \(early.count) 块）")
         early = []
         phase = .listening
         listeningSince = Date()
-        if settings.readySound { NSSound(named: "Tink")?.play() }
+        // 在后台队列上播：NSSound.play() 会在调用线程上等音频输出起来，放主线程上会挡住几百毫秒
+        if settings.readySound { ReadySound.play(); trace?.mark("提示音") }
         finishTrace(ok: true)
     }
 
@@ -621,5 +636,23 @@ final class Dictation {
         device.endDictation()
         phase = .idle
         onFinished(evidence)
+    }
+}
+
+/// 「可以说话」的提示音。NSSound.play() 要等音频输出设备起来才返回，输出闲着时实测挡调用线程 440–500 ms，
+/// 所以都在一个后台串行队列上播；开始准备时先静音播一次把输出叫醒（叫醒之后几秒内再播约 15 ms）。
+enum ReadySound {
+    private static let queue = DispatchQueue(label: "openbean.ready-sound")
+    /// 正在播的实例要有人持有，播完前不能被释放；只在 queue 上读写
+    nonisolated(unsafe) private static var playing: [NSSound] = []
+
+    static func warmUp() { queue.async { start(volume: 0) } }
+    static func play() { queue.async { start(volume: 1) } }
+
+    private static func start(volume: Float) {
+        guard let s = NSSound(named: "Tink")?.copy() as? NSSound else { return }
+        s.volume = volume
+        playing = playing.filter(\.isPlaying) + [s]
+        s.play()
     }
 }
