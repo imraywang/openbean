@@ -10,7 +10,8 @@ import Sparkle
 /// appcast.xml 由 bin/release 签名 DMG 后写入仓库根目录。
 @MainActor @Observable
 final class Updater: NSObject {
-    @ObservationIgnored private var controller: SPUStandardUpdaterController!
+    /// 开发版不建更新器：它不该被正式包覆盖
+    @ObservationIgnored private var controller: SPUStandardUpdaterController?
     @ObservationIgnored private var watch: AnyCancellable?
 
     /// 正在检查或下载时为 false，菜单项和按钮跟着变灰
@@ -18,15 +19,17 @@ final class Updater: NSObject {
 
     /// 设置页的「自动检查更新」开关，直接读写 Sparkle 自己存的偏好
     var automaticallyChecks: Bool {
-        get { access(keyPath: \.automaticallyChecks); return controller.updater.automaticallyChecksForUpdates }
-        set { withMutation(keyPath: \.automaticallyChecks) { controller.updater.automaticallyChecksForUpdates = newValue } }
+        get { access(keyPath: \.automaticallyChecks); return controller?.updater.automaticallyChecksForUpdates ?? false }
+        set { withMutation(keyPath: \.automaticallyChecks) { controller?.updater.automaticallyChecksForUpdates = newValue } }
     }
 
     override init() {
         super.init()
+        guard !Flavor.isDev else { return }
         // startingUpdater: true 即启动时开始按计划在后台检查
-        controller = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: self)
-        watch = controller.updater.publisher(for: \.canCheckForUpdates)
+        let c = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: self)
+        controller = c
+        watch = c.updater.publisher(for: \.canCheckForUpdates)
             .receive(on: DispatchQueue.main)
             .sink { [weak self] in self?.canCheck = $0 }
     }
@@ -35,6 +38,7 @@ final class Updater: NSObject {
     func check() {
         // 菜单栏 App 不在前台，先激活，Sparkle 的「正在检查」窗口才不会被别的 App 盖住
         NSApp.activate()
+        guard let controller else { return }
         controller.checkForUpdates(nil)
         Updater.bringWindowsToFront()
     }

@@ -9,11 +9,26 @@ command -v xcodegen >/dev/null || { echo "需要 XcodeGen：brew install xcodege
 SIGN_ID="${OPENBEAN_SIGN_ID:-openbean local signing}"
 security find-identity -p codesigning 2>/dev/null | grep -q "\"$SIGN_ID\"" || SIGN_ID="-"
 (cd App && xcodegen generate -q)
+# 默认编「开发版」OpenBean Dev：应用标识、数据目录（Application Support/openbean-dev）、链接前缀都和正式版分开，
+# 两个可以装在同一台机器上；开发版不自动更新。要编和正式版同一身份的包：OPENBEAN_FLAVOR=release bin/build-app
+FLAVOR="${OPENBEAN_FLAVOR:-dev}"
+if [[ "$FLAVOR" == dev ]]; then BUNDLE_ID=dev.openbean.app.dev; OUT=".build/OpenBean Dev.app"
+else BUNDLE_ID=dev.openbean.app; OUT=.build/OpenBean.app; fi
 # 下载 Sparkle 等公开包不需要凭据；不加 netrc 的话 xcodebuild 会去钥匙串查 github.com 的密码，弹窗卡住
 xcodebuild -project App/OpenBean.xcodeproj -scheme OpenBean -configuration Release \
-  -derivedDataPath App/build CODE_SIGN_IDENTITY="$SIGN_ID" -packageAuthorizationProvider netrc -quiet build
-rm -rf .build/OpenBean.app
+  -derivedDataPath App/build CODE_SIGN_IDENTITY="$SIGN_ID" PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID" \
+  -packageAuthorizationProvider netrc -quiet build
+rm -rf "$OUT"
 mkdir -p .build
 # 移动而不是拷贝：留在 App/build 里的那份同名 App 会被系统登记，openbean:// 链接可能交给它而不是正在运行的这份
-mv App/build/Build/Products/Release/OpenBean.app .build/OpenBean.app
-echo "已编译：$ROOT/.build/OpenBean.app"
+mv App/build/Build/Products/Release/OpenBean.app "$OUT"
+if [[ "$FLAVOR" == dev ]]; then
+  # 名字、链接前缀、自动更新写进 Info.plist，再用同一个证书重签（改了 Info.plist 签名就失效）
+  PL="$OUT/Contents/Info.plist"
+  /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName 'OpenBean Dev'" -c "Set :CFBundleName 'OpenBean Dev'" \
+    -c "Set :CFBundleURLTypes:0:CFBundleURLName $BUNDLE_ID" \
+    -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes:0 string openbean-dev" \
+    -c "Set :SUEnableAutomaticChecks false" "$PL"
+  codesign --force --sign "$SIGN_ID" "$OUT"
+fi
+echo "已编译：$ROOT/$OUT"

@@ -72,9 +72,15 @@ Settings → Models → About. If you have 0.2.0, download the new version once 
 ```bash
 Scripts/fetch-deps.sh          # sherpa-onnx library + SenseVoice and VAD models (once)
 Scripts/make-signing-cert.sh   # optional but recommended, see below
-bin/build-app                  # XcodeGen + xcodebuild → .build/OpenBean.app
-open .build/OpenBean.app
+bin/build-app                  # XcodeGen + xcodebuild → ".build/OpenBean Dev.app"
+open ".build/OpenBean Dev.app"
 ```
+
+What you build is **OpenBean Dev**, a separate app from the released OpenBean: its own bundle identifier
+(`dev.openbean.app.dev`), its own data in `~/Library/Application Support/openbean-dev`, its own permissions, a small
+“D” next to the menu bar icon, and no automatic updates. Both can be installed on one Mac. It answers
+`openbean-dev://` links and `openbean://` too. Don't run both at once: each would connect to the recorder and react
+to its button. `OPENBEAN_FLAVOR=release bin/build-app` builds with the release identity instead.
 
 A setup assistant walks you through connecting the recorder, downloading the speech models (~240 MB) and the
 permissions. macOS asks for **Bluetooth**; to type into other apps OpenBean also needs
@@ -353,8 +359,11 @@ openbean 是录音豆的开源本地驱动：通过蓝牙和 Wi‑Fi 连接设�
 ```bash
 Scripts/fetch-deps.sh          # 下载 sherpa-onnx 和语音模型（一次）
 Scripts/make-signing-cert.sh   # 建议：本机签名证书，重新打包后不用重新授权
-bin/build-app && open .build/OpenBean.app
+bin/build-app && open ".build/OpenBean Dev.app"
 ```
+
+编出来的是 **OpenBean Dev**，和正式版是两个 App：应用标识、数据目录（`Application Support/openbean-dev`）、系统权限都分开，
+菜单栏图标旁有个小 D，不自动更新，可以和正式版装在同一台机器上。两个不要同时开，否则都会连录音豆、都响应按键。
 
 首次启动有设置向导：连接录音豆、下载语音模型（约 240 MB）、授予权限。打字进其他 App 需要在「系统设置 → 隐私与安全性 → 辅助功能」
 （部分版本叫 Device Control and Data Access）里打开 OpenBean。

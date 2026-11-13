@@ -302,6 +302,7 @@ private struct ModelSettings: View {
                     }
                 }
                 Toggle("Automatically check for updates", isOn: $updater.automaticallyChecks)
+                    .disabled(Flavor.isDev)
                 Link("Source code and protocol notes", destination: URL(string: "https://github.com/imraywang/openbean")!)
             }
         }

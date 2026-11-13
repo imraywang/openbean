@@ -11,7 +11,7 @@ import Security
 enum AppPaths {
     static let support: URL = {
         let u = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("openbean")
+            .appendingPathComponent(Flavor.isDev ? "openbean-dev" : "openbean")
         try? FileManager.default.createDirectory(at: u, withIntermediateDirectories: true)
         return u
     }()
@@ -253,6 +253,14 @@ enum Typist {
             e.post(tap: .cghidEventTap)
         }
     }
+}
+
+/// 开发版（bin/build-app 编出来的「OpenBean Dev」）和正式版是两个 App：应用标识、数据目录、链接前缀都分开，
+/// 可以装在同一台机器上互不影响。开发版不自动更新，免得被正式包覆盖。
+enum Flavor {
+    static let isDev = Bundle.main.bundleIdentifier?.hasSuffix(".dev") ?? false
+    /// 这个 App 认的链接前缀。开发版也认 openbean://，这样已有的笔记链接和快捷指令照常能用
+    static let schemes: Set<String> = isDev ? ["openbean-dev", "openbean"] : ["openbean"]
 }
 
 /// 全局快捷键（Carbon 热键，不需要额外权限）

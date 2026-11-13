@@ -51,7 +51,7 @@ final class AppModel {
     var openMain: (() -> Void)?
 
     func handle(_ url: URL) {
-        guard url.scheme == "openbean" else { return }
+        guard let scheme = url.scheme, Flavor.schemes.contains(scheme) else { return }
         let path = ([url.host ?? ""] + url.pathComponents.filter { $0 != "/" }).joined(separator: "/")
         Log.write("链接 \(url.absoluteString)")
         switch path {
@@ -197,7 +197,15 @@ struct MenuIcon: View {
     let device: DeviceController
     let dictation: Dictation
     var body: some View {
-        Image(nsImage: BeanArt.menuIcons[state]!)
+        // 开发版在图标旁加个小 D，和正式版一眼分得清
+        if Flavor.isDev {
+            HStack(spacing: 1) {
+                Image(nsImage: BeanArt.menuIcons[state]!)
+                Text(verbatim: "D").font(.system(size: 9, weight: .bold))
+            }
+        } else {
+            Image(nsImage: BeanArt.menuIcons[state]!)
+        }
     }
 
     private var state: BeanArt.State {
