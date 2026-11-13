@@ -126,6 +126,11 @@ final class Dictation {
                 recordOnly = (Date(), fileId)
                 return
             }
+            // 没等到通知、已经按文件列表里最新的一条开始了，结果通知晚到、说的是另一个新文件：换过去
+            if phase != .idle, guessedFile, fileId != currentFile {
+                switchFile(to: fileId, why: "新录音的通知到了")
+                return
+            }
             Task { await begin(fileId: fileId) }
         case .recordingStopped:
             if let r = recordOnly, phase == .idle {
@@ -140,15 +145,53 @@ final class Dictation {
         }
     }
 
+    /// 对这条录音开实时流，音频解码后喂给识别
+    @discardableResult
+    private func openStream(fileId: UInt32) -> Bool {
+        guard let session = device.session, let decoder else { return false }
+        do {
+            stream = try session.startRealtime(fileId: fileId) { [weak self] _, frame in
+                guard let pcm = try? decoder.decode(frame) else { return }
+                DispatchQueue.main.async { self?.feed(pcm) }
+            }
+            return true
+        } catch {
+            lastError = "\(error)"
+            Log.write("开实时流失败 file=\(fileId)：\(error)")
+            return false
+        }
+    }
+
+    /// 猜错了文件：换到真正在录的那一条
+    private func switchFile(to fileId: UInt32, why: String) {
+        guessedFile = false
+        Log.write("\(why)，换到 file=\(fileId)")
+        stream?.stop()
+        currentFile = fileId
+        onStarted(fileId)
+        openStream(fileId: fileId)
+    }
+
+    /// 这次听写收到过音频没有
+    private var gotAudio = false
+
+    /// 这次听写的文件号是猜的（没等到设备通知，取了文件列表里最新的一条）
+    private var guessedFile = false
+
     /// 菜单里的开始/停止：让设备开始或暂停录音，后续由设备事件驱动
     func toggle() async {
         guard let s = device.session else { Log.write("语音输入没开始：录音豆没连上"); return }
+        let t0 = Date(), starting = phase == .idle
+        defer { if starting, phase != .idle { Log.write(String(format: "语音输入启动用了 %.0f ms", Date().timeIntervalSince(t0) * 1000)) } }
         do {
             if phase == .idle {
                 // 录音豆其实已经在录、App 却不知道（App 重启时错过了开始事件）：这时再发「开始」设备不理，
                 // 语音输入就一直起不来。按键是「语音输入」时这段录音没人要，先停掉再开始；
                 // 按键是「只录音」时可能是正在录的会议，不动它
-                if recordOnly == nil, let info = try? await s.deviceInfo(), info.recording == true {
+                let info = recordOnly == nil ? try? await s.deviceInfo() : nil
+                var marks = [String(format: "查状态 %.0f", Date().timeIntervalSince(t0) * 1000)]
+                defer { Log.write("启动分段（ms）：" + marks.joined(separator: "，")) }
+                if let info, info.recording == true {
                     guard settings.buttonDictates else {
                         Log.write("语音输入没开始：录音豆正在录音（只录音模式），先按录音豆按键停止")
                         lastError = String(localized: "The recorder is recording. Stop it first.")
@@ -158,16 +201,36 @@ final class Dictation {
                     try await s.pauseRecording()
                     try? await Task.sleep(nanoseconds: 600_000_000)
                 }
+                guessedFile = false
                 try await s.startRecording()
-                // 设备通常会主动告诉我们新录音的文件号（1A/06）；有时不发（实测放在充电盒里时就不发），
-                // 等 1.5 秒没等到就自己从文件列表里取最新的一条
-                for _ in 0..<15 where phase == .idle { try? await Task.sleep(nanoseconds: 100_000_000) }
+                marks.append(String(format: "开始回包 %.0f", Date().timeIntervalSince(t0) * 1000))
+                // 设备新建录音文件时会报文件号（1A/06），但要 1 秒多才到；续写上一个文件时根本不报。
+                // 不干等：手里有上一次的文件号就先按它开始，通知到了发现是新文件再换过去（见 handle）
+                if phase == .idle, currentFile != 0 {
+                    guessedFile = true
+                    let guess = currentFile
+                    await begin(fileId: guess)
+                    marks.append(String(format: "按上次的文件开始 %.0f", Date().timeIntervalSince(t0) * 1000))
+                    // 保险：1.5 秒还没收到任何音频，说明猜错了又没等到通知，去文件列表里找最新的
+                    Task { @MainActor [weak self] in
+                        try? await Task.sleep(nanoseconds: 1_500_000_000)
+                        guard let self, self.guessedFile, self.phase != .idle, self.currentFile == guess, !self.gotAudio,
+                              let newest = try? await s.listFiles().first?.id, newest != guess,
+                              self.guessedFile, self.phase != .idle, self.currentFile == guess else { return }
+                        self.switchFile(to: newest, why: "一直没有音频")
+                    }
+                    return
+                }
+                // 第一次用、不知道上一个文件：等一会儿通知，等不到就读文件列表
+                for _ in 0..<24 where phase == .idle { try? await Task.sleep(nanoseconds: 50_000_000) }
+                marks.append(String(format: "等通知 %.0f", Date().timeIntervalSince(t0) * 1000))
                 if phase == .idle {
                     guard let id = try await s.listFiles().first?.id else {
                         Log.write("语音输入没开始：录音豆没报新录音，文件列表也是空的")
                         return
                     }
                     Log.write("录音豆没报新录音，按文件列表里最新的一条开始 file=\(id)")
+                    guessedFile = true
                     await begin(fileId: id)
                 }
             } else {
@@ -191,10 +254,13 @@ final class Dictation {
         level = 0; noiseFloor = -60; listeningSince = nil; typedCount = 0; polishing = 0; deliveredByClipboard = false
         text = TwoPassText(); segments = []; lastEnd = nil; chain = nil; early = []
         typing = settings.typeIntoApp && Typist.trusted
+        // 先问一次焦点：顺便让 Electron 类应用把辅助功能打开，到真正打字时就能分清输入框和画布
+        if typing { _ = Typist.focus() }
         targetApp = NSWorkspace.shared.frontmostApplication?.localizedName
         if settings.typeIntoApp, !Typist.trusted { Log.write("没有辅助功能权限，只显示不打字") }
         let r = recognizer
         svQueue.async { r?.reset() }
+        gotAudio = false
         Log.write("开始听写 file=\(fileId)")
         startedAt = Date()
         currentFile = fileId
@@ -203,14 +269,7 @@ final class Dictation {
         await device.beginDictation()
 
         // 先开流，识别器准备好之前的音频先攒着
-        do {
-            stream = try session.startRealtime(fileId: fileId) { [weak self] _, frame in
-                guard let pcm = try? decoder.decode(frame) else { return }
-                DispatchQueue.main.async { self?.feed(pcm) }
-            }
-        } catch {
-            lastError = "\(error)"; phase = .idle; device.endDictation(); return
-        }
+        guard openStream(fileId: fileId) else { phase = .idle; device.endDictation(); return }
 
         // 每次开始都重读词表，改了词表下一次就生效
         let words = AppPaths.readGlossary()
@@ -244,6 +303,7 @@ final class Dictation {
     }
 
     private func feed(_ pcm: AVAudioPCMBuffer) {
+        gotAudio = true
         updateLevel(pcm)
         if let t = transcriber { t.append(pcm) } else if phase == .starting { early.append(pcm) }
     }
@@ -294,7 +354,7 @@ final class Dictation {
             rebuild()
             Log.write(String(format: "定稿 [%.2f–%.2f s，%.0f ms]%@ %@", s.start, s.end, s.decodeMs, newPara ? " ¶" : "", recognized))
             for f in fixes { Log.write("词表纠正：\(f.original) → \(f.replacement)") }
-            let prev = chain, polisher = self.polisher, typing = self.typing
+            let prev = chain, polisher = self.polisher
             chain = Task { @MainActor [weak self] in
                 await prev?.value
                 var final = raw
@@ -309,7 +369,15 @@ final class Dictation {
                 final = Self.trimTail(final)
                 self.segments[idx].polished = final
                 self.rebuild()
-                if typing {
+                // 焦点不在能输入的地方（比如点在画布、列表上）：按键打出去也没处落，改成结束时拷到剪贴板
+                if self.typing {
+                    let f = Typist.focus()
+                    if f.kind == .notEditable {
+                        self.typing = false
+                        Log.write("焦点不在输入框（\(f.role)），改为拷到剪贴板")
+                    }
+                }
+                if self.typing {
                     if idx > 0 {
                         let prev = self.segments[idx - 1]
                         Typist.type(Self.joiner(prev: prev.polished ?? prev.raw, gap: gap, commaGap: self.commaGap))

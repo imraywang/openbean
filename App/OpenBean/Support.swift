@@ -185,6 +185,54 @@ enum Typist {
         NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
     }
 
+    enum Focus: Equatable { case editable, notEditable, unknown }
+
+    /// 当前键盘焦点能不能打字。只有明确看到「焦点在一个不能输入的控件上」才说不能；
+    /// 拿不到焦点信息、或者是网页 / 窗口这类看不出里面是什么的，一律算不知道（照常打字）。
+    static func focus() -> (kind: Focus, role: String) {
+        guard let app = NSWorkspace.shared.frontmostApplication else { return (.unknown, "no app") }
+        let appEl = AXUIElementCreateApplication(app.processIdentifier)
+        func focused() -> AXUIElement? {
+            var v: CFTypeRef?
+            guard AXUIElementCopyAttributeValue(appEl, kAXFocusedUIElementAttribute as CFString, &v) == .success,
+                  let v, CFGetTypeID(v) == AXUIElementGetTypeID() else { return nil }
+            return (v as! AXUIElement)
+        }
+        func role(_ e: AXUIElement) -> String {
+            var v: CFTypeRef?
+            AXUIElementCopyAttributeValue(e, kAXRoleAttribute as CFString, &v)
+            return v as? String ?? "?"
+        }
+        let opaque: Set<String> = ["AXWebArea", "AXWindow", "AXApplication", "AXScrollArea", "AXGroup", "AXUnknown", "?"]
+        var el = focused()
+        // Electron 默认不给出网页里的控件，要先打开它的辅助功能再问；打开成功说明是 Electron，
+        // 这之后输入框会报成文本控件，焦点还停在网页 / 分组上就是没在输入框里（比如点在画布上）
+        var electron = false
+        if el.map({ opaque.contains(role($0)) }) ?? true {
+            electron = AXUIElementSetAttributeValue(appEl, "AXManualAccessibility" as CFString, kCFBooleanTrue) == .success
+            if electron {
+                // 辅助功能树要一点时间才建好，最多等 0.4 秒
+                for _ in 0..<4 {
+                    usleep(100_000)
+                    el = focused()
+                    if let e = el, !opaque.contains(role(e)) { break }
+                }
+            }
+        }
+        guard let el else { return (.unknown, "none") }
+        let r = role(el)
+        if ["AXTextField", "AXTextArea", "AXComboBox", "AXSearchField"].contains(r) { return (.editable, r) }
+        var settable: DarwinBoolean = false
+        if AXUIElementIsAttributeSettable(el, kAXSelectedTextRangeAttribute as CFString, &settable) == .success, settable.boolValue {
+            return (.editable, r)
+        }
+        if AXUIElementIsAttributeSettable(el, kAXValueAttribute as CFString, &settable) == .success, settable.boolValue {
+            return (.editable, r)
+        }
+        if opaque.contains(r) { return (electron && (r == "AXWebArea" || r == "AXGroup") ? .notEditable : .unknown, r) }
+        return (.notEditable, r)
+    }
+
     static func type(_ text: String) {
         let units = Array(text.utf16)
         for start in stride(from: 0, to: units.count, by: 16) {

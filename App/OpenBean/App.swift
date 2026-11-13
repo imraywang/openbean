@@ -77,6 +77,16 @@ final class AppModel {
             // openbean://summarize/<录音 id>：摘要（或重新摘要）一条已转写的录音
             if let id = UInt32(p.dropFirst(10)), let r = library.recordings.first(where: { $0.id == id }),
                library.notes.canSummarize(r) { library.notes.summarize(id) }
+        case "type-test":
+            // openbean://type-test：3 秒后往当前输入框打一行字，用来查「文字打不进去」
+            Log.write("打字测试：辅助功能=\(Typist.trusted) 可发按键=\(CGPreflightPostEventAccess())")
+            Task {
+                try? await Task.sleep(nanoseconds: 3_000_000_000)
+                Log.write("打字测试：前台是 \(NSWorkspace.shared.frontmostApplication?.localizedName ?? "?")")
+                let f = Typist.focus()
+                Log.write("打字测试：焦点 \(f.kind)（\(f.role)）")
+                if f.kind != .notEditable { Typist.type("OpenBean 打字测试 OK。") }
+            }
         case "notes/backfill":
             library.notes.backfillNotes()
         case let p where p.hasPrefix("open/"):
