@@ -15,6 +15,23 @@ public enum SyncEstimate {
         max(bytes, 0) / (bytesPerSecond > 0 ? bytesPerSecond : defaultBytesPerSecond)
     }
 
+    /// 每个文件的固定开销（秒）：发请求到第一片到达、最后等结束包。短文件的实测速度被它拉低
+    /// （几十 KB 的文件约 13 KB/s，几十 MB 的约 40 KB/s），所以分开算：时长 = 开销 + 字节 ÷ 大文件的速度
+    public static let perFileOverhead: Double = 2
+
+    /// 一个文件要下多久：短文件以开销为主，长文件以速度为主
+    public static func fileSeconds(bytes: Double, bytesPerSecond: Double) -> Double {
+        bytes > 0 ? perFileOverhead + seconds(bytes: bytes, bytesPerSecond: bytesPerSecond) : 0
+    }
+
+    /// 只用够大的下载来学速度（≥ 1 MB 且 ≥ 20 秒），短文件的开销不会把记住的速度拉低
+    public static let learnMinBytes = 1_000_000
+    public static let learnMinSeconds: Double = 20
+
+    public static func shouldLearn(bytes: Int, seconds: Double) -> Bool {
+        bytes >= learnMinBytes && seconds >= learnMinSeconds
+    }
+
     /// 把新量到的速度并进记住的速度（新值占 3 成，单次波动不会把估算带偏）
     public static func blend(old: Double?, measured: Double) -> Double {
         guard measured > 0 else { return old ?? defaultBytesPerSecond }

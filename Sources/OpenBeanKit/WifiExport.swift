@@ -19,7 +19,7 @@ public struct SoftAPEndpoint: CustomStringConvertible {
 
 /// 加入设备热点之后的 WebSocket 通道：
 /// 文本发 hex 命令，二进制收 `09 FF` 帧（和 BLE 同格式），另开 UDP 往 :32003 发保活。
-public final class WifiExport: NSObject, URLSessionDelegate, URLSessionWebSocketDelegate, @unchecked Sendable {
+public final class WifiExport: NSObject, URLSessionDelegate, URLSessionWebSocketDelegate, TransferChannel, @unchecked Sendable {
     private let q = DispatchQueue(label: "d3200.wifi")
     private let crypto: SessionCrypto
     private let endpoint: SoftAPEndpoint
@@ -32,6 +32,8 @@ public final class WifiExport: NSObject, URLSessionDelegate, URLSessionWebSocket
     private var udpTimer: DispatchSourceTimer?
     public private(set) var rxBytes = 0
     public var log: (String) -> Void = { _ in }
+    /// 落盘下载（Downloader）装的处理函数；只在 `sync` 里改
+    public var onPacket: ((Packet) -> Void)?
 
     public init(endpoint: SoftAPEndpoint, crypto: SessionCrypto) {
         self.endpoint = endpoint
@@ -147,7 +149,7 @@ public final class WifiExport: NSObject, URLSessionDelegate, URLSessionWebSocket
     private func ingest(_ bytes: [UInt8]) {
         rxBytes += bytes.count
         for p in assembler.feed(bytes) {
-            if let st = state { D3200Session.handle(p, st, crypto) }
+            if let h = onPacket { h(p) } else if let st = state { D3200Session.handle(p, st, crypto) }
             else { log("（无传输时收到）\(p)") }
         }
     }
@@ -194,6 +196,21 @@ public final class WifiExport: NSObject, URLSessionDelegate, URLSessionWebSocket
             state = nil
             return D3200Session.makeTransfer(st, started: started)
         }
+    }
+
+    // MARK: TransferChannel（落盘下载用）
+
+    public func sync<T>(_ body: () throws -> T) rethrows -> T { try q.sync(execute: body) }
+
+    public var isConnected: Bool { task?.state == .running }
+
+    /// 拉一个文件，边收边写进 `spool`（不在内存里攒），结束时按蓝牙同样的规则判断完整性
+    public func download(_ file: RecordingFile, spool: FrameSpool, idle: Double = 20,
+                         shouldCancel: @escaping () async -> Bool = { false },
+                         progress: @escaping (DownloadProgress) async -> Void) async throws -> DownloadResult {
+        try await Downloader.run(channel: self, crypto: crypto, file: file, spool: spool, idle: idle,
+                                 request: { [weak self] in try await self?.task?.send(.string(Cmd.wifiFileRequestHex(id: file.id))) },
+                                 shouldCancel: shouldCancel, progress: progress)
     }
 
     /// 和飞书一样收尾：文本 FINISH，再发 1A0A。

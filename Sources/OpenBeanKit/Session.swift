@@ -57,6 +57,12 @@ final class TransferState {
     var heads: [FileHead] = []
     var requestedOffset: UInt32 = 0
     var diagnostics: TransferDiagnostics?
+    /// 落盘模式（App 下载用）：解密后的帧写进 spool，不在内存里攒，也不记逐片的到达时间
+    var spool: FrameSpool?
+    /// 收到的文件头不是请求的文件（fileId 为 0 时不查：实时录音一开始还不知道 id）
+    var wrongHead: FileHead?
+    /// 这次新收到（spool 里原来没有）的片数
+    var newFrames = 0
     let created = Date()
     /// 收到的分片包个数（1A/08 和 1A/12 一起数）
     var sliceFrames = 0
@@ -64,7 +70,7 @@ final class TransferState {
     var onFrame: ((UInt32, [UInt8]) -> Void)?
 
     init(fileId: UInt32) { self.fileId = fileId }
-    var bytes: Int { chunks.count * OggOpus.frameSize }
+    var bytes: Int { (spool?.count ?? chunks.count) * OggOpus.frameSize }
 }
 
 public final class D3200Session {
@@ -124,6 +130,11 @@ public final class D3200Session {
             st.lastActivity = Date()
             guard let head = FileHead(frame: p.raw) else { return }
             st.heads.append(head)
+            if st.fileId != 0, head.fileId != st.fileId {
+                st.wrongHead = head
+                // 落盘下载不信别的文件的头：不装解密器，后面的片一片也不写
+                if st.spool != nil { return }
+            }
             st.head = head
             do { st.decryptor = try crypto.fileDecryptor(for: head) } catch {
                 st.decryptError = "\(error)"
@@ -132,6 +143,19 @@ public final class D3200Session {
             let now = Date()
             st.lastActivity = now
             let slices = parseSlices(frame: p.raw)
+            if let spool = st.spool {
+                st.diagnostics?.note(frame: p, slices: slices, packetIndex: st.sliceFrames,
+                                     elapsed: now.timeIntervalSince(st.created))
+                st.sliceFrames += 1
+                st.slices += slices.count
+                // 没有解密器（没收到头、头不对、密钥解不开）的片存了也没用
+                guard st.wrongHead == nil, let d = st.decryptor else { return }
+                for s in slices {
+                    guard let plain = try? d.decrypt(seq: s.seq, data: s.data) else { continue }
+                    if spool.put(seq: s.seq, frame: plain) { st.newFrames += 1 }
+                }
+                return
+            }
             st.packets.append((now, slices.count))
             st.diagnostics?.note(frame: p, slices: slices, packetIndex: st.sliceFrames,
                                  elapsed: now.timeIntervalSince(st.created))

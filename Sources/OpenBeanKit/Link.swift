@@ -36,7 +36,7 @@ public enum UUIDs {
 }
 
 /// CoreBluetooth 薄封装。所有状态只在 `q` 上读写。
-public final class Link: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate, @unchecked Sendable {
+public final class Link: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate, TransferChannel, @unchecked Sendable {
     private let q = DispatchQueue(label: "d3200.ble")
     private var central: CBCentralManager!
     private var peripheral: CBPeripheral?
@@ -314,6 +314,9 @@ public final class Link: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
 
     /// 在 BLE 队列上执行一段代码（给 onPacket 回调之外的状态读写用）。
     public func sync<T>(_ body: () throws -> T) rethrows -> T { try q.sync(execute: body) }
+
+    /// 连着、通知已打开。只在 `sync` 里读
+    public var isConnected: Bool { established && peripheral?.state == .connected }
 
     public func disconnect() {
         q.sync { if let p = peripheral { central.cancelPeripheralConnection(p) } }

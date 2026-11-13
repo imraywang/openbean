@@ -10,10 +10,15 @@ public enum OggOpus {
 
     public static func frames(from raw: [UInt8]) -> [[UInt8]] {
         stride(from: 0, to: raw.count, by: frameSize).map { start in
-            var f = Array(raw[start..<min(start + frameSize, raw.count)])
-            while f.count > 1, f.last == 0 { f.removeLast() } // 去掉补齐用的 0
-            return f
+            trimmed(Array(raw[start..<min(start + frameSize, raw.count)]))
         }
+    }
+
+    /// 去掉补齐用的 0
+    public static func trimmed(_ frame: [UInt8]) -> [UInt8] {
+        var f = frame
+        while f.count > 1, f.last == 0 { f.removeLast() }
+        return f
     }
 
     public static func mux(frames: [[UInt8]], serial: UInt32 = 0x4433_3230) -> [UInt8] {
@@ -71,3 +76,44 @@ public enum OggOpus {
         data.reduce(UInt32(0)) { ($0 << 8) ^ table[Int((($0 >> 24) ^ UInt32($1)) & 0xFF)] }
     }
 }
+
+/// 边写边封装的 Ogg Opus：一次给一帧，攒满一页（50 帧）就写出去，内存里最多一页。
+/// 输出和 `OggOpus.mux` 逐字节相同（最后一页带结束标志，所以要等 `finish()` 才写最后一页）。
+public final class OggOpusWriter {
+    private let write: ([UInt8]) throws -> Void
+    private let serial: UInt32
+    private var sequence: UInt32 = 0
+    private var granule: UInt64 = 0
+    private var pending: [[UInt8]] = []
+    public private(set) var frames = 0
+    static let perPage = 50
+
+    public init(serial: UInt32 = 0x4433_3230, write: @escaping ([UInt8]) throws -> Void) throws {
+        self.serial = serial
+        self.write = write
+        try page([OggOpus.opusHead()], granule: 0, flags: 0x02)
+        try page([OggOpus.opusTags()], granule: 0, flags: 0)
+    }
+
+    private func page(_ packets: [[UInt8]], granule: UInt64, flags: UInt8) throws {
+        try write(OggOpus.page(packets: packets, serial: serial, sequence: sequence, granule: granule, flags: flags))
+        sequence += 1
+    }
+
+    /// 加一帧（已去掉补齐的 0）。攒到第 51 帧时才把前 50 帧写出去：那时才知道它们不是最后一页
+    public func add(_ frame: [UInt8]) throws {
+        if pending.count == Self.perPage { try flushPage(last: false) }
+        pending.append(frame)
+        frames += 1
+    }
+
+    private func flushPage(last: Bool) throws {
+        guard !pending.isEmpty else { return }
+        granule += OggOpus.samplesPerFrame * UInt64(pending.count)
+        try page(pending, granule: granule, flags: last ? 0x04 : 0)
+        pending.removeAll(keepingCapacity: true)
+    }
+
+    public func finish() throws { try flushPage(last: true) }
+}
+
