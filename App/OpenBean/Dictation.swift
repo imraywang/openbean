@@ -120,14 +120,110 @@ final class Dictation {
     /// App 发开始命令之后收到的新文件通知（1A/06）里的文件号
     private var notifiedNew: Set<UInt32> = []
 
+    // MARK: 启动
+
+    /// 开始命令回包后先等新文件通知（1A/06）多久，再退回「按上次的文件号开始」。
+    /// 真机：紧接上一次的录音 1A/06 在回包后 90–180 ms 到；隔久了的第一次约 1 秒（那种情况等不到，走兜底）
+    static let notifyWait: TimeInterval = 0.4
+    /// 第一次用（不知道上一个文件号）时，回包后最多等通知多久，再去读文件列表
+    static let firstUseNotifyWait: TimeInterval = 1.2
+
+    /// 和文件号无关的准备工作（识别器、焦点、词表、润色服务），发开始命令的同时做；文件号到了只剩开流
+    private struct Prepared {
+        var transcriber: LiveTranscriber?
+        var transcriberError: String?
+        var targetApp: String?
+        var words: [String] = []
+        var polisher: Polisher?
+        /// 各步耗时，写进启动分段日志
+        var steps: [String] = []
+    }
+    private var preparing: Task<Prepared, Never>?
+
+    /// 启动分段：从按下（或收到按键开始的通知）到可以说话，每一步在第几毫秒
+    private struct StartTrace {
+        let t0 = Date()
+        var marks: [String] = []
+        /// 最终走的路径：通知 / 猜上次的文件 / 文件列表 / 按键
+        var path = "?"
+        var ms: Double { Date().timeIntervalSince(t0) * 1000 }
+        mutating func mark(_ name: String) { marks.append(String(format: "%@ %.0f", name, ms)) }
+    }
+    private var trace: StartTrace?
+
+    private func startPreparing() {
+        guard preparing == nil else { return }
+        let polishURL = settings.polishEnabled ? URL(string: settings.polishEndpoint) : nil
+        let key = settings.polishAPIKey, model = settings.polishModel
+        let focus = settings.typeIntoApp && Typist.trusted
+        preparing = Task { @MainActor in
+            var p = Prepared()
+            // 最慢的是识别器（SpeechAnalyzer 准备），先让它跑起来，其余的和它并行
+            async let made = Self.makeTranscriber()
+            var t = Date()
+            func step(_ name: String) {
+                p.steps.append(String(format: "%@ %.0f", name, Date().timeIntervalSince(t) * 1000))
+                t = Date()
+            }
+            p.targetApp = NSWorkspace.shared.frontmostApplication?.localizedName
+            // 先问一次焦点：顺便让 Electron 类应用把辅助功能打开，到真正打字时就能分清输入框和画布
+            if focus { _ = Typist.focus() }
+            step("焦点")
+            // 每次开始都重读词表，改了词表下一次就生效
+            p.words = AppPaths.readGlossary()
+            step("词表")
+            // 本机服务先探一下（1 秒），没开就不润色；云端不探，免得拖慢开始，请求失败时那句原样输出
+            if let url = polishURL {
+                let usable = Polisher.isLocal(url) ? await Polisher.isUp(url) : true
+                if usable {
+                    // 润色只拿词条本身，误听别名不给（免得大模型把别名当成要用的词）
+                    p.polisher = Polisher(endpoint: url, apiKey: key, model: model,
+                                          glossary: GlossaryCorrector.canonicalTerms(p.words))
+                }
+                step("润色服务")
+            }
+            let r = await made
+            p.transcriber = r.transcriber
+            p.transcriberError = r.error
+            p.steps.append(String(format: "识别器 %.0f", r.ms))
+            return p
+        }
+    }
+
+    private static func makeTranscriber() async -> (transcriber: LiveTranscriber?, error: String?, ms: Double) {
+        let t0 = Date()
+        do {
+            let t = try await LiveTranscriber(locale: Locale(identifier: "zh_CN"), engine: .dictation) { Log.write($0) }
+            return (t, nil, Date().timeIntervalSince(t0) * 1000)
+        } catch {
+            return (nil, "\(error)", Date().timeIntervalSince(t0) * 1000)
+        }
+    }
+
+    /// 准备好了却没用上（开始失败）：把识别器关掉
+    private func discardPreparing() {
+        guard let p = preparing else { return }
+        preparing = nil
+        Task { @MainActor in await p.value.transcriber?.finish() }
+    }
+
+    /// 写启动分段日志（可以说话时、或开始失败时各一次）
+    private func finishTrace(ok: Bool) {
+        guard let t = trace else { return }
+        trace = nil
+        Log.write("启动分段（ms）：" + (t.marks + ["路径=\(t.path)", ok ? String(format: "可以说话 %.0f", t.ms) : "没开始"]).joined(separator: "，"))
+        if ok { Log.write(String(format: "语音输入启动用了 %.0f ms", t.ms)) }
+    }
+
     // MARK: 设备事件
 
     func handle(_ e: DeviceEvent) {
         Log.write("设备事件：\(e)")
         switch e {
         case let .recordingStarted(fileId):
-            // 只录音：按键设成「只录音」，或者设备页手动开始录音
-            if ignoreNextStart || !settings.buttonDictates {
+            // 只录音：按键设成「只录音」，或者设备页手动开始录音。
+            // App 自己发的开始（快捷键、菜单）不算，即使按键设成了「只录音」
+            if ignoreNextStart || (!settings.buttonDictates && appStart == nil) {
                 ignoreNextStart = false
                 Log.write("只录音，不听写 file=\(fileId)")
                 recordOnly = (Date(), fileId)
@@ -135,11 +231,13 @@ final class Dictation {
             }
             // 记下来：这是「这个文件是这次新建的」的证据（删设备文件时要用）
             if appStart != nil { notifiedNew.insert(fileId) }
+            trace?.mark("1A/06")
             // 没等到通知、已经按文件列表里最新的一条开始了，结果通知晚到、说的是另一个新文件：换过去
             if phase != .idle, guessedFile, fileId != currentFile {
                 switchFile(to: fileId, why: "新录音的通知到了")
                 return
             }
+            if phase == .idle, trace != nil { trace?.path = "通知" }
             Task { await begin(fileId: fileId) }
         case .recordingStopped:
             if let r = recordOnly, phase == .idle {
@@ -175,6 +273,7 @@ final class Dictation {
     private func switchFile(to fileId: UInt32, why: String) {
         guessedFile = false
         Log.write("\(why)，换到 file=\(fileId)")
+        trace?.mark("换文件")
         stream?.stop()
         currentFile = fileId
         onStarted(fileId)
@@ -194,12 +293,21 @@ final class Dictation {
     /// 菜单里的开始/停止：让设备开始或暂停录音，后续由设备事件驱动
     func toggle() async {
         guard let s = device.session else { Log.write("语音输入没开始：录音豆没连上"); return }
-        let t0 = Date(), starting = phase == .idle
-        defer { if starting, phase != .idle { Log.write(String(format: "语音输入启动用了 %.0f ms", Date().timeIntervalSince(t0) * 1000)) } }
-        // 开始没成功（没进入听写）就不留「App 发过开始命令」的记录，免得之后按键开始的听写被当成 App 开始的
-        defer { if starting, phase == .idle { appStart = nil; notifiedNew = [] } }
+        let starting = phase == .idle
+        // 开始没成功（没进入听写）就不留「App 发过开始命令」的记录，免得之后按键开始的听写被当成 App 开始的；
+        // 准备好的识别器也关掉
+        defer {
+            if starting, phase == .idle {
+                appStart = nil; notifiedNew = []
+                discardPreparing()
+                finishTrace(ok: false)
+            }
+        }
         do {
             if phase == .idle {
+                // 和文件号无关的准备（识别器等）现在就开始，和下面的查状态、开始命令、等通知并行
+                trace = StartTrace()
+                startPreparing()
                 // 上一次语音输入的设备文件还在删：等它删完再开始（最多 5 秒），免得录音豆续写那个文件、然后被删掉
                 for _ in 0..<50 where cleanupRunning() { try? await Task.sleep(nanoseconds: 100_000_000) }
                 if cleanupRunning() { Log.write("语音输入没开始：还在删上一次的设备文件"); return }
@@ -207,8 +315,7 @@ final class Dictation {
                 // 语音输入就一直起不来。按键是「语音输入」时这段录音没人要，先停掉再开始；
                 // 按键是「只录音」时可能是正在录的会议，不动它
                 let info = recordOnly == nil ? try? await s.deviceInfo() : nil
-                var marks = [String(format: "查状态 %.0f", Date().timeIntervalSince(t0) * 1000)]
-                defer { Log.write("启动分段（ms）：" + marks.joined(separator: "，")) }
+                trace?.mark("查状态")
                 if let info, info.recording == true {
                     guard settings.buttonDictates else {
                         Log.write("语音输入没开始：录音豆正在录音（只录音模式），先按录音豆按键停止")
@@ -226,16 +333,23 @@ final class Dictation {
                 appStart = (Date(), info?.recording)
                 notifiedNew = []
                 try await s.startRecording()
-                marks.append(String(format: "开始回包 %.0f", Date().timeIntervalSince(t0) * 1000))
-                // 设备新建录音文件时会报文件号（1A/06），但要 1 秒多才到；续写上一个文件时根本不报。
-                // 现在每次结束都会发「结束录音」，正常情况下这里总是新建文件、总会有 1A/06，上一次的文件号多半猜错。
-                // 猜的兜底先留着（结束命令失败、或别处只暂停没结束时还会续写）：手里有上一次的文件号就先按它开始，
-                // 通知到了发现是新文件再换过去（见 handle）
-                if phase == .idle, currentFile != 0 {
+                trace?.mark("开始回包")
+                let replied = Date()
+                // 设备新建录音文件时会报文件号（1A/06）：紧接上一次时回包后 0.1–0.2 秒到，隔久了的第一次约 1 秒；
+                // 续写上一个文件时根本不报。现在每次结束都会发「结束录音」，正常情况下总是新建文件、总有 1A/06。
+                // 先短等通知：到了 handle 会直接用它开始（phase 变成 starting），不走猜的路径
+                while phase == .idle, Date().timeIntervalSince(replied) < Self.notifyWait {
+                    try? await Task.sleep(nanoseconds: 10_000_000)
+                }
+                if phase != .idle { return }
+                trace?.mark("没等到通知")
+                // 兜底（结束命令失败、或别处只暂停没结束时会续写，就没有通知）：手里有上一次的文件号就先按它开始，
+                // 通知晚到、发现是新文件再换过去（见 handle）
+                if currentFile != 0 {
                     guessedFile = true
                     let guess = currentFile
+                    trace?.path = "猜上次的文件"
                     await begin(fileId: guess)
-                    marks.append(String(format: "按上次的文件开始 %.0f", Date().timeIntervalSince(t0) * 1000))
                     // 保险：1.5 秒还没收到任何音频，说明猜错了又没等到通知，去文件列表里找最新的
                     Task { @MainActor [weak self] in
                         try? await Task.sleep(nanoseconds: 1_500_000_000)
@@ -246,16 +360,19 @@ final class Dictation {
                     }
                     return
                 }
-                // 第一次用、不知道上一个文件：等一会儿通知，等不到就读文件列表
-                for _ in 0..<24 where phase == .idle { try? await Task.sleep(nanoseconds: 50_000_000) }
-                marks.append(String(format: "等通知 %.0f", Date().timeIntervalSince(t0) * 1000))
+                // 第一次用、不知道上一个文件：再等一会儿通知，等不到就读文件列表
+                while phase == .idle, Date().timeIntervalSince(replied) < Self.firstUseNotifyWait {
+                    try? await Task.sleep(nanoseconds: 10_000_000)
+                }
                 if phase == .idle {
+                    trace?.mark("等通知超时")
                     guard let id = try await s.listFiles().first?.id else {
                         Log.write("语音输入没开始：录音豆没报新录音，文件列表也是空的")
                         return
                     }
                     Log.write("录音豆没报新录音，按文件列表里最新的一条开始 file=\(id)")
                     guessedFile = true
+                    trace?.path = "文件列表"
                     await begin(fileId: id)
                 }
             } else {
@@ -275,14 +392,16 @@ final class Dictation {
             Log.write("没有开始听写：phase=\(phase) 已连接=\(device.session != nil) 解码器=\(decoder != nil)")
             return
         }
+        // 按录音豆按键开始的：前面没有 toggle，准备工作从这里才开始
+        if trace == nil { trace = StartTrace(path: "按键") }
+        startPreparing()
+        let prep = preparing!
+        preparing = nil
         phase = .starting
         finalText = ""; volatileText = ""; lastError = nil
         level = 0; noiseFloor = -60; listeningSince = nil; typedCount = 0; polishing = 0; deliveredByClipboard = false
         text = TwoPassText(); segments = []; lastEnd = nil; chain = nil; early = []
         typing = settings.typeIntoApp && Typist.trusted
-        // 先问一次焦点：顺便让 Electron 类应用把辅助功能打开，到真正打字时就能分清输入框和画布
-        if typing { _ = Typist.focus() }
-        targetApp = NSWorkspace.shared.frontmostApplication?.localizedName
         if settings.typeIntoApp, !Typist.trusted { Log.write("没有辅助功能权限，只显示不打字") }
         let r = recognizer
         svQueue.async { r?.reset() }
@@ -294,39 +413,43 @@ final class Dictation {
         recordOnly = nil   // 听写开始就不再是「只录音」，免得下次停止时多记一条时长
         onStarted(fileId)
         await device.beginDictation()
+        trace?.mark("占连接")
 
         // 先开流，识别器准备好之前的音频先攒着
-        guard openStream(fileId: fileId) else { phase = .idle; device.endDictation(); return }
-
-        // 每次开始都重读词表，改了词表下一次就生效
-        let words = AppPaths.readGlossary()
-        glossary = GlossaryCorrector(terms: words)
-        polisher = nil
-        // 本机服务先探一下（1 秒），没开就不润色；云端不探，免得拖慢开始，请求失败时那句原样输出
-        if settings.polishEnabled, let url = URL(string: settings.polishEndpoint) {
-            let usable = Polisher.isLocal(url) ? await Polisher.isUp(url) : true
-            if usable {
-                // 润色只拿词条本身，误听别名不给（免得大模型把别名当成要用的词）
-                polisher = Polisher(endpoint: url, apiKey: settings.polishAPIKey, model: settings.polishModel,
-                                    glossary: GlossaryCorrector.canonicalTerms(words))
-            }
+        guard openStream(fileId: fileId) else {
+            phase = .idle; device.endDictation()
+            Task { @MainActor in await prep.value.transcriber?.finish() }
+            finishTrace(ok: false)
+            return
         }
+        trace?.mark("开流")
 
-        do {
-            let t = try await LiveTranscriber(locale: Locale(identifier: "zh_CN"), engine: .dictation) { Log.write($0) }
-            t.onUpdate = { [weak self] u in self?.appleUpdate(u) }
-            t.onPCM = { [weak self] buf, _ in self?.toSenseVoice(buf) }
-            transcriber = t
-            for b in early { t.append(b) }
-            early = []
-            if phase == .starting {
-                phase = .listening
-                listeningSince = Date()
-                if settings.readySound { NSSound(named: "Tink")?.play() }
-            }
-        } catch {
-            lastError = "识别器：\(error)"
+        let p = await prep.value
+        trace?.marks.append("准备（" + p.steps.joined(separator: "，") + "）")
+        trace?.mark("准备好")
+        targetApp = p.targetApp
+        glossary = GlossaryCorrector(terms: p.words)
+        polisher = p.polisher
+        guard let t = p.transcriber else {
+            lastError = "识别器：\(p.transcriberError ?? "?")"
+            finishTrace(ok: false)
+            return
         }
+        // 等准备的时候已经结束了（很快又按了一下）：这个识别器用不上
+        guard phase == .starting else {
+            Task { @MainActor in await t.finish() }
+            finishTrace(ok: false)
+            return
+        }
+        t.onUpdate = { [weak self] u in self?.appleUpdate(u) }
+        t.onPCM = { [weak self] buf, _ in self?.toSenseVoice(buf) }
+        transcriber = t
+        for b in early { t.append(b) }
+        early = []
+        phase = .listening
+        listeningSince = Date()
+        if settings.readySound { NSSound(named: "Tink")?.play() }
+        finishTrace(ok: true)
     }
 
     private func feed(_ pcm: AVAudioPCMBuffer) {
