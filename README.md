@@ -401,6 +401,16 @@ Known gaps:
   recording made with the button before the Mac connected), the shortcut does not start voice typing: the bar says
   the recorder is recording. Stop that recording with the recorder's button first. OpenBean never pauses or stops a
   recording it did not start for voice typing.
+- Bluetooth downloads cannot resume yet: a download that is interrupted (the recorder leaves, the Mac sleeps, voice
+  typing takes the connection) asks for the file from the start next time. What already arrived is kept in a
+  temporary file and is not received twice, but the time is spent again. Bluetooth moves about 40 KB/s, so a full
+  day (8 hours, about 230 MB) takes about 95 minutes; for long recordings OpenBean offers Wi‑Fi instead (about four
+  minutes, with the Mac offline meanwhile). It never switches to Wi‑Fi by itself.
+- While a download still needs more than 10 minutes, voice typing waits for it instead of interrupting it, and says
+  how long. Shorter downloads give way as before and continue afterwards.
+- The Mac stays awake during a download while it is idle; closing the lid still puts it to sleep, and the download
+  starts again once the recorder reconnects.
+- Marks set with the recorder's button during a recording are not read yet.
 - The word list only fixes other mis-hearings that you declare as aliases.
 - Code comments are in Chinese.
 

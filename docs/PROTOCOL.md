@@ -174,6 +174,14 @@ IV = file_nonce[0..12) ‖ big-endian u32(sequence × 10)
 (160 bytes is exactly 10 AES blocks.) In all CTR operations here the whole 16-byte counter increments as one
 big-endian integer.
 
+⚠️ **Not verified:** what the `flags` byte means, and whether `1A/12` really has the same layout as `1A/08`. The
+`1A/12` id is known only from the vendor app's dispatch code (the community notes call it "file slice (mark/variant)");
+no capture of one has been published. Pressing the recorder's button during a recording sets a mark (the yellow light
+flashes once), and the mark may show up as a `1A/12` frame, as a non-zero `flags` byte, or not at all in the file
+transfer. OpenBean currently treats both frame ids as audio and ignores `flags`. `openbean pull --marks` (and
+`live --marks`) print every `1A/12` frame with its raw bytes and position, every unit with non-zero `flags`, and a
+summary line, to answer this on hardware.
+
 ## 9. Audio format ✅
 
 Decrypted audio is a plain concatenation of **Opus** packets: 48 kHz, mono, 20 ms per packet, each zero-padded to
@@ -185,7 +193,30 @@ packet to a decoder. Wrap the packets in an Ogg container to play them; Apple's 
 ### Over BLE ✅
 
 Send `1A/07` with `offset = 0`, the file id and `realtime = 0`. The device answers with the file head, then a stream of
-slices, then `1A/0A` when done. Measured throughput on macOS: ~15 KB/s of audio, about 1.9× real time.
+slices, then `1A/0A` when done.
+
+Throughput (decrypted audio, recorder in its case): about **40 KB/s** for long files (two samples of 45 and 54 MB:
+1140 s and 1336 s), so 8 hours of audio (about 230 MB) take about 95 minutes. Short files measure much lower (about
+13 KB/s for files of tens of KB) because the request and the end of the transfer cost a couple of seconds each time.
+
+What is known about a transfer, and what is not:
+
+| | Status |
+|---|---|
+| The head's size field is 166 × the number of slices; the list's duration is 20 ms × the number of slices | ✅ (the list's on a few files; the head's is what OpenBean relies on) |
+| Slice sequence numbers increase by one per 20 ms; slices arrive in order | ✅ observed; whether they always start at 0 is not verified |
+| `1A/0A` ends the transfer; bytes 5–8 of its payload are the file id | ✅ |
+| There is no "stop transfer" command. Whether the device keeps sending after the host stops listening | ⚠️ untested (`pull --resume-test` reports it) |
+| The head can belong to a **different file** than requested: the community notes saw this when requesting an older file while another one was recording. Requesting another file's live stream during a recording returns a head with `err = 1` | ⚠️ from community notes; OpenBean checks the file id and the error code and discards such a transfer |
+| The `offset` field of `1A/07` (the vendor SDK calls it the already-transferred size): whether the device honours it, in which unit (wire bytes, decrypted bytes, milliseconds, slices), and whether the head (with a new file key) is sent again | ⚠️ untested; `openbean pull --offset N` and `pull --resume-test` exist to find out |
+
+OpenBean (the app) writes each decrypted slice to a temporary file as it arrives, so memory use does not grow with the
+recording. It keeps the recording only when the head's file id matches the request and its error code is 0, the
+decrypted frames look like Opus (one TOC byte dominates), and the slices are complete: no holes from the first slice
+to the size in the head (or to the list's duration, whichever matches), with `1A/0A` received. With `1A/0A`, up to
+1 s or 0.1 % of missing slices (frames dropped for a bad checksum, say) is accepted and filled with empty Opus packets
+so the timeline stays aligned. Anything less is kept in the temporary file, and a later attempt only adds the slices it
+does not have yet; without resume support every attempt still asks for the file from the start.
 
 ### Over Wi‑Fi ✅
 
@@ -198,6 +229,9 @@ slices, then `1A/0A` when done. Measured throughput on macOS: ~15 KB/s of audio,
    `08 EE 00 00 00 1A 07 12 00 | offset (u32) | file id (u32) | 1B`
 6. The device replies with **binary** messages containing ordinary `09 FF` frames: file head, slices, done.
 7. Finish with text `FINISH`, then the hex of `1A/0A` with payload `01`.
+
+The `offset` field has the same open question as over BLE. Frames arrive in the same format, so the same completeness
+check applies.
 
 Measured: a 1 h 57 min recording transferred in 36 s (~1.5 MB/s). Because BLE is gone at step 3, the `1A/02` "close AP"
 command cannot be sent afterwards without reconnecting; whether the access point shuts itself down is untested.
