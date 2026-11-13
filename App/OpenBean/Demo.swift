@@ -5,7 +5,7 @@
 // 只为看界面和截图（bin/ui-shots）。整个文件只在编译条件 DEMO 下存在，正式版和开发版里没有这些代码。
 //
 // 切状态用链接 openbean-demo://demo/<命令>[?seq=N]，带 seq 时处理完写 <数据目录>/demo-ack.json（截图脚本据此等待并取窗口号）：
-//   state/connected|searching|connecting|failed|syncing|dictating|recording|low-battery|charging
+//   state/connected|searching|connecting|failed|bluetooth-off|no-permission|lost|syncing|dictating|recording|low-battery|charging
 //   hud/hidden|starting|listening|polishing|wrapping|typed|copied|nothing|error
 //   page/overview|library|dictation|recorder|settings[/voice|polish|library|models]
 //   select/summary|untranscribed|ondevice|long|none   search/<词>   filter/all|transcribed|onRecorder|dictation
@@ -539,7 +539,13 @@ final class DemoController {
         case "connecting": d.demoApply(state: .connecting, info: nil, activity: .idle)
         case "failed":
             d.demoApply(state: .failed("\(LinkError.missing(String(localized: "recorder. Take it out of the case or press the case button to wake it.")))"),
-                        info: nil, activity: .idle)
+                        info: nil, activity: .idle, problem: .notFound)
+        case "bluetooth-off":
+            d.demoApply(state: .failed("\(LinkError.bluetooth("蓝牙已关闭"))"), info: nil, activity: .idle, problem: .bluetoothOff)
+        case "no-permission":
+            d.demoApply(state: .failed("\(LinkError.bluetooth("没有蓝牙权限"))"), info: nil, activity: .idle, problem: .noPermission)
+        case "lost":
+            d.demoApply(state: .failed("\(LinkError.disconnected)"), info: nil, activity: .idle, problem: .lost)
         case "syncing":
             d.demoApply(state: .ready, info: DemoData.info(), activity: .syncing)
             let pending = m.library.pendingDownloads()

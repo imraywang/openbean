@@ -97,7 +97,7 @@ struct OnboardingView: View {
                     Text("Connected to \(model.device.deviceName)")
                 case let .failed(e):
                     ProgressView().controlSize(.small)
-                    Text("Still looking… \(e)").foregroundStyle(.secondary)
+                    Text("Still looking… \(model.device.problem?.advice ?? e)").foregroundStyle(.secondary)
                 default:
                     ProgressView().controlSize(.small)
                     Text("Searching…").foregroundStyle(.secondary)

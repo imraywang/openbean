@@ -119,6 +119,9 @@ private struct PreviewFrame<Content: View>: View {
 #Preview("录音豆 · 充电") { device("charging") }
 #Preview("录音豆 · 搜索中") { device("searching") }
 #Preview("录音豆 · 连接失败") { device("failed") }
+#Preview("录音豆 · 蓝牙关闭") { device("bluetooth-off") }
+#Preview("录音豆 · 没有蓝牙权限") { device("no-permission") }
+#Preview("录音豆 · 连接断了") { device("lost") }
 
 // MARK: - 设置
 

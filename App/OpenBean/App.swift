@@ -291,7 +291,7 @@ struct MenuContent: View {
         case .ready:
             let b = d.battery.map { String(localized: " · battery \($0)%") } ?? ""
             return String(localized: "Recorder connected") + b
-        case let .failed(m): return String(localized: "Not connected: \(m)")
+        case let .failed(m): return String(localized: "Not connected: \(d.problem?.title ?? m)")
         }
     }
 }

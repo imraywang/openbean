@@ -380,8 +380,15 @@ struct OverviewView: View {
                                note: pending > 0 ? Text("\(pending) not synced") : Text("All synced"))
                 }
             } else {
-                Text(device.isReady ? "Reading the recorder…" : "Take the recorder out of its case to connect.")
-                    .font(.callout).foregroundStyle(.white.opacity(0.7))
+                if case .failed = device.state, let p = device.problem {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(p.title).font(.callout.weight(.semibold))
+                        Text(p.advice).font(.callout).foregroundStyle(.white.opacity(0.7))
+                    }
+                } else {
+                    Text(device.isReady ? "Reading the recorder…" : "Take the recorder out of its case to connect.")
+                        .font(.callout).foregroundStyle(.white.opacity(0.7))
+                }
             }
         }
         .foregroundStyle(.white)
