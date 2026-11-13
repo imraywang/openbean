@@ -9,7 +9,7 @@ options:
 settings:
   base:
     SWIFT_VERSION: "5.0"
-    MARKETING_VERSION: "0.2.1"
+    MARKETING_VERSION: "0.3.0"
     # 构建号：Sparkle 按它比新旧。每次发布加 1（0.2.0 是 1），只增不减；bin/release 会拦下 appcast 里已有的构建号
     CURRENT_PROJECT_VERSION: "2"
     SWIFT_EMIT_LOC_STRINGS: true

@@ -63,7 +63,7 @@ Get the signed and notarized `OpenBean-<version>.dmg` from
 [Releases](https://github.com/imraywang/openbean/releases/latest), open it and drag OpenBean to Applications.
 Apple silicon and macOS 26 or later only.
 
-From 0.2.1 on OpenBean updates itself ([Sparkle](https://sparkle-project.org)): it checks once a day and asks before
+From 0.3.0 on OpenBean updates itself ([Sparkle](https://sparkle-project.org)): it checks once a day and asks before
 installing. *Check for Updates…* is in the menu bar menu; the switch for automatic checks is in
 Settings → Models → About. If you have 0.2.0, download the new version once by hand.
 
@@ -324,7 +324,7 @@ openbean 是录音豆的开源本地驱动：通过蓝牙和 Wi‑Fi 连接设�
 **要求**：macOS 26 及以上，Apple 芯片。
 
 **下载**：在 [Releases](https://github.com/imraywang/openbean/releases/latest) 下载已签名、已公证的 `OpenBean-<版本>.dmg`，打开后拖进「应用程序」。
-0.2.1 起 App 会自动更新（Sparkle）：每天检查一次，装之前先问你；菜单栏菜单里有「检查更新…」，自动检查的开关在「设置 → 模型 → 关于」。装的是 0.2.0 的话，手动下载一次新版即可。
+0.3.0 起 App 会自动更新（Sparkle）：每天检查一次，装之前先问你；菜单栏菜单里有「检查更新…」，自动检查的开关在「设置 → 模型 → 关于」。装的是 0.2.0 的话，手动下载一次新版即可。
 
 **自己编译**：需要 Xcode 26+ 和 XcodeGen（`brew install xcodegen`）。
 

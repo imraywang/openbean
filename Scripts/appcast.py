@@ -1,6 +1,6 @@
 """往 Sparkle 订阅源 appcast.xml 里加一个版本（bin/release 调用）。
 
-  python3 -I Scripts/appcast.py <现有 appcast.xml> <输出路径> --version 0.2.1 --build 2 \\
+  python3 -I Scripts/appcast.py <现有 appcast.xml> <输出路径> --version 0.3.0 --build 2 \\
       --url <DMG 下载地址> --length <字节数> --signature <sign_update 给的 edSignature>
 
 现有文件不存在就新建；新条目插在最前面，其余内容原样保留。写完重新解析一遍，确认是合法 XML。
