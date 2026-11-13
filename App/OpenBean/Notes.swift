@@ -233,6 +233,17 @@ final class NoteService {
                 if edited, mode == .auto { Log.write("笔记被改过，另写一份：\(old.lastPathComponent)") }
             }
         }
+        // 笔记没被改过、录音后来有了标题（摘要给的或用户起的）：文件名跟着改成「日期-标题」
+        if let old = target, let title = r.title, !title.isEmpty {
+            let name = NoteTemplate.fileName(title: title, start: r.start) {
+                $0 != old.lastPathComponent && fm.fileExists(atPath: dir.appendingPathComponent($0).path)
+            }
+            let renamed = dir.appendingPathComponent(name)
+            if name != old.lastPathComponent, (try? fm.moveItem(at: old, to: renamed)) != nil {
+                Log.write("笔记改名 \(id)：\(old.lastPathComponent) → \(name)")
+                target = renamed
+            }
+        }
         if target == nil {
             let name = NoteTemplate.fileName(title: r.title, start: r.start) { fm.fileExists(atPath: dir.appendingPathComponent($0).path) }
             target = dir.appendingPathComponent(name)

@@ -162,4 +162,9 @@ final class Locked<T>: @unchecked Sendable {
         } catch Summarizer.Failure.tooShort {
         } catch { XCTFail("unexpected \(error)") }
     }
+
+    func testEmptyOwnerSuffixIsDropped() {
+        let s = Summarizer.parse(#"{"title":"t","summary":"s","action_items":["发报告给张经理 [无]","订会议室 (None)","周五前交稿 [李雷]"]}"#)
+        XCTAssertEqual(s?.actionItems, ["发报告给张经理", "订会议室", "周五前交稿 [李雷]"])
+    }
 }

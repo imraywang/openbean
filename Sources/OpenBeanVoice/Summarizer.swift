@@ -253,6 +253,9 @@ public struct Summarizer: Sendable {
     private static func stripBullet(_ s: String) -> String {
         var t = s
         for p in ["- [ ] ", "- ", "* ", "• ", "· "] where t.hasPrefix(p) { t.removeFirst(p.count) }
+        // 模型把「没有负责人」写成结尾的 [无]、(none) 之类，去掉
+        t = t.replacingOccurrences(of: #"\s*[\[(（【](无|無|none|n/a|未提及|未指定)[\])）】]\s*$"#, with: "",
+                                   options: [.regularExpression, .caseInsensitive])
         return t.trimmingCharacters(in: .whitespaces)
     }
 
