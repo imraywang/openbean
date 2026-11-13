@@ -274,6 +274,7 @@ private struct LibrarySettings: View {
                 }
             }
             NoteSettingsSections(settings: settings, notes: AppModel.shared.library.notes)
+            AgentSettingsSection()
         }
         .formStyle(.grouped)
     }

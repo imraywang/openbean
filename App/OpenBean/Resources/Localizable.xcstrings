@@ -762,6 +762,16 @@
         }
       }
     },
+    "Copied": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已拷贝"
+          }
+        }
+      }
+    },
     "Copied to the clipboard": {
       "localizations": {
         "zh-Hans": {
@@ -778,6 +788,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "拷贝"
+          }
+        }
+      }
+    },
+    "Copy Claude Code command": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "拷贝 Claude Code 命令"
+          }
+        }
+      }
+    },
+    "Copy configuration": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "拷贝配置"
           }
         }
       }
@@ -1142,6 +1172,16 @@
         }
       }
     },
+    "For agents (MCP)": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "给 agent 用（MCP）"
+          }
+        }
+      }
+    },
     "Forget": {
       "localizations": {
         "zh-Hans": {
@@ -1272,6 +1312,16 @@
         }
       }
     },
+    "Let your own AI agent (Claude Code, Claude Desktop, Cursor…) read your recordings: list them by date, read summaries and transcripts, and search what was said.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "让你自己的 AI agent（Claude Code、Claude Desktop、Cursor 等）读取你的录音：按日期列出、读摘要和转写、搜索说过的话。"
+          }
+        }
+      }
+    },
     "Library": {
       "localizations": {
         "zh-Hans": {
@@ -1338,6 +1388,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "模型"
+          }
+        }
+      }
+    },
+    "Move OpenBean to the Applications folder first: the path changes when the app moves.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请先把 OpenBean 移到「应用程序」文件夹：App 换了位置，路径就会变。"
           }
         }
       }
@@ -1728,6 +1788,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "概览"
+          }
+        }
+      }
+    },
+    "Paste the configuration into your agent's mcpServers settings (Claude Desktop: Settings → Developer → Edit Config), or run the command in Terminal for Claude Code. Read-only: it can't change, delete or record anything, and can't reach audio or voice typing. It runs only while an agent starts it. The transcripts and summaries it reads go to the agent you connect and the model behind it.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "把配置粘贴到 agent 的 mcpServers 设置里（Claude Desktop：设置 → 开发者 → 编辑配置）；Claude Code 则在终端里运行上面这行命令。只读：不能修改、删除或录音，也读不到音频和语音输入记录。只在 agent 启动它时运行。它读到的转写和摘要会交给你连接的那个 agent 和它背后的模型。"
           }
         }
       }
@@ -2588,6 +2658,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "这些文件没有下载到本机。有的被后来的语音输入续写过，可能比一次语音输入长。删除后不能恢复。"
+          }
+        }
+      }
+    },
+    "This build doesn't include openbean-mcp. Build the app with bin/build-app.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这个版本里没有 openbean-mcp，请用 bin/build-app 编译 App。"
           }
         }
       }

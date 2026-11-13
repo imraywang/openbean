@@ -72,6 +72,14 @@ xcodebuild -project App/OpenBean.xcodeproj -scheme OpenBean -configuration Relea
 # 移动而不是拷贝，不在 App/build-release 里留第二份同名 App（原因见 bin/build-app）
 mv App/build-release/Build/Products/Release/OpenBean.app "$APP"
 
+# 只读 MCP 服务 openbean-mcp：Swift 包里的独立可执行文件，xcodebuild 不管它，单独编好放进 Contents/Helpers。
+# 编译目录放在每次都清空的 App/build-release 里（不用 .build/release：那是这个脚本的产物目录）
+echo "▸ 编译 openbean-mcp"
+swift build -c release --arch arm64 --product openbean-mcp --scratch-path App/build-release/mcp -q
+MCP="$APP/Contents/Helpers/openbean-mcp"
+mkdir -p "${MCP:h}"
+cp "$(swift build -c release --arch arm64 --scratch-path App/build-release/mcp --show-bin-path)/openbean-mcp" "$MCP"
+
 # Sparkle 私钥要在钥匙串里，且和 App 里的公钥是一对；不然发出去的更新没人能装（公证前就拦下）
 [[ -x $SPARKLE_BIN/sign_update ]] || { echo "没找到 Sparkle 工具：$SPARKLE_BIN"; exit 1; }
 pub=$("$SPARKLE_BIN/generate_keys" -p 2>/dev/null) || { echo "钥匙串里没有 Sparkle 私钥：先运行 $SPARKLE_BIN/generate_keys"; exit 1; }
@@ -87,18 +95,22 @@ for f in $SPARKLE_PARTS; do
   [[ -e $f ]] || { echo "Sparkle.framework 里缺：$f"; exit 1; }
   codesign --force --sign "$SIGN_ID" --timestamp --options runtime --preserve-metadata=entitlements "$f"
 done
+# openbean-mcp 和其他可执行部分一样：Developer ID + 时间戳 + hardened runtime，不带任何 entitlements；
+# 它不在 bundle 里，没有 Info.plist，签名标识要显式给
+echo "▸ 签名 openbean-mcp"
+codesign --force --sign "$SIGN_ID" --timestamp --options runtime --identifier dev.openbean.app.mcp "$MCP"
 codesign --force --sign "$SIGN_ID" --timestamp --options runtime --preserve-metadata=entitlements "$APP"
 
 echo "▸ 检查签名"
 codesign --verify --deep --strict --verbose=1 "$APP"
-for f in "$APP" "$APP"/Contents/Frameworks/*.dylib $SPARKLE_PARTS; do
+for f in "$APP" "$APP"/Contents/Frameworks/*.dylib $SPARKLE_PARTS "$MCP"; do
   codesign --verify --strict "$f" || { echo "签名校验失败：$f"; exit 1; }
   info=$(codesign -dvv "$f" 2>&1)
   grep -q "Authority=$SIGN_ID" <<<"$info" || { echo "签名不对：$f"; exit 1; }
   grep -q "Timestamp=" <<<"$info" || { echo "缺安全时间戳：$f"; exit 1; }
 done
 # 可执行的部分都要开 hardened runtime（公证要求）
-for f in "$APP" ${SPARKLE_PARTS:#$FW}; do
+for f in "$APP" ${SPARKLE_PARTS:#$FW} "$MCP"; do
   info=$(codesign -dv "$f" 2>&1)
   grep -q "flags=.*runtime" <<<"$info" || { echo "没开 hardened runtime：$f"; exit 1; }
 done

@@ -22,13 +22,21 @@ rm -rf "$OUT"
 mkdir -p .build
 # 移动而不是拷贝：留在 App/build 里的那份同名 App 会被系统登记，openbean:// 链接可能交给它而不是正在运行的这份
 mv App/build/Build/Products/Release/OpenBean.app "$OUT"
+# 只读 MCP 服务 openbean-mcp（Swift 包里的独立可执行文件）放进 Contents/Helpers。
+# 单独的编译目录：不和 swift build 默认的 .build/release 混在一起
+swift build -c release --arch arm64 --product openbean-mcp --scratch-path App/build/mcp -q
+MCP="$OUT/Contents/Helpers/openbean-mcp"
+mkdir -p "${MCP:h}"
+cp "$(swift build -c release --arch arm64 --scratch-path App/build/mcp --show-bin-path)/openbean-mcp" "$MCP"
+codesign --force --sign "$SIGN_ID" --identifier "$BUNDLE_ID.mcp" "$MCP"
 if [[ "$FLAVOR" == dev ]]; then
-  # 名字、链接前缀、自动更新写进 Info.plist，再用同一个证书重签（改了 Info.plist 签名就失效）
+  # 名字、链接前缀、自动更新写进 Info.plist（改了 Info.plist 签名就失效，下面统一重签）
   PL="$OUT/Contents/Info.plist"
   /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName 'OpenBean Dev'" -c "Set :CFBundleName 'OpenBean Dev'" \
     -c "Set :CFBundleURLTypes:0:CFBundleURLName $BUNDLE_ID" \
     -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes:0 string openbean-dev" \
     -c "Set :SUEnableAutomaticChecks false" "$PL"
-  codesign --force --sign "$SIGN_ID" "$OUT"
 fi
+# 加了 Helpers 里的文件（开发版还改了 Info.plist），用同一个证书重签整个 App
+codesign --force --sign "$SIGN_ID" "$OUT"
 echo "已编译：$ROOT/$OUT"
