@@ -273,17 +273,39 @@ The wire protocol is documented in [docs/PROTOCOL.md](docs/PROTOCOL.md) so it ca
 
 ## Roadmap
 
-1. ✅ **Device layer** — protocol document good enough to reimplement from scratch.
-2. ✅ **OpenBean app** — voice typing, recording library with offline transcripts, setup assistant (first version).
-3. ✅ **Signed release** — a notarised DMG on the [Releases](https://github.com/imraywang/openbean/releases) page,
-   so people don't have to build it.
-4. **Local API** — a background service on `localhost` that publishes device state, live PCM audio, transcripts and
-   recordings, so other tools (note apps, Home Assistant, agents via MCP) can use the recorder without touching Bluetooth.
-5. **Optional cloud speech recognition** — for transcribing recordings in the library first; voice typing stays
-   on-device. Off by default, like cloud clean-up.
+Done:
 
-Known gaps: the first ~1 s after pressing the button is lost; the word list only fixes other mis-hearings that you
-declare as aliases; code comments are in Chinese.
+1. ✅ **Device layer** — protocol document good enough to reimplement from scratch.
+2. ✅ **OpenBean app** — voice typing, recording library with offline transcripts, setup assistant.
+3. ✅ **Signed release** — a notarised DMG on the [Releases](https://github.com/imraywang/openbean/releases) page,
+   with automatic updates from 0.3.0.
+4. ✅ **Recordings into your notes (0.3)** — new recordings sync on their own over Bluetooth, get transcribed and
+   summarised (title, summary, key points, to-dos) by the LLM service you configured, and land as one Markdown note
+   each in a folder you choose, for example inside an Obsidian vault. Recordings can be deleted from the recorder
+   once a complete copy is on the Mac.
+
+Next:
+
+5. **Meetings (0.4)** — telling speakers apart, and a meeting-minutes note template.
+6. **Local API (0.4)** — a background service on `localhost` that publishes device state, live PCM audio, transcripts
+   and recordings, so other tools (note apps, Home Assistant, agents via MCP) can use the recorder without touching
+   Bluetooth.
+
+Later, maybe: optional cloud speech recognition for recordings in the library (voice typing stays on-device);
+sending notes to third-party services.
+
+Not planned: gestures on the recorder's button. The button only reports start and stop
+([protocol, section 12](docs/PROTOCOL.md)), so there is nothing to build on.
+
+Known gaps:
+
+- Deleting from the recorder (`1A/10`) and the "put back into the case" sync trigger follow community notes and have
+  not been confirmed on hardware yet. Deleting always asks first and needs a complete local copy.
+- Ending voice typing pauses the recorder's file; the next session may continue the same file on the recorder. The
+  typed text is not affected.
+- The first ~1 s after pressing the button is lost.
+- The word list only fixes other mis-hearings that you declare as aliases.
+- Code comments are in Chinese.
 
 ## Third-party components
 
@@ -378,6 +400,6 @@ bin/build-app && open .build/OpenBean.app
 
 openbean 不会做绑定/解绑、恢复出厂和固件升级；只在你明确要求、且录音已经完整保存在本机时才删除录音豆上的录音。
 
-下一步：本地服务 API（让笔记软件、智能家居、AI 助手直接使用录音豆）；可选的云端语音识别（先做录音库转写，语音输入仍在本机）。
+0.3 已完成「录音自动进知识库」：自动同步、转写、摘要、每条录音一份 Markdown 笔记。下一步（0.4）：区分说话人和会议纪要模板；本地服务 API（让笔记软件、智能家居、AI 助手直接使用录音豆）。以后可能做：可选的云端语音识别、同步到第三方服务。不做：按键手势（按键只有开始和停止两种事件）。
 
 openbean 是独立项目，与 Anker 无关。协议是为了让你使用自己的设备而整理的，固件升级随时可能让它失效。
