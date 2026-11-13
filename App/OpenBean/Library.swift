@@ -6,6 +6,7 @@ import Foundation
 import Observation
 import SwiftUI
 import OpenBeanKit
+import OpenBeanLibrary
 import OpenBeanVoice
 import UniformTypeIdentifiers
 
@@ -122,6 +123,9 @@ final class LibraryStore {
     }
 
     var visible: [Recording] { recordings.filter { includes($0, in: filter) } }
+
+    /// 按设置里的「一天从几点开始」分天（「今天」页、录音列表、语音输入记录共用）
+    var dayBoundary: DayBoundary { DayBoundary(startHour: settings.dayStartHour) }
 
     /// 某个筛选下有几条（侧栏的数字）
     func count(_ f: Filter) -> Int { recordings.reduce(0) { $0 + (includes($1, in: f) ? 1 : 0) } }

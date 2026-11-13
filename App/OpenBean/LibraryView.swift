@@ -107,17 +107,20 @@ struct RecordingList: View {
         }
     }
 
-    /// 今天 / 昨天 / 本周 / 按月
+    /// 今天 / 昨天 / 本周 / 按月。和「今天」页同一个分天函数（一天从凌晨 4 点算）：凌晨 1 点的录音算前一天
     private var sections: [(title: String, items: [Recording])] {
         let cal = Calendar.current
+        let b = library.dayBoundary
+        let today = b.day(of: Date()), yesterday = b.day(today, offsetBy: -1)
         var order: [String] = []
         var groups: [String: [Recording]] = [:]
         for r in items {
+            let day = b.day(of: r.start)
             let key: String
-            if cal.isDateInToday(r.start) { key = String(localized: "Today") }
-            else if cal.isDateInYesterday(r.start) { key = String(localized: "Yesterday") }
-            else if let w = cal.dateInterval(of: .weekOfYear, for: Date()), w.contains(r.start) { key = String(localized: "This week") }
-            else { key = r.start.formatted(.dateTime.year().month(.wide)) }
+            if day == today { key = String(localized: "Today") }
+            else if day == yesterday { key = String(localized: "Yesterday") }
+            else if cal.isDate(day, equalTo: today, toGranularity: .weekOfYear) { key = String(localized: "This week") }
+            else { key = day.formatted(.dateTime.year().month(.wide)) }
             if groups[key] == nil { order.append(key) }
             groups[key, default: []].append(r)
         }
