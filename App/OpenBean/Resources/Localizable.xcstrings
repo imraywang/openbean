@@ -2622,12 +2622,12 @@
         }
       }
     },
-    "The recorder is recording. Stop it first.": {
+    "The recorder is already recording. Press its button to stop, then try again.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "录音豆正在录音，请先停止。"
+            "value": "录音豆正在录音。先按录音豆上的按键停止，再开始语音输入。"
           }
         }
       }

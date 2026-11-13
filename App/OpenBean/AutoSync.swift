@@ -60,7 +60,7 @@ final class AutoSync {
     }
 
     private func schedule(_ reason: String, refresh: Bool, after delay: TimeInterval = debounce) {
-        guard settings.autoSync else { return }
+        guard settings.autoSync else { Log.write("自动同步（\(reason)）：设置里关着，不同步"); return }
         pending?.cancel()
         pending = Task { [weak self] in
             try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
@@ -72,10 +72,16 @@ final class AutoSync {
     // MARK: 执行
 
     private func run(_ reason: String, refresh: Bool) async {
-        guard settings.autoSync, !running, !library.syncRunning, device.isReady, device.activity == .idle else { return }
+        // 触发了却没跑，写一行原因：排查时分得清是没触发、忙、还是没东西可下
+        if let busy = Self.busyReason(autoSync: settings.autoSync, running: running, syncRunning: library.syncRunning,
+                                      ready: device.isReady, activity: device.activity) {
+            Log.write("自动同步（\(reason)）：\(busy)，这次不同步")
+            return
+        }
         let wait = notBefore.timeIntervalSinceNow
         if wait > 0 {
             // 退避中：到点再试一次，不在这之前反复重试
+            Log.write("自动同步（\(reason)）：上次没完成，\(Int(wait.rounded())) 秒后再试")
             schedule(reason, refresh: true, after: wait)
             return
         }
@@ -86,12 +92,20 @@ final class AutoSync {
         await device.refreshInfo()
         if let r = device.info?.recording { recorderRecording = r }
         if recorderRecording {
-            Log.write("自动同步：录音豆正在录音，先不同步")
+            Log.write("自动同步（\(reason)）：录音豆正在录音，先不同步")
             return
         }
         if refresh { await library.refreshDeviceList() }
         let before = Set(library.pendingDownloads().map(\.id))
-        guard !before.isEmpty, device.activity == .idle, !library.syncRunning else { return }
+        if before.isEmpty {
+            Log.write("自动同步（\(reason)）：没有要下载的录音")
+            return
+        }
+        if let busy = Self.busyReason(autoSync: true, running: false, syncRunning: library.syncRunning,
+                                      ready: device.isReady, activity: device.activity) {
+            Log.write("自动同步（\(reason)）：\(busy)，这次不同步")
+            return
+        }
 
         Log.write("自动同步（\(reason)）：\(before.count) 条")
         await library.syncAll()
@@ -106,6 +120,20 @@ final class AutoSync {
         } else {
             failures = 0
             notBefore = .distantPast
+        }
+    }
+
+    /// 现在不能跑自动同步的原因；nil = 可以跑
+    static func busyReason(autoSync: Bool, running: Bool, syncRunning: Bool, ready: Bool,
+                           activity: DeviceController.Activity) -> String? {
+        if !autoSync { return "设置里关着" }
+        if running { return "上一次自动同步还在跑" }
+        if syncRunning { return "正在同步" }
+        if !ready { return "录音豆没连上" }
+        switch activity {
+        case .idle: return nil
+        case .dictating: return "正在语音输入"
+        case .syncing: return "连接正忙（同步或删除）"
         }
     }
 

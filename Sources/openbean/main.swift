@@ -375,7 +375,8 @@ do {
         let secs = Double(args.dropFirst().first ?? "90") ?? 90
         try await connectDevice()
         let s = session()
-        if let info = try await s.deviceInfo() { say("\n" + info.description + "\n") }
+        let startInfo = try await s.deviceInfo()
+        if let info = startInfo { say("\n" + info.description + "\n") }
         if withHandshake { try await s.handshake(); say("已做加密握手（2E/01）") }
         if withTime { try await s.syncTime(); say("已对时（01/A6）") }
         if withList { let n = try await s.listFiles().count; say("已读文件列表（1B/0E），\(n) 条") }
@@ -390,11 +391,13 @@ do {
         link.sync { link.onPacket = nil }
         if let info = try await s.deviceInfo() {
             say("\n结束时 录音中=\(info.recording.map { $0 ? "是" : "否" } ?? "?")")
-            if info.recording == true {
-                // 暂停再结束（真机测过的顺序），录音豆把这段收尾成一个文件
+            if info.recording == true, startInfo?.recording == false {
+                // 监听期间按键开始的测试录音：暂停再结束（真机测过的顺序），录音豆把这段收尾成一个文件
                 try? await s.pauseRecording()
                 _ = try? await s.stopRecording()
                 say("（测试中开始的录音已结束）")
+            } else if info.recording == true {
+                say("（开始监听前就在录的录音，不动它）")
             }
         }
 

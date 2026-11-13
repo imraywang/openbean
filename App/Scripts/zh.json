@@ -287,7 +287,7 @@
 "The LLM service is not reachable. Check Settings → Clean-up.": "连不上大模型服务，请检查「设置 → 润色」。",
 "The LLM service rejected the API key.": "大模型服务拒绝了 API Key。",
 "The model's reply could not be used. Try again or use a larger model.": "模型的回复无法使用，请重试或换一个更大的模型。",
-"The recorder is recording. Stop it first.": "录音豆正在录音，请先停止。",
+"The recorder is already recording. Press its button to stop, then try again.": "录音豆正在录音。先按录音豆上的按键停止，再开始语音输入。",
 "The server address in Clean-up is not valid.": "「润色」里的服务器地址无效。",
 "The text of each sentence is sent to %@. Audio and speech recognition stay on this Mac.": "每句话的文字会发送到 %@；录音和语音识别仍在这台 Mac 上。",
 "These files were never downloaded to this Mac. Some may have been continued by later voice typing, so they can be longer than one dictation. This cannot be undone.": "这些文件没有下载到本机。有的被后来的语音输入续写过，可能比一次语音输入长。删除后不能恢复。",

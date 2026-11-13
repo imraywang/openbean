@@ -5,6 +5,10 @@
 #   bin/release              # 全流程，产物 .build/release/OpenBean-<版本>.dmg，并改写 appcast.xml
 #   bin/release --no-notarize  # 只签名打包，不公证；appcast 只写到 .build/release/appcast.xml，不动仓库里的
 #
+# 发布说明（更新窗口里显示，Markdown）：docs/release-notes/<版本>.en.md，可加 docs/release-notes/<版本>.zh-Hans.md
+# 给简体中文用户。没有就照发，只是更新窗口里没有说明。
+# 上传和推送 appcast 用 bin/publish（建 Release、等下载地址能用、核对后才推送）。
+#
 # 每次发布前在 App/project.yml 里：MARKETING_VERSION 改成新版本号，CURRENT_PROJECT_VERSION（构建号）加 1。
 # Sparkle 按构建号比新旧，构建号只增不减；appcast.xml 里已有这个构建号或版本号时脚本拒绝运行。
 #
@@ -21,7 +25,12 @@ ROOT="${0:A:h}/.."
 cd "$ROOT"
 
 NOTARIZE=1
-[[ "${1:-}" == "--no-notarize" ]] && NOTARIZE=0
+for a in "$@"; do
+  case $a in
+    --no-notarize) NOTARIZE=0 ;;
+    *) echo "不认识的参数：$a（只有 --no-notarize）"; exit 1 ;;
+  esac
+done
 
 TEAM="${OPENBEAN_TEAM_ID:-ZHPS34Z8M9}"
 SIGN_ID="${OPENBEAN_RELEASE_ID:-Developer ID Application: UPTHOS LLC ($TEAM)}"
@@ -36,6 +45,17 @@ APPCAST=appcast.xml
 SPARKLE_BIN=App/build-release/SourcePackages/artifacts/sparkle/Sparkle/bin
 
 [[ "$BUILD" == <-> ]] || { echo "CURRENT_PROJECT_VERSION 要是整数：$BUILD"; exit 1; }
+# 发布说明：先查好，免得编译、公证完才发现
+NOTES=()
+for lang in en zh-Hans; do
+  f="docs/release-notes/$VERSION.$lang.md"
+  [[ -f $f ]] && NOTES+=(--notes "$lang=$f")
+done
+if (( ${#NOTES} == 0 )); then
+  echo "⚠︎ 没有发布说明（docs/release-notes/$VERSION.en.md），更新窗口里不会显示说明；照常继续"
+elif [[ ! -f docs/release-notes/$VERSION.en.md ]]; then
+  echo "只有中文发布说明，没有 docs/release-notes/$VERSION.en.md：Sparkle 挑不到语言时用第一条，要有英文"; exit 1
+fi
 # 构建号和版本号都不能和 appcast 里已发布的重复，构建号还要比已有的都大
 if [[ -f $APPCAST ]]; then
   builds=$(sed -nE 's/.*<sparkle:version>([0-9]+)<\/sparkle:version>.*/\1/p' $APPCAST)
@@ -161,11 +181,12 @@ sig=$(sed -nE 's/.*sparkle:edSignature="([^"]+)".*/\1/p' <<<"$edsig")
 len=$(sed -nE 's/.*length="([0-9]+)".*/\1/p' <<<"$edsig")
 [[ -n "$sig" && "$len" == "$(stat -f %z "$DMG")" ]] || { echo "sign_update 输出不对：$edsig"; exit 1; }
 python3 -I Scripts/appcast.py "$APPCAST" "$OUT/appcast.xml" --version "$VERSION" --build "$BUILD" \
-  --url "https://github.com/imraywang/openbean/releases/download/v$VERSION/${DMG:t}" --length "$len" --signature "$sig"
+  --url "https://github.com/imraywang/openbean/releases/download/v$VERSION/${DMG:t}" --length "$len" --signature "$sig" \
+  "${NOTES[@]}"
 "$SPARKLE_BIN/sign_update" --verify "$DMG" "$sig"
 if (( NOTARIZE )); then
   cp "$OUT/appcast.xml" "$APPCAST"
-  echo "已更新 $APPCAST：上传 DMG 到 GitHub Release v$VERSION 后再提交推送（App 从 master 上的这个文件读更新）"
+  echo "已更新 $APPCAST：用 bin/publish 建 Release、核对下载后再提交推送（App 从 master 上的这个文件读更新）"
 else
   echo "未公证，appcast 只写到 $OUT/appcast.xml（仓库里的 $APPCAST 没动）"
 fi
