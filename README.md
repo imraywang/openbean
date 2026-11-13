@@ -313,8 +313,8 @@ Known gaps:
 - The "put back into the case" sync trigger follows community notes and has not been confirmed on hardware yet.
 - Ending voice typing or *Stop recording* now pauses and then stops the recorder (`18/82 00`), so the file is closed
   and the next session starts a new one; after voice typing the app then deletes that file (if the setting is on and
-  every safety check passes). Verified on hardware only as pause → stop; stopping without a pause, and whether the
-  yellow light goes out after stop, are not tested yet. The typed text is not affected either way.
+  every safety check passes). Verified on hardware as pause → stop (the recorder's blinking yellow light goes out within
+  15 s); stopping without a pause is not tested yet. The typed text is not affected either way.
 - The first ~1 s after pressing the button is lost.
 - The word list only fixes other mis-hearings that you declare as aliases.
 - Code comments are in Chinese.

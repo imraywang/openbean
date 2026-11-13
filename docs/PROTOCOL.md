@@ -222,9 +222,9 @@ dev  → 09 FF 00 00 01 18 82 0C 00 00 9B 4A                     (18/82, status 
 dev  → 09 FF 00 00 01 1A 0A 13 00 00 30 1B 00 00 EE C2 F6 6A 9B  (1A/0A, file id at payload bytes 5–8)
 ```
 
-After this, `1A/10` deleted the file in the same connection (40 → 39 files). The first five bytes of the `1A/0A` payload
-have not been decoded. Not yet tested: sending `00` while recording without pausing first, and whether the yellow light
-stops after `00`.
+After this, `1A/10` deleted the file in the same connection (40 → 39 files), and the yellow light stopped blinking within
+15 s. The first five bytes of the `1A/0A` payload have not been decoded. Not yet tested: sending `00` while recording
+without pausing first.
 
 `1A/11` with `01` (sent after a pause) was also tried: the device replied `1A/11` with status `01`, but the file still could
 not be deleted afterwards. openbean does not use it.
@@ -246,7 +246,8 @@ The button therefore works as a start/stop trigger for the host. A button stop c
 by the host leaves it open (§11). The reply to the host's own stop (`18/82 00`) also starts with `00`, so openbean reads it
 as a "stopped" event too; that is harmless.
 
-Indicator light: a blinking yellow light means a recording is paused (file still open).
+Indicator light: a blinking yellow light means a recording is paused (file still open); it stops within 15 s of a stop
+(`18/82 00`).
 
 ## 12a. Deleting a recording ✅
 
