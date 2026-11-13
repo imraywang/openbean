@@ -243,6 +243,9 @@ struct RecordingDetail: View {
         .onAppear {
             title = recording.title ?? ""
             if recording.downloaded { player.load(library.audioURL(recording.id)) }
+            #if DEMO
+            player.demoDuration(recording.duration) // 演示版没有音频，时长按录音算
+            #endif
         }
         .task(id: recording.downloaded) { await library.loadPeaks(recording.id) }
         .onChange(of: recording.downloaded) { _, now in if now { player.load(library.audioURL(recording.id)) } }
@@ -407,6 +410,10 @@ final class PlayerModel {
         audio?.prepareToPlay()
         duration = audio?.duration ?? 0
     }
+
+    #if DEMO
+    func demoDuration(_ d: Double) { if audio == nil { duration = d } }
+    #endif
 
     func toggle() { playing ? pause() : play(from: nil) }
 

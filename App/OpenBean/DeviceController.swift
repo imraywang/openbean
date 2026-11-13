@@ -24,7 +24,12 @@ final class DeviceController {
     private(set) var activity: Activity = .idle
     /// 听写要用连接时置位，正在进行的同步看到后尽快让出
     private(set) var syncShouldYield = false
+    #if DEMO
+    /// 演示版从不连接：用到才建（建 Link 就会初始化 CoreBluetooth、弹蓝牙权限）
+    @ObservationIgnored lazy var link = Link()
+    #else
     let link = Link()
+    #endif
     private(set) var session: D3200Session?
     /// 设备事件（主线程）
     var onEvent: (DeviceEvent) -> Void = { _ in }
@@ -38,7 +43,11 @@ final class DeviceController {
 
     private let lastDeviceFile = AppPaths.support.appendingPathComponent("last-device.txt")
 
+    #if DEMO
+    var isReady: Bool { state == .ready }
+    #else
     var isReady: Bool { state == .ready && session != nil }
+    #endif
 
     func start() {
         guard loop == nil else { return }
@@ -52,6 +61,9 @@ final class DeviceController {
 
     /// 忘掉这台设备：下次重新扫描
     func forget() {
+        #if DEMO
+        return
+        #endif
         try? FileManager.default.removeItem(at: lastDeviceFile)
         link.disconnect()
     }
@@ -189,6 +201,16 @@ final class DeviceController {
         Log.write("battery event=charging charging=\(Self.field(recorder)) caseCharging=\(Self.field(chargingCase)) "
                   + "recorder=\(Self.field(battery))")
     }
+
+    #if DEMO
+    /// 演示版：直接摆出一种连接状态
+    func demoApply(state: State, info: DeviceInfo?, activity: Activity) {
+        self.state = state
+        self.info = info
+        battery = info?.micBattery
+        self.activity = activity
+    }
+    #endif
 
     // MARK: 连接仲裁
 

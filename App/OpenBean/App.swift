@@ -7,6 +7,10 @@ import SwiftUI
 @MainActor
 final class AppModel {
     static let shared = AppModel()
+    #if DEMO
+    /// 演示版：在建任何存储之前先准备假数据和设置（属性按声明顺序初始化）
+    private let demoPrepared: Void = DemoData.prepare()
+    #endif
     let settings = Settings()
     let device = DeviceController()
     let models = ModelStore()
@@ -20,6 +24,10 @@ final class AppModel {
     lazy var updater = Updater()
 
     func start() {
+        #if DEMO
+        DemoController.shared.start(self)
+        return
+        #endif
         models.check()
         models.onReady = { [weak self] in self?.dictation.loadRecognizer() }
         device.onEvent = { [weak self] e in
@@ -99,6 +107,10 @@ final class AppModel {
         case let p where p.hasPrefix("open/"):
             if let id = UInt32(p.dropFirst(5)) { nav.show(recording: id, in: library) }
             openMain?()
+        #if DEMO
+        case let p where p.hasPrefix("demo/"):
+            DemoController.shared.handle(String(p.dropFirst(5)), query: url.query)
+        #endif
         default:
             break
         }
@@ -129,6 +141,11 @@ struct OpenBeanApp: App {
         }
         .windowResizability(.contentSize)
         .defaultLaunchBehavior(model.settings.onboardingDone ? .suppressed : .presented)
+
+        #if DEMO
+        // 演示版：启动时开一个小窗口拿到 openWindow（菜单栏菜单没人点开就拿不到），也用来把菜单内容画成普通窗口
+        DemoScenes.window(model: model)
+        #endif
     }
 }
 
@@ -204,11 +221,11 @@ struct MenuIcon: View {
     let device: DeviceController
     let dictation: Dictation
     var body: some View {
-        // 开发版在图标旁加个小 D，和正式版一眼分得清
-        if Flavor.isDev {
+        // 开发版在图标旁加个小 D、演示版加 DEMO，和正式版一眼分得清
+        if let badge = Flavor.badge {
             HStack(spacing: 1) {
                 Image(nsImage: BeanArt.menuIcons[state]!)
-                Text(verbatim: "D").font(.system(size: 9, weight: .bold))
+                Text(verbatim: badge).font(.system(size: 9, weight: .bold))
             }
         } else {
             Image(nsImage: BeanArt.menuIcons[state]!)

@@ -30,6 +30,14 @@ final class ModelStore: NSObject, URLSessionDownloadDelegate {
     /// 下载完成后通知（重新加载识别器）
     var onReady: () -> Void = {}
 
+    #if DEMO
+    /// 演示版：不看磁盘，直接摆出模型状态
+    func demoSet(_ s: State) {
+        state = s
+        appleReady = true
+    }
+    #endif
+
     func check() {
         let fm = FileManager.default
         let ok = items.allSatisfy { fm.fileExists(atPath: AppPaths.models.appendingPathComponent($0.path).path) }

@@ -247,6 +247,9 @@ private struct PolishSettings: View {
     }
 
     private func check() async {
+        #if DEMO
+        status = .ok; return // 演示版不连任何服务
+        #endif
         guard let url else { status = .unreachable(String(localized: "invalid address")); return }
         checking = true
         status = await Polisher.check(url, apiKey: settings.polishAPIKey)
@@ -306,7 +309,7 @@ private struct ModelSettings: View {
                     }
                 }
                 Toggle("Automatically check for updates", isOn: $updater.automaticallyChecks)
-                    .disabled(Flavor.isDev)
+                    .disabled(!Flavor.updates)
                 Link("Source code and protocol notes", destination: URL(string: "https://github.com/imraywang/openbean")!)
             }
         }

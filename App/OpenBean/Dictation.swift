@@ -76,8 +76,26 @@ final class Dictation {
         self.device = device
         self.settings = settings
         decoder = try? OpusDecoder()
+        #if !DEMO
         loadRecognizer()
+        #endif
     }
+
+    #if DEMO
+    /// 演示版：直接摆出一次语音输入的状态（悬浮条、菜单栏图标用）
+    func demoSet(phase: Phase, level: Float = 0, since: Date? = nil, polishing: Int = 0, error: String? = nil,
+                 finalText: String = "", typedCount: Int = 0, clipboard: Bool = false) {
+        // 悬浮条盯着 phase 和 lastError：值没变就不写，免得触发它自己的切换
+        if self.phase != phase { self.phase = phase }
+        if lastError != error { lastError = error }
+        self.level = level
+        listeningSince = since
+        self.polishing = polishing
+        self.finalText = finalText
+        self.typedCount = typedCount
+        deliveredByClipboard = clipboard
+    }
+    #endif
 
     /// 加载 SenseVoice（启动时、以及引导里下载完模型之后）
     func loadRecognizer() {

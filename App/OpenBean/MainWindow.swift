@@ -273,6 +273,9 @@ struct LibraryPage: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .searchable(text: $query, placement: .toolbar, prompt: "Search titles and transcripts")
+        #if DEMO
+        .onChange(of: DemoState.shared.query, initial: true) { _, q in query = q }
+        #endif
         .navigationTitle("Library")
         .onAppear {
             // 第一次进来默认选最近一条

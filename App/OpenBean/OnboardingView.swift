@@ -50,6 +50,9 @@ struct OnboardingView: View {
         }
         .frame(width: 560, height: 420)
         .onReceive(tick) { _ in trusted = Typist.trusted }
+        #if DEMO
+        .onChange(of: DemoState.shared.onboardingStep, initial: true) { _, s in step = s; trusted = Typist.trusted }
+        #endif
     }
 
     private func header(_ icon: String, _ title: LocalizedStringKey, _ text: LocalizedStringKey) -> some View {
