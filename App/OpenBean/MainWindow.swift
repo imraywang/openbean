@@ -154,7 +154,7 @@ struct DeviceFooter: View {
             Divider().padding(.horizontal, -12)
             Button(action: open) {
                 HStack(spacing: 8) {
-                    Circle().fill(device.isReady ? Color.accentColor : Color.secondary.opacity(0.5)).frame(width: 7, height: 7)
+                    Circle().fill(device.isReady ? Color.green : Color.secondary.opacity(0.5)).frame(width: 7, height: 7)
                     VStack(alignment: .leading, spacing: 1) {
                         Text(device.deviceName).font(.callout.weight(.medium)).lineLimit(1)
                         Text(DeviceFooter.status(device, library)).font(.caption).foregroundStyle(.secondary).lineLimit(1)
@@ -398,7 +398,8 @@ struct OverviewView: View {
         // 两行：上面是设备和同步，下面三个数平分宽度，窗口窄时也不会挤出去
         return VStack(alignment: .leading, spacing: 18) {
             HStack(spacing: 14) {
-                BeanBadge(size: 44, color: device.isReady ? .accentColor : .white.opacity(0.15))
+                // 没连上时用不透明的灰底：半透明的底会让镂空的声波看不见，只剩一团白色豆子
+                BeanBadge(size: 44, color: device.isReady ? .accentColor : Color(white: 0.42))
                 VStack(alignment: .leading, spacing: 3) {
                     Text(device.deviceName).font(.headline)
                     Text(heroStatus(info)).font(.caption).foregroundStyle(.white.opacity(0.7)).lineLimit(1)

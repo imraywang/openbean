@@ -83,7 +83,7 @@ private struct VoiceSettings: View {
                 }
                 if settings.typeIntoApp {
                     HStack(spacing: 8) {
-                        Circle().fill(trusted ? Color.accentColor : .orange).frame(width: 8, height: 8)
+                        Circle().fill(trusted ? Color.green : .orange).frame(width: 8, height: 8)
                         Text(trusted ? "Accessibility permission granted" : "Needs Accessibility permission")
                             .foregroundStyle(trusted ? .secondary : .primary)
                         Spacer()
@@ -201,7 +201,7 @@ private struct PolishSettings: View {
                     if checking {
                         ProgressView().controlSize(.small)
                     } else if let status {
-                        Circle().fill(status == .ok ? Color.accentColor : .orange).frame(width: 8, height: 8)
+                        Circle().fill(status == .ok ? Color.green : .orange).frame(width: 8, height: 8)
                         statusText(status).foregroundStyle(.secondary).lineLimit(2)
                     }
                     Spacer()
@@ -331,7 +331,12 @@ struct ModelStatusRow: View {
             case let .downloading(p):
                 ProgressView(value: p) { Text("Downloading speech models… \(Int(p * 100))%") }
             case .ready:
-                Label("SenseVoice and voice activity models are ready", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
+                // 「正常」统一画法：绿色的图标，文字照常
+                Label {
+                    Text("SenseVoice and voice activity models are ready")
+                } icon: {
+                    Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+                }
             case let .failed(e):
                 Label("Download failed: \(e)", systemImage: "xmark.octagon").foregroundStyle(.red)
                 Spacer()
