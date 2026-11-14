@@ -133,7 +133,8 @@ targets:
         UIApplicationSupportsIndirectInputEvents: true
         NSBluetoothAlwaysUsageDescription: OpenBean connects to your soundcore Work recorder to sync its recordings to this iPhone.
         # 录音豆放回盒子时在后台继续连接、同步（完整的后台同步还没做，见 App/Mobile/BackgroundSync.swift）
-        UIBackgroundModes: [bluetooth-central]
+        # audio：录音详情页的播放在锁屏、切到别的 App 时接着放（App/Mobile/Playback.swift）
+        UIBackgroundModes: [bluetooth-central, audio]
         # 大模型服务可以是局域网里的 http 地址（如另一台电脑上的本机模型）
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true

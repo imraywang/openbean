@@ -19,8 +19,18 @@ final class PlayerModel {
     private(set) var playing = false
     private(set) var duration: Double = 0
     var time: Double = 0
+    #if os(iOS)
+    /// 倍速（iOS 版）：节点后面接一个变速不变调的单元。节点按源文件的帧计时，播放位置的算法不用改
+    @ObservationIgnored private let pitch = AVAudioUnitTimePitch()
+    var rate: Float = 1 { didSet { pitch.rate = rate } }
+    #endif
 
-    init() { engine.attach(node) }
+    init() {
+        engine.attach(node)
+        #if os(iOS)
+        engine.attach(pitch)
+        #endif
+    }
 
     func load(_ url: URL) {
         stop()
@@ -28,7 +38,12 @@ final class PlayerModel {
         time = 0
         guard let f = file else { duration = 0; return }
         duration = Double(f.length) / f.processingFormat.sampleRate
+        #if os(iOS)
+        engine.connect(node, to: pitch, format: f.processingFormat)
+        engine.connect(pitch, to: engine.mainMixerNode, format: f.processingFormat)
+        #else
         engine.connect(node, to: engine.mainMixerNode, format: f.processingFormat)
+        #endif
     }
 
     #if DEMO || DEBUG || os(iOS)
@@ -45,8 +60,8 @@ final class PlayerModel {
         if t == nil, start >= duration - 0.05 { start = 0 } // 播完了再按播放：从头
         guard schedule(from: start) else { return }
         #if os(iOS)
-        // iOS 要先声明是播放：不然静音键打开时没有声音
-        try? AVAudioSession.sharedInstance().setCategory(.playback)
+        // iOS 要先声明是播放：不然静音键打开时没有声音；spokenAudio：别的 App 的语音提示来了会暂停而不是压低音量
+        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .spokenAudio)
         try? AVAudioSession.sharedInstance().setActive(true)
         #endif
         if !engine.isRunning { engine.prepare(); guard (try? engine.start()) != nil else { return } }

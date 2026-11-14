@@ -2,12 +2,12 @@
   "sourceLanguage": "en",
   "version": "1.0",
   "strings": {
-    "": {
+    "%@ of %@": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": ""
+            "value": "%1$@，共 %2$@"
           }
         }
       }
@@ -18,6 +18,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "已用 %@，共 %@"
+          }
+        }
+      }
+    },
+    "%@ · %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ · %@"
+          }
+        }
+      }
+    },
+    "%lld": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld"
           }
         }
       }
@@ -62,6 +82,16 @@
         }
       }
     },
+    "%lld h %lld min": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld 小时 %2$lld 分钟"
+          }
+        }
+      }
+    },
     "%lld kept": {
       "localizations": {
         "zh-Hans": {
@@ -82,6 +112,36 @@
         }
       }
     },
+    "%lld marks": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 个重点标记"
+          }
+        }
+      }
+    },
+    "%lld matches": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 处命中"
+          }
+        }
+      }
+    },
+    "%lld min": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 分钟"
+          }
+        }
+      }
+    },
     "%lld of %lld": {
       "localizations": {
         "zh-Hans": {
@@ -92,12 +152,42 @@
         }
       }
     },
+    "%lld of them only have a transcript left: their audio was removed under Heart mode's audio retention.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "其中 %lld 条只剩转写：音频已按心力模式的音频保留设置删掉。"
+          }
+        }
+      }
+    },
+    "%lld open to-dos": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 条待办没做"
+          }
+        }
+      }
+    },
     "%lld recordings": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "%lld 条录音"
+          }
+        }
+      }
+    },
+    "%lld recordings only have a transcript left: their audio was removed under Heart mode's audio retention.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 条录音只剩转写：音频已按心力模式的音频保留设置删掉。"
           }
         }
       }
@@ -132,12 +222,42 @@
         }
       }
     },
+    "%lld terms": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 个词条"
+          }
+        }
+      }
+    },
+    "%lld to do": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 项待办"
+          }
+        }
+      }
+    },
     "%lld transcribed": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "已转写 %lld 条"
+          }
+        }
+      }
+    },
+    "%lld · %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld 条 · %2$@"
           }
         }
       }
@@ -162,12 +282,32 @@
         }
       }
     },
+    "A summary can be written once the recording is transcribed.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "转写完成后才能写摘要。"
+          }
+        }
+      }
+    },
     "API key": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "API Key"
+          }
+        }
+      }
+    },
+    "About %@ over Bluetooth.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "经蓝牙大约要 %@。"
           }
         }
       }
@@ -182,12 +322,102 @@
         }
       }
     },
+    "Add": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加"
+          }
+        }
+      }
+    },
+    "Add a term": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加词条"
+          }
+        }
+      }
+    },
+    "Add names and words that transcripts get wrong.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "把转写里常写错的人名、词加进来。"
+          }
+        }
+      }
+    },
+    "Add what it hears": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加它听成的写法"
+          }
+        }
+      }
+    },
+    "All done": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "全部完成"
+          }
+        }
+      }
+    },
+    "All sources": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "全部来源"
+          }
+        }
+      }
+    },
     "Any OpenAI-compatible service: a cloud API or a model on a computer on your network. Summaries, conversation titles and the diary use it. The key is kept in the keychain.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "任何 OpenAI 兼容的服务：云端 API，或局域网里一台电脑上的模型。摘要、对话段标题和日记都用它。密钥存在钥匙串里。"
+          }
+        }
+      }
+    },
+    "Any status": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "全部状态"
+          }
+        }
+      }
+    },
+    "Audio": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "音频"
+          }
+        }
+      }
+    },
+    "Audio (Ogg Opus)": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "音频（Ogg Opus）"
           }
         }
       }
@@ -222,6 +452,46 @@
         }
       }
     },
+    "Audio removed on %@ under Heart mode's audio retention. The transcript and summary are kept.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "音频已于 %@ 按心力模式的音频保留设置删掉，转写和摘要还在。"
+          }
+        }
+      }
+    },
+    "Audio retention": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "音频保留"
+          }
+        }
+      }
+    },
+    "Audio that can be removed now": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "现在可以删的音频"
+          }
+        }
+      }
+    },
+    "Back 15 seconds": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "后退 15 秒"
+          }
+        }
+      }
+    },
     "Battery": {
       "localizations": {
         "zh-Hans": {
@@ -248,6 +518,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "找不到录音豆"
+          }
+        }
+      }
+    },
+    "Cancel": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取消"
           }
         }
       }
@@ -298,6 +578,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "清理心力豆"
+          }
+        }
+      }
+    },
+    "Clean up now": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "现在清理"
           }
         }
       }
@@ -392,12 +682,82 @@
         }
       }
     },
+    "Delete": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除"
+          }
+        }
+      }
+    },
+    "Delete %lld": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除 %lld 条"
+          }
+        }
+      }
+    },
+    "Delete %lld recordings from this iPhone?": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "从这台 iPhone 上删除 %lld 条录音？"
+          }
+        }
+      }
+    },
+    "Delete audio after transcription": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "转写完就删音频"
+          }
+        }
+      }
+    },
+    "Delete from this iPhone": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "从这台 iPhone 上删除"
+          }
+        }
+      }
+    },
+    "Delete this recording from this iPhone?": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "从这台 iPhone 上删除这条录音？"
+          }
+        }
+      }
+    },
     "Deleted %lld recordings from the Heart bean.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "已从心力豆删除 %lld 条录音。"
+          }
+        }
+      }
+    },
+    "Deselect all": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "全不选"
           }
         }
       }
@@ -442,12 +802,42 @@
         }
       }
     },
+    "Done": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已完成"
+          }
+        }
+      }
+    },
+    "Double-tap to toggle": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连点两下切换"
+          }
+        }
+      }
+    },
     "Download": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "下载"
+          }
+        }
+      }
+    },
+    "Download over Bluetooth": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通过蓝牙下载"
           }
         }
       }
@@ -482,6 +872,26 @@
         }
       }
     },
+    "Each misheard form needs at least two characters.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每个误听写法至少要两个字符。"
+          }
+        }
+      }
+    },
+    "Edit term": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "编辑词条"
+          }
+        }
+      }
+    },
     "Failed": {
       "localizations": {
         "zh-Hans": {
@@ -492,12 +902,42 @@
         }
       }
     },
+    "Filter": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "筛选"
+          }
+        }
+      }
+    },
     "Firmware": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "固件"
+          }
+        }
+      }
+    },
+    "Follow playback in the transcript": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "转写跟着播放滚动"
+          }
+        }
+      }
+    },
+    "For example: OpenBean": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "例如：OpenBean"
           }
         }
       }
@@ -532,12 +972,62 @@
         }
       }
     },
+    "Forward 15 seconds": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "前进 15 秒"
+          }
+        }
+      }
+    },
+    "Generate summary": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "生成摘要"
+          }
+        }
+      }
+    },
+    "Has marks": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "有重点标记"
+          }
+        }
+      }
+    },
     "Has to-dos": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "有待办"
+          }
+        }
+      }
+    },
+    "Heard as": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "听成"
+          }
+        }
+      }
+    },
+    "Heard as: %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "常听成：%@"
           }
         }
       }
@@ -562,12 +1052,72 @@
         }
       }
     },
+    "Heart mode is off: keep audio": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "心力模式关着：保留音频"
+          }
+        }
+      }
+    },
+    "Heart mode recordings": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "心力模式录音"
+          }
+        }
+      }
+    },
+    "Its audio was already removed under Heart mode's audio retention; this deletes the transcript, summary and to-dos left on this iPhone.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "它的音频已按心力模式的音频保留设置删掉；这会删除这台 iPhone 上剩下的转写、摘要和待办。"
+          }
+        }
+      }
+    },
+    "Keep audio": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保留音频"
+          }
+        }
+      }
+    },
+    "Keep audio for 7 days": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "音频保留 7 天"
+          }
+        }
+      }
+    },
     "Keep the recorder near this Mac. OpenBean reconnects by itself.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "让录音豆靠近这台 Mac，OpenBean 会自动重连。"
+          }
+        }
+      }
+    },
+    "Key points": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "要点"
           }
         }
       }
@@ -592,12 +1142,12 @@
         }
       }
     },
-    "Length": {
+    "Leave it empty to show the date and time.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "时长"
+            "value": "留空则显示日期和时间。"
           }
         }
       }
@@ -632,12 +1182,82 @@
         }
       }
     },
+    "Marks": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重点标记"
+          }
+        }
+      }
+    },
+    "Misheard as": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "常被听成"
+          }
+        }
+      }
+    },
     "Model": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "模型"
+          }
+        }
+      }
+    },
+    "Moments you marked on the Heart bean while recording. Tap one to play from a few seconds before it.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "录音时在心力豆上标记的时刻。点一下从标记前几秒开始播放。"
+          }
+        }
+      }
+    },
+    "Moments you marked on the recorder while recording. Tap one to play from a few seconds before it.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "录音时在录音豆上标记的时刻。点一下从标记前几秒开始播放。"
+          }
+        }
+      }
+    },
+    "More": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更多"
+          }
+        }
+      }
+    },
+    "Names, product names and jargon. OpenBean changes same-sounding words in transcripts to these, without an LLM; in long transcripts only terms of three or more characters are fixed by sound. For a word it keeps mishearing, add what it hears, for example Claude Code heard as “cloud code”. Summaries also get the list.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "人名、产品名、行话。OpenBean 不用大模型，把转写里同音写错的词改成这里的写法；长篇转写里只有三个字以上的词条按读音纠正。总被听错的词，把它听成的写法加上，例如 Claude Code 听成「cloud code」。写摘要时也会用到这份词表。"
+          }
+        }
+      }
+    },
+    "New term": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新词条"
           }
         }
       }
@@ -692,22 +1312,62 @@
         }
       }
     },
-    "No results": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "没有结果"
-          }
-        }
-      }
-    },
     "No speech found.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "没有识别到语音。"
+          }
+        }
+      }
+    },
+    "No summary yet. Summaries use the LLM service set in Settings; the transcript is sent to it.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "还没有摘要。摘要用设置里的大模型服务，转写会发给它。"
+          }
+        }
+      }
+    },
+    "No terms yet": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "还没有词条"
+          }
+        }
+      }
+    },
+    "No transcript, and the audio was removed.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有转写，音频也已删掉。"
+          }
+        }
+      }
+    },
+    "None": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无"
+          }
+        }
+      }
+    },
+    "Normal": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "普通"
           }
         }
       }
@@ -728,6 +1388,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "未连接"
+          }
+        }
+      }
+    },
+    "Not done": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未完成"
+          }
+        }
+      }
+    },
+    "Not downloaded": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未下载"
           }
         }
       }
@@ -762,12 +1442,42 @@
         }
       }
     },
+    "Nothing matches these filters": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有符合筛选条件的录音"
+          }
+        }
+      }
+    },
     "Nothing new": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "没有新的"
+          }
+        }
+      }
+    },
+    "Nothing to summarise: no speech was found.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有可摘要的内容：没识别到说话。"
+          }
+        }
+      }
+    },
+    "Nothing was removed.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有删掉任何音频。"
           }
         }
       }
@@ -798,6 +1508,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "在录音豆上"
+          }
+        }
+      }
+    },
+    "On this iPhone": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这台 iPhone 上"
+          }
+        }
+      }
+    },
+    "Only Heart mode recordings that are transcribed lose their audio; transcripts, summaries and marks stay. Normal recordings always keep their audio. Change the rule in Heart mode settings. OpenBean also applies it on its own every hour.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只删已转写的心力模式录音的音频；转写、摘要和重点标记都留着。普通录音一直保留音频。规则在心力模式设置里改。OpenBean 每小时也会自动按规则清理一次。"
           }
         }
       }
@@ -862,6 +1592,16 @@
         }
       }
     },
+    "Optional. Whenever a transcript has one of these, it becomes the term. Chinese must match exactly; English ignores case, spaces and hyphens.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "可选。转写里出现这些写法时，都改成上面的词条。中文要一字不差；英文不分大小写，空格和连字符可有可无。"
+          }
+        }
+      }
+    },
     "Overview of the day": {
       "localizations": {
         "zh-Hans": {
@@ -922,12 +1662,52 @@
         }
       }
     },
+    "Personal word list": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "个人词表"
+          }
+        }
+      }
+    },
     "Play": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "播放"
+          }
+        }
+      }
+    },
+    "Playback speed": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "播放速度"
+          }
+        }
+      }
+    },
+    "Playing": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在播放"
+          }
+        }
+      }
+    },
+    "Position": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "播放位置"
           }
         }
       }
@@ -942,22 +1722,22 @@
         }
       }
     },
+    "Queued": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "排队中"
+          }
+        }
+      }
+    },
     "Ready": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "已就绪"
-          }
-        }
-      }
-    },
-    "Recorded": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "录音时长"
           }
         }
       }
@@ -972,12 +1752,12 @@
         }
       }
     },
-    "Recording not found": {
+    "Recording deleted": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "找不到这条录音"
+            "value": "录音已删除"
           }
         }
       }
@@ -992,12 +1772,42 @@
         }
       }
     },
-    "Recordings synced from the recorder show up here.": {
+    "Recordings still on the Heart bean stay there and download again on the next sync.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "从录音豆同步的录音会出现在这里。"
+            "value": "心力豆上还有的录音会留在那里，下次同步会再下载。"
+          }
+        }
+      }
+    },
+    "Recordings still on the recorder stay there and download again on the next sync.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "录音豆上还有的录音会留在那里，下次同步会再下载。"
+          }
+        }
+      }
+    },
+    "Recordings synced from your Heart bean show up here. Pull down to check for new ones.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "从心力豆同步的录音会出现在这里。下拉检查有没有新录音。"
+          }
+        }
+      }
+    },
+    "Recordings synced from your recorder show up here. Pull down to check for new ones.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "从录音豆同步的录音会出现在这里。下拉检查有没有新录音。"
           }
         }
       }
@@ -1022,12 +1832,102 @@
         }
       }
     },
+    "Remove audio now?": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "现在删掉这些音频？"
+          }
+        }
+      }
+    },
+    "Remove audio of %lld recordings": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删掉 %lld 条录音的音频"
+          }
+        }
+      }
+    },
+    "Removed the audio of %lld recordings.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已删掉 %lld 条录音的音频。"
+          }
+        }
+      }
+    },
+    "Rename": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重命名"
+          }
+        }
+      }
+    },
+    "Rename recording": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重命名录音"
+          }
+        }
+      }
+    },
+    "Save": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保存"
+          }
+        }
+      }
+    },
+    "Saved. Existing transcripts are being updated in the background.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已保存。已有的转写正在后台更新。"
+          }
+        }
+      }
+    },
     "Searching…": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "正在搜索…"
+          }
+        }
+      }
+    },
+    "Select": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择"
+          }
+        }
+      }
+    },
+    "Select all": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "全选"
           }
         }
       }
@@ -1072,12 +1972,32 @@
         }
       }
     },
+    "Share": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "共享"
+          }
+        }
+      }
+    },
     "Show Heart bean details": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "查看心力豆详情"
+          }
+        }
+      }
+    },
+    "Show all recordings": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示全部录音"
           }
         }
       }
@@ -1102,12 +2022,72 @@
         }
       }
     },
+    "Source": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "来源"
+          }
+        }
+      }
+    },
+    "Speech models": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "语音模型"
+          }
+        }
+      }
+    },
     "Speech recognition": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "语音识别"
+          }
+        }
+      }
+    },
+    "Speed": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "速度"
+          }
+        }
+      }
+    },
+    "Starts after any summaries or diary updates ahead of it, once the LLM service answers.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "等前面的摘要、日记做完，并且连上大模型服务后开始。"
+          }
+        }
+      }
+    },
+    "Status": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "状态"
+          }
+        }
+      }
+    },
+    "Stop following playback": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不再跟着播放滚动"
           }
         }
       }
@@ -1152,12 +2132,12 @@
         }
       }
     },
-    "Summarising…": {
+    "Summarised": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "正在摘要…"
+            "value": "已摘要"
           }
         }
       }
@@ -1242,6 +2222,26 @@
         }
       }
     },
+    "Tap a sentence to play from there.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "点一句话从那里开始播放。"
+          }
+        }
+      }
+    },
+    "Term": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "词条"
+          }
+        }
+      }
+    },
     "Test connection": {
       "localizations": {
         "zh-Hans": {
@@ -1288,16 +2288,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "大模型服务拒绝了 API Key。"
-          }
-        }
-      }
-    },
-    "The audio was removed after transcription (Heart mode setting).": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "转写后音频已按心力模式的设置删除。"
           }
         }
       }
@@ -1382,6 +2372,16 @@
         }
       }
     },
+    "Their transcripts and summaries stay on this iPhone. This cannot be undone.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "它们的转写和摘要会留在这台 iPhone 上。此操作无法撤销。"
+          }
+        }
+      }
+    },
     "Things": {
       "localizations": {
         "zh-Hans": {
@@ -1392,12 +2392,102 @@
         }
       }
     },
+    "This cannot be undone.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此操作无法撤销。"
+          }
+        }
+      }
+    },
+    "This deletes the audio, transcript, summary and to-dos on this iPhone.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这会删除这台 iPhone 上的音频、转写、摘要和待办。"
+          }
+        }
+      }
+    },
+    "This deletes their audio, transcripts, summaries and to-dos on this iPhone.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这会删除这台 iPhone 上它们的音频、转写、摘要和待办。"
+          }
+        }
+      }
+    },
+    "This recording is no longer on this iPhone.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这条录音已经不在这台 iPhone 上了。"
+          }
+        }
+      }
+    },
+    "This recording is still on your Heart bean.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这条录音还在心力豆上。"
+          }
+        }
+      }
+    },
+    "This recording is still on your recorder.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这条录音还在录音豆上。"
+          }
+        }
+      }
+    },
     "This recording is too short to summarise.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "这条录音太短，没有可摘要的内容。"
+          }
+        }
+      }
+    },
+    "This term is already in the list.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "词表里已经有这个词条。"
+          }
+        }
+      }
+    },
+    "Title": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "标题"
+          }
+        }
+      }
+    },
+    "Titles, summaries and transcripts": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "标题、摘要和转写"
           }
         }
       }
@@ -1452,6 +2542,26 @@
         }
       }
     },
+    "Total": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "合计"
+          }
+        }
+      }
+    },
+    "Total %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "合计 %@"
+          }
+        }
+      }
+    },
     "Transcribe": {
       "localizations": {
         "zh-Hans": {
@@ -1472,12 +2582,52 @@
         }
       }
     },
-    "Transcribe the recording first.": {
+    "Transcribe again": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "先转写这条录音。"
+            "value": "重新转写"
+          }
+        }
+      }
+    },
+    "Transcribe now": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "现在转写"
+          }
+        }
+      }
+    },
+    "Transcribed": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已转写"
+          }
+        }
+      }
+    },
+    "Transcribing %lld%%": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "转写中 %lld%%"
+          }
+        }
+      }
+    },
+    "Transcribing on this iPhone…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在这台 iPhone 上转写…"
           }
         }
       }
@@ -1502,12 +2652,62 @@
         }
       }
     },
+    "Transcript (Markdown)": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "转写（Markdown）"
+          }
+        }
+      }
+    },
+    "Transcript (plain text)": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "转写（纯文本）"
+          }
+        }
+      }
+    },
+    "Transcript only": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只剩转写"
+          }
+        }
+      }
+    },
+    "Transcripts and summaries": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "转写和摘要"
+          }
+        }
+      }
+    },
     "Try again": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "重试"
+          }
+        }
+      }
+    },
+    "Try another source or status.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "换个来源或状态试试。"
           }
         }
       }
@@ -1538,6 +2738,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "等待中"
+          }
+        }
+      }
+    },
+    "Waiting for transcript": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "待转写"
           }
         }
       }
@@ -1578,6 +2788,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "写日记"
+          }
+        }
+      }
+    },
+    "Writing the summary…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在写摘要…"
+          }
+        }
+      }
+    },
+    "Yesterday": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "昨天"
           }
         }
       }
