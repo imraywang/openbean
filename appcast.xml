@@ -6,6 +6,47 @@
     <description>OpenBean updates</description>
     <language>en</language>
     <item>
+      <title>OpenBean 0.5.0</title>
+      <link>https://github.com/imraywang/openbean/releases/tag/v0.5.0</link>
+      <pubDate>Sat, 14 Nov 2026 09:18:53 GMT</pubDate>
+      <sparkle:version>6</sparkle:version>
+      <sparkle:shortVersionString>0.5.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+      <description sparkle:format="markdown" xml:lang="en"><![CDATA[
+### New
+
+- **Heart mode.** Wear the recorder all day and put it back in its case: OpenBean syncs the day, transcribes it, splits it into conversations and writes that day's diary and to-dos. A strip on the Heart mode page shows the four steps — download, transcribe, write diary, clean up the recorder — and you get one notification when the day is ready. Heart mode is off until you finish a short introduction, where you choose whether synced recordings are deleted from the recorder (on by default) and how long audio stays on this Mac (7 days by default; transcripts are always kept). The diary uses the LLM service you set up; with a cloud service, transcript text is sent to it.
+- **Voice typing while the recorder is recording.** OpenBean listens in on the running recording instead of refusing; the recording is not paused, stopped or deleted. What you dictate is left out of the day's diary.
+- **Highlight marks.** Double-tap the recorder during a recording; the marks show up in the transcript and in the diary.
+- **Bluetooth downloads resume.** An interrupted sync continues where it stopped.
+
+### Changed
+
+- **A new main window.** Heart mode, Recordings, Voice typing and Recorder each have their own page with their own settings; shared settings are at the bottom of the sidebar. The separate Settings window is gone.
+- **The menu-bar icon opens the main window.** Right-click it for the menu. *Check for Updates* is now in Settings, and so is *Quit OpenBean*.
+- Jumping around in a recording's audio is now accurate.
+- OpenBean reconnects to the recorder in about 2 seconds after launch instead of about 17.
+- Heart mode transcripts are hidden from agents (MCP) unless you allow them.
+]]></description>
+      <description sparkle:format="markdown" xml:lang="zh-Hans"><![CDATA[
+### 新功能
+
+- **心力模式。** 整天戴着录音豆，放回充电盒后，OpenBean 自动同步、转写、切成一段段对话，写出当天的日记和待办。心力模式页顶部有一条四步进度：下载、转写、写日记、清理录音豆；全部完成时发一条通知。心力模式默认关闭，走完一段简短的介绍后才会打开，介绍里可以选：同步后是否从录音豆删除录音（默认开）、本机音频保留多久（默认 7 天，转写一直保留）。日记使用你设置的大模型服务；用云端服务时，转写文字会发给该服务。
+- **录音进行中也能语音输入。** 录音豆正在录音时，OpenBean 改为旁听这段录音，不会暂停、结束或删除它。语音输入时说的话不会写进当天的日记。
+- **重点标记。** 录音时双击录音豆，标记会出现在转写和日记里。
+- **蓝牙下载可以续传。** 被打断的同步会从断点继续。
+
+### 改进
+
+- **新的主窗口。** 心力模式、录音、语音输入、录音豆各有自己的页面和设置，通用设置在侧栏最下面。独立的设置窗口取消了。
+- **点菜单栏图标直接打开主窗口**，右键才出菜单。「检查更新」和「退出 OpenBean」现在也在设置页里。
+- 在录音里拖动、点句跳转，现在位置是准的。
+- 启动后约 2 秒就能连上录音豆，之前要 17 秒左右。
+- 心力模式的转写默认不给 agent（MCP）读，需要你自己打开。
+]]></description>
+      <enclosure url="https://github.com/imraywang/openbean/releases/download/v0.5.0/OpenBean-0.5.0.dmg" length="15004902" type="application/octet-stream" sparkle:edSignature="xD7y/kyZ5joichMgGA9Oqk7fYWZcR5gtuxKTMGx2PrJbKczQglctVYQGBC85v00aDaLua8HT+7Ahysq9PXKkDQ=="/>
+    </item>
+    <item>
       <title>OpenBean 0.4.0</title>
       <link>https://github.com/imraywang/openbean/releases/tag/v0.4.0</link>
       <pubDate>Fri, 13 Nov 2026 13:05:30 GMT</pubDate>
