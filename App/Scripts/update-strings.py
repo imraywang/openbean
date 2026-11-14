@@ -1,13 +1,18 @@
 """从编译产物（*.stringsdata）读出 App 的全部字符串，合并 Scripts/zh.json 的中文翻译，
 写成 OpenBean/Resources/Localizable.xcstrings。xcodebuild 不会自动更新字符串目录，改了界面文案后：
   xcodebuild … build && python3 -I Scripts/update-strings.py
+iOS 版（bin/build-ios 之后）：python3 -I Scripts/update-strings.py --ios，写 Mobile/Resources/Localizable.xcstrings。
+两个目录共用 Scripts/zh.json 的翻译。
 """
 import glob, json, sys
 from pathlib import Path
 
 root = Path(__file__).resolve().parent.parent
+ios = '--ios' in sys.argv[1:]
+pattern = ('build-ios/Build/Intermediates.noindex/OpenBean.build/*/OpenBeanMobile.build/Objects-normal/*/*.stringsdata' if ios
+           else 'build/Build/Intermediates.noindex/OpenBean.build/*/OpenBean.build/Objects-normal/*/*.stringsdata')
 keys = set()
-for f in glob.glob(str(root / 'build/Build/Intermediates.noindex/OpenBean.build/*/OpenBean.build/Objects-normal/*/*.stringsdata')):
+for f in glob.glob(str(root / pattern)):
     for entries in json.load(open(f)).get('tables', {}).values():
         keys.update(e['key'] for e in entries)
 zh = json.load(open(root / 'Scripts/zh.json'))
@@ -18,7 +23,7 @@ for k in sorted(keys):
     if k in zh:
         entry["localizations"] = {"zh-Hans": {"stringUnit": {"state": "translated", "value": zh[k]}}}
     cat["strings"][k] = entry
-out = root / 'OpenBean/Resources/Localizable.xcstrings'
+out = root / ('Mobile' if ios else 'OpenBean') / 'Resources/Localizable.xcstrings'
 out.write_text(json.dumps(cat, ensure_ascii=False, indent=2) + "\n")
 print(f"{len(keys)} 条，缺中文 {len(missing)} 条")
 for k in missing: print("  缺：", repr(k))
