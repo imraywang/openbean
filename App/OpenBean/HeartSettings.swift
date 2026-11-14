@@ -5,11 +5,11 @@ import OpenBeanLibrary
 import OpenBeanVoice
 import SwiftUI
 
-// MARK: - 设置 → 心力模式
+// MARK: - 心力模式页 → 设置（右上角齿轮）
 //
-// 总开关 + 心力模式下各项的选择。开关关着时下面各组照样显示（置灰），让人知道开了会怎样。
-// 这一页里设备叫「心力豆」（Heart bean）；其他标签照旧叫录音豆。
-// 「一天从几点开始」和录音库标签里的是同一个设置（settings.dayStartHour）。
+// 总开关 + 心力模式下各项的选择。这一页只在心力模式开着时出现；关掉开关，心力模式页回到「已关闭」的空状态。
+// 心力模式开着时整个界面把设备叫「心力豆」（Heart bean）。
+// 「一天从几点开始」和设置页里的是同一个设置（settings.dayStartHour）。
 
 struct HeartSettings: View {
     @Bindable var settings: Settings
@@ -25,11 +25,7 @@ struct HeartSettings: View {
                     Text("Heart mode")
                     Text("Wear your Heart bean all day. When it goes back in its case, OpenBean syncs the day, splits it into conversations and writes today's diary and to-dos.")
                 }
-                .onChange(of: settings.heartMode) { _, now in
-                    Log.write(now ? "打开心力模式" : "关闭心力模式")
-                    if now { notes.diary.catchUp() }
-                }
-                LLMServiceStatusRow(settings: settings) { nav.settingsTab = .polish }
+                LLMServiceStatusRow(settings: settings) { nav.open(.voiceTyping(cleanUp: true)) }
             }
 
             Group {
@@ -44,7 +40,7 @@ struct HeartSettings: View {
                             Text("Must stay inside the notes folder or one level above it; using the default for now.")
                                 .foregroundStyle(.orange)
                         } else if notes.notesFolder == nil {
-                            Text("Choose a notes folder in Library to also save each day's diary as a Markdown file. Until then it's shown in Today.")
+                            Text("Choose a notes folder in Settings to also save each day's diary as a Markdown file. Until then it's shown in Today.")
                         } else {
                             Text("Relative to the notes folder, for example Diary or ../Journal")
                         }
@@ -102,7 +98,7 @@ struct HeartSettings: View {
     }
 }
 
-/// 「一天从几点开始」（心力模式和录音库两个标签共用这一个设置）
+/// 「一天从几点开始」（心力模式设置和设置页共用这一个设置）
 struct DayStartPicker: View {
     @Bindable var settings: Settings
     var body: some View {
@@ -118,7 +114,7 @@ struct DayStartPicker: View {
     }
 }
 
-/// 大模型服务通不通（润色里设的那个服务）：打开这一页时探测一次。不通时日记和段摘要等服务恢复后补上
+/// 大模型服务通不通（语音输入页「润色」里设的那个服务）：打开这一页时探测一次。不通时日记和段摘要等服务恢复后补上
 struct LLMServiceStatusRow: View {
     @Bindable var settings: Settings
     var openCleanUp: () -> Void

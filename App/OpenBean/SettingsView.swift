@@ -1,165 +1,104 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import OpenBeanLibrary
 import OpenBeanVoice
 import Carbon.HIToolbox
 import SwiftUI
 
-enum SettingsTab: String, CaseIterable, Identifiable {
-    case heart, voice, polish, library, agent, about
-    var id: String { rawValue }
-    var title: LocalizedStringKey {
-        switch self {
-        case .heart: return "Heart mode"
-        case .voice: return "Voice typing"
-        case .polish: return "Clean-up"
-        case .library: return "Library"
-        case .agent: return "Agents"
-        case .about: return "About"
-        }
-    }
-    var icon: String {
-        switch self {
-        case .heart: return "heart"
-        case .voice: return "keyboard"
-        case .polish: return "sparkles"
-        case .library: return "waveform"
-        case .agent: return "point.3.connected.trianglepath.dotted"
-        case .about: return "info.circle"
-        }
-    }
-    /// 链接里的名字（openbean://settings/<名字>）；0.4 以前的 models 页现在叫「关于」
-    init?(link: String) {
-        if link == "models" { self = .about; return }
-        self.init(rawValue: link)
-    }
-}
+// 设置不再是独立窗口：各模块的设置在各自的页面里（心力模式页 HeartSettings、语音输入页 VoiceTypingSettings、
+// 录音豆页 RecorderSettingsSections），侧栏底部的「设置」页（GeneralSettingsPage）只放通用的几组。
+// 老链接 openbean://settings/<名字> 由 SettingsRoute 换到新位置。
 
-/// 独立的设置窗口（Settings 场景，⌘, 和菜单栏「设置…」打开）：工具栏放分页，记住上次打开的那页（存在 Navigator 里，链接也能指定）
-struct SettingsWindow: View {
-    let model: AppModel
+// MARK: - 语音输入页的设置
+
+struct VoiceTypingSettings: View {
+    @Bindable var settings: Settings
+    let nav: Navigator
 
     var body: some View {
-        @Bindable var nav = model.nav
-        TabView(selection: $nav.settingsTab) {
-            Tab(SettingsTab.heart.title, systemImage: SettingsTab.heart.icon, value: .heart) {
-                HeartSettings(settings: model.settings, notes: model.library.notes, nav: model.nav).frame(height: 700)
+        ScrollViewReader { proxy in
+            Form {
+                VoiceSettingsSections(settings: settings)
+                CleanUpSettingsSections(settings: settings)
+                Section {
+                    Button("Edit personal word list…") {
+                        _ = AppPaths.readGlossary()
+                        NSWorkspace.shared.open(AppPaths.glossary)
+                    }
+                    .buttonStyle(.link)
+                } header: {
+                    Text("Personal word list")
+                } footer: {
+                    Text("One term per line: names, product names, jargon. OpenBean fixes same-sounding names and spelling to these without an LLM, in voice typing and in library transcripts (where only terms of three or more characters are fixed by sound); clean-up prefers them too. For a word it keeps mishearing, add what it hears after an equals sign: Claude Code = cloud code, 克劳德 code")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
             }
-            Tab(SettingsTab.voice.title, systemImage: SettingsTab.voice.icon, value: .voice) {
-                VoiceSettings(settings: model.settings).frame(height: 700)
-            }
-            Tab(SettingsTab.polish.title, systemImage: SettingsTab.polish.icon, value: .polish) {
-                PolishSettings(settings: model.settings).frame(height: 560)
-            }
-            Tab(SettingsTab.library.title, systemImage: SettingsTab.library.icon, value: .library) {
-                LibrarySettings(settings: model.settings).frame(height: 640)
-            }
-            Tab(SettingsTab.agent.title, systemImage: SettingsTab.agent.icon, value: .agent) {
-                Form { AgentSettingsSection() }.formStyle(.grouped).frame(height: 420)
-            }
-            Tab(SettingsTab.about.title, systemImage: SettingsTab.about.icon, value: .about) {
-                AboutSettings(models: model.models, updater: model.updater).frame(height: 320)
-            }
-        }
-        .frame(width: 640)
-    }
-}
-
-/// 把设置窗口带到前台（菜单栏 App：和 bringToFront 一样要等菜单收起再激活）。
-/// 第一次打开时 openSettings 返回后窗口还没建好，所以没找到或没成为主窗口就稍后再试几次
-@MainActor func bringSettingsToFront(attempt: Int = 0) {
-    DispatchQueue.main.asyncAfter(deadline: .now() + (attempt == 0 ? 0 : 0.12)) {
-        NSApp.activate()
-        let w = NSApp.windows.first { $0.identifier?.rawValue.contains("Settings") == true }
-        if let w {
-            if w.isMiniaturized { w.deminiaturize(nil) }
-            w.makeKeyAndOrderFront(nil)
-            w.orderFrontRegardless()
-        }
-        if w?.isKeyWindow != true {
-            if attempt < 8 { bringSettingsToFront(attempt: attempt + 1) } else { Log.write("设置窗口没能置前") }
+            .formStyle(.grouped)
+            .modifier(ScrollToSettingsAnchor(nav: nav, proxy: proxy))
         }
     }
 }
 
-// MARK: - 语音输入
-
-private struct VoiceSettings: View {
+/// 触发、输出、停顿
+private struct VoiceSettingsSections: View {
     @Bindable var settings: Settings
     @State private var trusted = Typist.trusted
     private let tick = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     var body: some View {
-        Form {
-            Section("Trigger") {
-                // 分段按钮按文字宽度靠右；直接给 Picker 加 fixedSize 会让整行收缩、按钮浮在中间
-                LabeledContent("Recorder button") {
-                    Picker("Recorder button", selection: $settings.buttonDictates) {
-                        Text("Voice typing").tag(true)
-                        Text("Record only").tag(false)
-                    }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
-                    .fixedSize()
+        Section("Trigger") {
+            // 分段按钮按文字宽度靠右；直接给 Picker 加 fixedSize 会让整行收缩、按钮浮在中间
+            LabeledContent(DeviceWord.pick(settings.mode.callsDeviceHeartBean, "Heart bean button", "Recorder button")) {
+                Picker("Recorder button", selection: $settings.buttonDictates) {
+                    Text("Voice typing").tag(true)
+                    Text("Record only").tag(false)
                 }
-                Picker("Keyboard shortcut", selection: $settings.hotkey) {
-                    ForEach(Hotkey.Preset.allCases) { Text($0.label).tag($0) }
-                }
-                if settings.hotkey == .custom { ShortcutRecorder(settings: settings) }
-                Toggle(isOn: $settings.readySound) {
-                    Text("Play a sound when it's ready to listen")
-                    Text("A soft tick when the bar turns into a microphone")
-                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .fixedSize()
             }
-
-            Section("Output") {
-                Toggle(isOn: $settings.typeIntoApp) {
-                    Text("Type into the active app")
-                    Text("Needs Accessibility permission. When off, the text is copied to the clipboard.")
-                }
-                if settings.typeIntoApp {
-                    HStack(spacing: 8) {
-                        Circle().fill(trusted ? Color.green : .orange).frame(width: 8, height: 8)
-                        Text(trusted ? "Accessibility permission granted" : "Needs Accessibility permission")
-                            .foregroundStyle(trusted ? .secondary : .primary)
-                        Spacer()
-                        Button("Open System Settings") { Typist.requestTrust(); Typist.openAccessibilitySettings() }
-                            .buttonStyle(.link)
-                    }
-                }
-                Toggle(isOn: $settings.keepHistory) {
-                    Text("Keep voice typing history on this Mac")
-                    Text("Shown on the Voice typing page and in Today")
-                }
-                Toggle(isOn: $settings.deleteDictationAudio) {
-                    Text("Delete voice-typing audio from the recorder")
-                    Text("Only files OpenBean created for voice typing are deleted. Deleted audio can't be recovered.")
-                }
+            Picker("Keyboard shortcut", selection: $settings.hotkey) {
+                ForEach(Hotkey.Preset.allCases) { Text($0.label).tag($0) }
             }
-
-            Section {
-                SliderRow(title: "End a phrase after a pause of", value: $settings.sentencePause, range: 0.4...1.5)
-                SliderRow(title: "New paragraph after a pause of", value: $settings.paragraphGap, range: 1.0...5.0)
-                PauseTimeline(phrase: settings.sentencePause, paragraph: settings.paragraphGap)
-            } header: {
-                Text("Pauses and layout")
-            } footer: {
-                Text("A too-short phrase pause chops sentences and hurts accuracy. Restart OpenBean after changing it.")
-                    .font(.caption).foregroundStyle(.secondary)
-            }
-
-            Section {
-                HStack(spacing: 16) {
-                    Button("Edit personal word list…") {
-                        _ = AppPaths.readGlossary()
-                        NSWorkspace.shared.open(AppPaths.glossary)
-                    }
-                    Button("Open log") { NSWorkspace.shared.open(AppPaths.log) }
-                }
-                .buttonStyle(.link)
+            if settings.hotkey == .custom { ShortcutRecorder(settings: settings) }
+            Toggle(isOn: $settings.readySound) {
+                Text("Play a sound when it's ready to listen")
+                Text("A soft tick when the bar turns into a microphone")
             }
         }
-        .formStyle(.grouped)
+
+        Section("Output") {
+            Toggle(isOn: $settings.typeIntoApp) {
+                Text("Type into the active app")
+                Text("Needs Accessibility permission. When off, the text is copied to the clipboard.")
+            }
+            if settings.typeIntoApp {
+                HStack(spacing: 8) {
+                    Circle().fill(trusted ? Color.green : .orange).frame(width: 8, height: 8)
+                    Text(trusted ? "Accessibility permission granted" : "Needs Accessibility permission")
+                        .foregroundStyle(trusted ? .secondary : .primary)
+                    Spacer()
+                    Button("Open System Settings") { Typist.requestTrust(); Typist.openAccessibilitySettings() }
+                        .buttonStyle(.link)
+                }
+            }
+            Toggle(isOn: $settings.keepHistory) {
+                Text("Keep voice typing history on this Mac")
+                Text("Shown on the Voice typing page and in Today")
+            }
+        }
         .onReceive(tick) { _ in trusted = Typist.trusted }
+
+        Section {
+            SliderRow(title: "End a phrase after a pause of", value: $settings.sentencePause, range: 0.4...1.5)
+            SliderRow(title: "New paragraph after a pause of", value: $settings.paragraphGap, range: 1.0...5.0)
+            PauseTimeline(phrase: settings.sentencePause, paragraph: settings.paragraphGap)
+        } header: {
+            Text("Pauses and layout")
+        } footer: {
+            Text("A too-short phrase pause chops sentences and hurts accuracy. Restart OpenBean after changing it.")
+                .font(.caption).foregroundStyle(.secondary)
+        }
     }
 }
 
@@ -210,9 +149,9 @@ struct SliderRow: View {
     }
 }
 
-// MARK: - 润色
+// MARK: - 润色（语音输入页；心力模式的日记和段摘要也用这里设的大模型服务）
 
-private struct PolishSettings: View {
+private struct CleanUpSettingsSections: View {
     @Bindable var settings: Settings
     @State private var status: Polisher.Status?
     @State private var checking = false
@@ -221,53 +160,43 @@ private struct PolishSettings: View {
     private var isCloud: Bool { url.map { !Polisher.isLocal($0) } ?? false }
 
     var body: some View {
-        Form {
-            Section {
-                Toggle(isOn: $settings.polishEnabled) {
-                    Text("Clean up each sentence with an LLM")
-                    Text("Removes filler words, fixes likely homophones using your word list and keeps your wording.")
-                }
+        Section {
+            Toggle(isOn: $settings.polishEnabled) {
+                Text("Clean up each sentence with an LLM")
+                Text("Removes filler words, fixes likely homophones using your word list and keeps your wording.")
             }
-            Section {
-                TextField("Server address", text: $settings.polishEndpoint, prompt: Text("http://127.0.0.1:8092"))
-                SecureField("API key", text: $settings.polishAPIKey, prompt: Text("Only needed for cloud services"))
-                TextField("Model name", text: $settings.polishModel)
-                HStack(spacing: 8) {
-                    if checking {
-                        ProgressView().controlSize(.small)
-                    } else if let status {
-                        Circle().fill(status == .ok ? Color.green : .orange).frame(width: 8, height: 8)
-                        statusText(status).foregroundStyle(.secondary).lineLimit(2)
-                    }
-                    Spacer()
-                    Button("Check connection") { Task { await check() } }
-                }
-                if isCloud, let host = url?.host {
-                    Label {
-                        Text("The text of each sentence is sent to \(host). Audio and speech recognition stay on this Mac.")
-                    } icon: {
-                        Image(systemName: "icloud").foregroundStyle(.orange)
-                    }
-                    .font(.callout)
-                }
-            } header: {
-                Text("Server")
-            } footer: {
-                Text("Any OpenAI-compatible service works: llama.cpp (llama-server), Ollama or LM Studio on this Mac, or cloud services such as DeepSeek, Qwen, Kimi and OpenAI. The API key is kept in your keychain.")
-                    .font(.caption).foregroundStyle(.secondary)
-            }
-            Section {
-                Button("Edit personal word list…") {
-                    _ = AppPaths.readGlossary()
-                    NSWorkspace.shared.open(AppPaths.glossary)
-                }
-                .buttonStyle(.link)
-            } footer: {
-                Text("One term per line: names, product names, jargon. OpenBean fixes same-sounding names and spelling to these without an LLM, in voice typing and in library transcripts (where only terms of three or more characters are fixed by sound); clean-up prefers them too. For a word it keeps mishearing, add what it hears after an equals sign: Claude Code = cloud code, 克劳德 code")
-                    .font(.caption).foregroundStyle(.secondary)
-            }
+        } header: {
+            Text("Clean-up")
         }
-        .formStyle(.grouped)
+        .id(SettingsAnchor.cleanUp)
+        Section {
+            TextField("Server address", text: $settings.polishEndpoint, prompt: Text("http://127.0.0.1:8092"))
+            SecureField("API key", text: $settings.polishAPIKey, prompt: Text("Only needed for cloud services"))
+            TextField("Model name", text: $settings.polishModel)
+            HStack(spacing: 8) {
+                if checking {
+                    ProgressView().controlSize(.small)
+                } else if let status {
+                    Circle().fill(status == .ok ? Color.green : .orange).frame(width: 8, height: 8)
+                    statusText(status).foregroundStyle(.secondary).lineLimit(2)
+                }
+                Spacer()
+                Button("Check connection") { Task { await check() } }
+            }
+            if isCloud, let host = url?.host {
+                Label {
+                    Text("The text of each sentence is sent to \(host). Audio and speech recognition stay on this Mac.")
+                } icon: {
+                    Image(systemName: "icloud").foregroundStyle(.orange)
+                }
+                .font(.callout)
+            }
+        } header: {
+            Text("LLM server")
+        } footer: {
+            Text("Any OpenAI-compatible service works: llama.cpp (llama-server), Ollama or LM Studio on this Mac, or cloud services such as DeepSeek, Qwen, Kimi and OpenAI. The API key is kept in your keychain. Summaries and the Heart mode diary use the same service.")
+                .font(.caption).foregroundStyle(.secondary)
+        }
         .task { await check() }
         .onChange(of: settings.polishEndpoint) { status = nil }
         .onChange(of: settings.polishAPIKey) { status = nil }
@@ -292,45 +221,99 @@ private struct PolishSettings: View {
     }
 }
 
-// MARK: - 录音库
+// MARK: - 录音豆页里的设置（同步、从设备删除）
 
-private struct LibrarySettings: View {
+struct RecorderSettingsSections: View {
     @Bindable var settings: Settings
+
     var body: some View {
-        Form {
-            Section {
-                // 心力模式下固定自动同步：开关锁住、显示为开（关掉心力模式后回到用户自己的选择）
-                Toggle(isOn: settings.mode.autoSyncLocked ? .constant(true) : $settings.autoSync) {
-                    Text("Sync new recordings automatically")
-                    Text(settings.mode.autoSyncLocked ? "Always on in Heart mode"
-                                                      : "Over Bluetooth, when the recorder connects or goes back in its case")
-                }
-                .disabled(settings.mode.autoSyncLocked)
-                Toggle(isOn: $settings.autoTranscribe) {
-                    Text("Transcribe recordings after download")
-                    Text("Runs on this Mac with SenseVoice")
-                }
-                LabeledContent("Library folder") {
-                    Button("Show in Finder") { NSWorkspace.shared.open(AppPaths.library) }
+        let heart = settings.mode.callsDeviceHeartBean
+        Section {
+            // 心力模式下固定自动同步：开关锁住、显示为开（关掉心力模式后回到用户自己的选择）
+            Toggle(isOn: settings.mode.autoSyncLocked ? .constant(true) : $settings.autoSync) {
+                Text("Sync new recordings automatically")
+                if settings.mode.autoSyncLocked {
+                    Text("Always on in Heart mode")
+                } else {
+                    Text("Over Bluetooth, when the recorder connects or goes back in its case")
                 }
             }
-            Section {
-                // 和心力模式标签里的是同一个设置
-                DayStartPicker(settings: settings)
-            } footer: {
-                Text("Today groups recordings by day.")
-                    .font(.caption).foregroundStyle(.secondary)
-            }
-            NoteSettingsSections(settings: settings, notes: AppModel.shared.library.notes)
+            .disabled(settings.mode.autoSyncLocked)
+        } header: {
+            Text("Sync")
+        } footer: {
+            Text("Large recordings can be fetched over the recorder's own Wi‑Fi: OpenBean offers it in the toolbar while a long sync is running.")
+                .font(.caption).foregroundStyle(.secondary)
         }
-        .formStyle(.grouped)
+        .id(SettingsAnchor.recorderSync)
+
+        Section("Deleting from the device") {
+            Toggle(isOn: $settings.deleteDictationAudio) {
+                if heart {
+                    Text("Delete voice-typing audio from the Heart bean")
+                } else {
+                    Text("Delete voice-typing audio from the recorder")
+                }
+                Text("Only files OpenBean created for voice typing are deleted. Deleted audio can't be recovered.")
+            }
+            if heart {
+                // 心力模式的「同步后从心力豆删除」在心力模式页的设置里
+                LabeledContent {
+                    Button("Heart mode settings…") { AppModel.shared.nav.open(.heart) }
+                } label: {
+                    Text(settings.heartDeleteFromRecorder ? "Recordings are deleted from the Heart bean after they're synced"
+                                                          : "Recordings stay on the Heart bean after they're synced")
+                    Text("Set in Heart mode.")
+                }
+            }
+        }
     }
 }
 
-// MARK: - 关于（版本、更新、语音模型）
+// MARK: - 设置页（侧栏底部）：录音库和笔记、Agent、语音模型、更新和关于
 
-private struct AboutSettings: View {
-    let models: ModelStore
+struct GeneralSettingsPage: View {
+    let model: AppModel
+
+    var body: some View {
+        @Bindable var settings = model.settings
+        ScrollViewReader { proxy in
+            Form {
+                Section {
+                    Toggle(isOn: $settings.autoTranscribe) {
+                        Text("Transcribe recordings after download")
+                        Text("Runs on this Mac with SenseVoice")
+                    }
+                    LabeledContent("Library folder") {
+                        Button("Show in Finder") { NSWorkspace.shared.open(AppPaths.library) }
+                    }
+                    // 和心力模式设置里的是同一个设置
+                    DayStartPicker(settings: settings)
+                } header: {
+                    Text("Library")
+                } footer: {
+                    Text("The day start is used to group recordings and voice typing by day.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                .id(GeneralSettingsGroup.library.rawValue)
+                NoteSettingsSections(settings: settings, notes: model.library.notes)
+                AgentSettingsSection()
+                    .id(GeneralSettingsGroup.agents.rawValue)
+                Section("Speech models") {
+                    ModelStatusRow(models: model.models)
+                }
+                .id(GeneralSettingsGroup.about.rawValue)
+                AboutSection(updater: model.updater)
+            }
+            .formStyle(.grouped)
+            .modifier(ScrollToSettingsAnchor(nav: model.nav, proxy: proxy))
+        }
+        .navigationTitle("Settings")
+    }
+}
+
+/// 版本、更新、源代码、日志
+private struct AboutSection: View {
     @Bindable var updater: Updater
 
     private var version: String {
@@ -341,24 +324,22 @@ private struct AboutSettings: View {
     }
 
     var body: some View {
-        Form {
-            Section("OpenBean") {
-                LabeledContent("Version") {
-                    HStack {
-                        Text(version).textSelection(.enabled)
-                        Button("Check now") { updater.check() }
-                            .disabled(!updater.canCheck)
-                    }
+        Section("OpenBean") {
+            LabeledContent("Version") {
+                HStack {
+                    Text(version).textSelection(.enabled)
+                    Button("Check now") { updater.check() }
+                        .disabled(!updater.canCheck)
                 }
-                Toggle("Automatically check for updates", isOn: $updater.automaticallyChecks)
-                    .disabled(!Flavor.updates)
-                Link("Source code and protocol notes", destination: URL(string: "https://github.com/imraywang/openbean")!)
             }
-            Section("Speech models") {
-                ModelStatusRow(models: models)
+            Toggle("Automatically check for updates", isOn: $updater.automaticallyChecks)
+                .disabled(!Flavor.updates)
+            HStack(spacing: 16) {
+                Link("Source code and protocol notes", destination: URL(string: "https://github.com/imraywang/openbean")!)
+                Button("Open log") { NSWorkspace.shared.open(AppPaths.log) }
+                    .buttonStyle(.link)
             }
         }
-        .formStyle(.grouped)
     }
 }
 

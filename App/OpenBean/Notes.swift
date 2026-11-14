@@ -596,7 +596,7 @@ struct SaveNoteModifier: ViewModifier {
     }
 }
 
-/// 设置 → 录音库里的「摘要」和「笔记」两组
+/// 设置页里的「摘要」「每日日记」「笔记」几组
 struct NoteSettingsSections: View {
     @Bindable var settings: Settings
     let notes: NoteService
@@ -610,7 +610,7 @@ struct NoteSettingsSections: View {
         Section {
             Toggle(isOn: $settings.summarizeRecordings) {
                 Text("Summarise recordings after transcription")
-                Text("Title, summary, key points and action items, written by the LLM service set up in Clean-up. Skipped when the service is not running.")
+                Text("Title, summary, key points and action items, written by the LLM service set up in Voice typing → Clean-up. Skipped when the service is not running.")
             }
             if settings.summarizeRecordings, let cloudHost {
                 Label {
@@ -627,7 +627,7 @@ struct NoteSettingsSections: View {
         Section {
             // 每日日记现在是心力模式的一部分（0.5 以前是这里的一个开关）
             LabeledContent {
-                Button("Heart mode settings…") { AppModel.shared.nav.settingsTab = .heart }
+                Button(DeviceWord.pick(settings.mode.heartMode, "Heart mode settings…", "Go to Heart mode")) { AppModel.shared.nav.open(.heart) }
             } label: {
                 Text(settings.mode.writesDiary ? "Heart mode is on: a diary is written for each day"
                                                : "A diary for each day is part of Heart mode")

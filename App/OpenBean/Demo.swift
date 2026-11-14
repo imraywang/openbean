@@ -605,11 +605,13 @@ final class DemoController {
             let b = DayBoundary(startHour: m.settings.dayStartHour)
             let n = Int(arg) ?? 0
             m.nav.day = n == 0 ? nil : b.day(b.day(of: Date()), offsetBy: n)
-            m.nav.section = .today
+            m.nav.section = .heart
+            m.nav.showingSettings.remove(.heart)
             openMain()
         case "settings":
-            if let tab = SettingsTab(link: arg) { m.nav.settingsTab = tab }
-            m.openSettings?()
+            // 老的设置窗口分页名照样认（见 SettingsRoute）；设置现在在主窗口里
+            m.nav.open(SettingsRoute(link: arg) ?? .general(.top))
+            openMain()
         case "select":
             DemoState.shared.query = ""
             m.library.filter = .all
@@ -756,7 +758,6 @@ final class DemoController {
         switch role {
         case "hud": return model?.hud.demoPanel
         case "status": return NSApp.windows.first { String(describing: type(of: $0)).contains("StatusBarWindow") }
-        case "settings": return NSApp.windows.first { $0.identifier?.rawValue.contains("Settings") == true }
         default:
             return NSApp.windows.first { w in
                 guard let id = w.identifier?.rawValue else { return false }
@@ -800,7 +801,7 @@ final class DemoController {
     /// 告诉截图脚本：第 seq 条命令处理完了，以及各窗口的窗口号（= CGWindowID）
     private func ack(_ seq: String) {
         var windows: [String: Int] = [:]
-        for role in ["main", "onboarding", "settings", "hud", "demo"] {
+        for role in ["main", "onboarding", "hud", "demo"] {
             if let w = window(role), w.isVisible { windows[role] = w.windowNumber }
         }
         var body: [String: Any] = ["seq": seq, "pid": Int(ProcessInfo.processInfo.processIdentifier), "windows": windows]
@@ -831,7 +832,6 @@ enum DemoScenes {
 private struct DemoBinder: View {
     let model: AppModel
     @Environment(\.openWindow) private var openWindow
-    @Environment(\.openSettings) private var openSettings
 
     var body: some View {
         Text(verbatim: "OpenBean Demo — openbean-demo://demo/…")
@@ -840,7 +840,6 @@ private struct DemoBinder: View {
             .onAppear {
                 DemoController.shared.openWindow = openWindow
                 model.openMain = { openWindow(id: "main"); bringToFront("main") }
-                model.openSettings = { openSettings(); bringSettingsToFront() }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { DemoController.shared.window("demo")?.orderOut(nil) }
             }
     }

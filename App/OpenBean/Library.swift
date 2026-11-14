@@ -104,7 +104,7 @@ final class LibraryStore {
     private var peaksCache: [UInt32: [Float]] = [:]
 
     private let device: DeviceController
-    private let settings: Settings
+    let settings: Settings
     /// 摘要和知识库笔记
     let notes: NoteService
     /// 按停顿切的对话段（segments.json）

@@ -8,46 +8,81 @@ import SwiftUI
 // MARK: - 导航
 
 enum MainSection: String, CaseIterable, Identifiable, Hashable {
-    case today, library, dictation, recorder
+    case heart, library, dictation, recorder, settings
     var id: String { rawValue }
-    /// 侧栏里的页面（⌘1–⌘4）。设置在独立的设置窗口里（⌘,）
-    static let pages: [MainSection] = [.today, .library, .dictation, .recorder]
-    /// 链接里的名字：0.4 以前的「概览」现在是「今天」
+    /// 侧栏上面的模块（⌘1–⌘4）。「设置」在侧栏底部（⌘,）
+    static let pages: [MainSection] = [.heart, .library, .dictation, .recorder]
+    /// 链接里的名字：0.4 以前的「概览」、0.5 以前的「今天」现在都是心力模式页
     init?(link: String) {
-        if link == "overview" { self = .today; return }
+        if link == "overview" || link == "today" { self = .heart; return }
         self.init(rawValue: link)
     }
-    var title: LocalizedStringKey {
+    /// 侧栏里的名字。录音豆那一项随模式改叫法（心力模式下是「心力豆」）
+    func title(heart: Bool) -> LocalizedStringKey {
         switch self {
-        case .today: return "Today"
+        case .heart: return "Heart mode"
         case .library: return "Library"
         case .dictation: return "Voice typing"
-        case .recorder: return "Recorder"
+        case .recorder: return DeviceWord.title(heart: heart)
+        case .settings: return "Settings"
         }
     }
     var icon: String {
         switch self {
-        case .today: return "sun.max"
+        case .heart: return "heart"
         case .library: return "list.bullet"
         case .dictation: return "keyboard"
         case .recorder: return "mic"
+        case .settings: return "gearshape"
         }
     }
+    /// 有自己设置的模块页：工具栏右上角一个齿轮，在页面内容和这个模块的设置之间切换
+    var hasModuleSettings: Bool { self == .heart || self == .dictation }
 }
 
 @MainActor @Observable
 final class Navigator {
-    var section: MainSection = .today
-    /// 「今天」页看的是哪一天（那个日历日的 0 点）；nil = 今天（跟着时间走，过了凌晨 4 点自动换天）
+    var section: MainSection = .heart
+    /// 心力模式页看的是哪一天（那个日历日的 0 点）；nil = 今天（跟着时间走，过了凌晨 4 点自动换天）
     var day: Date?
-    var settingsTab: SettingsTab = .heart
+    /// 哪些模块页这会儿显示的是设置（心力模式、语音输入）
+    var showingSettings: Set<MainSection> = []
+    /// 设置要翻到的那一组（链接、别处的「…设置」按钮指定）；页面滚过去后清掉
+    var settingsAnchor: String?
     /// 刚从别处跳过来的录音：那一行亮一下，提示「你在这」
     var flash: UInt32?
 
-    /// 回到首页：心力模式落在今天，普通模式落在录音库（ModeDefaults.landing）
+    /// 回到首页：心力模式开着落在心力模式页（今天），关着落在录音库（ModeDefaults.landing）
     func goHome(_ mode: ModeDefaults) {
-        section = mode.landing == .today ? .today : .library
+        section = mode.landing == .today ? .heart : .library
+        showingSettings.remove(.heart)
         day = nil
+    }
+
+    /// 打开某处的设置（openbean://settings/<名字>、⌘,、菜单「设置…」、页面里的「…设置」按钮）
+    func open(_ route: SettingsRoute) {
+        switch route {
+        case .heart:
+            section = .heart
+            showingSettings.insert(.heart)
+            settingsAnchor = nil
+        case let .voiceTyping(cleanUp):
+            section = .dictation
+            showingSettings.insert(.dictation)
+            settingsAnchor = cleanUp ? SettingsAnchor.cleanUp : nil
+        case .recorder:
+            section = .recorder
+            settingsAnchor = SettingsAnchor.recorderSync
+        case let .general(group):
+            section = .settings
+            settingsAnchor = group == .top ? nil : group.rawValue
+        }
+    }
+
+    func showsSettings(_ s: MainSection) -> Bool { showingSettings.contains(s) }
+
+    func toggleSettings(_ s: MainSection) {
+        if showingSettings.contains(s) { showingSettings.remove(s) } else { showingSettings.insert(s) }
     }
 
     func show(recording id: UInt32, in library: LibraryStore) {
@@ -61,6 +96,12 @@ final class Navigator {
             withAnimation(.easeOut(duration: 0.6)) { if self.flash == id { self.flash = nil } }
         }
     }
+}
+
+/// 设置页里可以直接翻到的几组（ScrollViewReader 的 id）
+enum SettingsAnchor {
+    static let cleanUp = "cleanUp"
+    static let recorderSync = "recorderSync"
 }
 
 // MARK: - 主窗口：侧栏导航 + 页面（同级页面原地淡入淡出，不横向推入）
@@ -81,10 +122,6 @@ struct MainView: View {
                 .transition(.opacity)
                 // 整个窗口只有这一个同步入口：每一页的工具栏右边都是它
                 .toolbar {
-                    // 心力模式开着时的小标识（点开就是心力模式设置）
-                    if model.settings.mode.heartMode {
-                        ToolbarItem(placement: .navigation) { HeartModeBadge { model.nav.settingsTab = .heart; model.openSettings?() } }
-                    }
                     ToolbarItem(placement: .primaryAction) {
                         SyncToolbarButton(device: model.device, library: model.library)
                     }
@@ -100,23 +137,24 @@ struct MainView: View {
 
     @ViewBuilder private func page(_ s: MainSection) -> some View {
         switch s {
-        case .today: TodayView(model: model)
+        case .heart: HeartPage(model: model)
         case .library: LibraryPage(model: model)
-        case .dictation: DictationHistoryView(log: model.log, settings: model.settings, library: model.library)
+        case .dictation: DictationPage(model: model)
         case .recorder:
-            DeviceView(device: model.device, dictation: model.dictation, library: model.library)
-                .navigationTitle("Recorder")
+            DeviceView(device: model.device, dictation: model.dictation, library: model.library, settings: model.settings)
+                .navigationTitle(DeviceWord.title(heart: model.settings.mode.callsDeviceHeartBean))
+        case .settings: GeneralSettingsPage(model: model)
         }
     }
 
-    /// ⌘1–⌘4 切页面，⌃⌘S 收起/展开侧栏（菜单栏 App 没有菜单，用隐藏按钮接快捷键）
+    /// ⌘1–⌘4 切页面，⌘, 去设置页，⌃⌘S 收起/展开侧栏（菜单栏 App 没有菜单，用隐藏按钮接快捷键）
     private var shortcuts: some View {
         ZStack {
             ForEach(Array(MainSection.pages.enumerated()), id: \.offset) { i, s in
                 Button("") { model.nav.section = s }
                     .keyboardShortcut(KeyEquivalent(Character("\(i + 1)")), modifiers: .command)
             }
-            Button("") { model.openSettings?() }
+            Button("") { model.nav.open(.general(.top)) }
                 .keyboardShortcut(",", modifiers: .command)
             Button("") {
                 withAnimation { columns = columns == .detailOnly ? .all : .detailOnly }
@@ -126,18 +164,6 @@ struct MainView: View {
         .opacity(0)
         .frame(width: 0, height: 0)
         .accessibilityHidden(true)
-    }
-}
-
-/// 工具栏里「心力模式」的小标识：一颗描边的心，悬停有说明，不抢眼
-struct HeartModeBadge: View {
-    var action: () -> Void
-    var body: some View {
-        Button(action: action) {
-            Image(systemName: "heart").foregroundStyle(.secondary)
-        }
-        .help("Heart mode is on")
-        .accessibilityLabel("Heart mode is on")
     }
 }
 
@@ -153,6 +179,7 @@ struct NavSidebar: View {
     @State private var libraryExpanded = true
 
     private var library: LibraryStore { model.library }
+    private var heart: Bool { model.settings.mode.callsDeviceHeartBean }
 
     private var selection: Binding<SidebarTag?> {
         Binding(get: {
@@ -177,10 +204,10 @@ struct NavSidebar: View {
                                 .tag(SidebarTag.filter(f))
                         }
                     } label: {
-                        Label(s.title, systemImage: s.icon).tag(SidebarTag.page(s))
+                        Label(s.title(heart: heart), systemImage: s.icon).tag(SidebarTag.page(s))
                     }
                 } else {
-                    Label { Text(s.title) } icon: {
+                    Label { Text(s.title(heart: heart)) } icon: {
                         if s == .recorder { BeanSymbol() } else { Image(systemName: s.icon) }
                     }
                     .tag(SidebarTag.page(s))
@@ -189,10 +216,37 @@ struct NavSidebar: View {
         }
         .listStyle(.sidebar)
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            DeviceFooter(device: model.device, library: model.library) { section = .recorder }
+            VStack(alignment: .leading, spacing: 4) {
+                SettingsSidebarRow(selected: section == .settings) { section = .settings }
+                DeviceFooter(device: model.device, library: model.library) { section = .recorder }
+            }
         }
         // 「有待办」要看每条的摘要：在后台读进缓存，不在主线程上逐条读盘
         .task(id: library.recordings.count) { library.notes.preload(library.recordings.filter { $0.transcribed && !$0.isDictation }.map(\.id)) }
+    }
+}
+
+/// 侧栏底部的「设置」：通用设置（各模块自己的设置在各自的页面里）。
+/// 不放进上面的列表：它和模块不是一类，固定在底部、设备状态的上面，样子仿照侧栏的一行
+struct SettingsSidebarRow: View {
+    let selected: Bool
+    let action: () -> Void
+    @State private var hover = false
+
+    var body: some View {
+        Button(action: action) {
+            Label("Settings", systemImage: "gearshape")
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 8).padding(.vertical, 5)
+                .background(RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(selected ? Color.primary.opacity(0.1) : hover ? Color.primary.opacity(0.05) : .clear))
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { hover = $0 }
+        .padding(.horizontal, 10)
+        .help("Settings (⌘,)")
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 }
 
@@ -201,6 +255,7 @@ struct DeviceFooter: View {
     let device: DeviceController
     let library: LibraryStore
     let open: () -> Void
+    private var heart: Bool { library.settings.mode.callsDeviceHeartBean }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -217,9 +272,9 @@ struct DeviceFooter: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .help("Show recorder details")
+            .help(DeviceWord.showDetails(heart: heart))
             .accessibilityLabel(Text("\(device.deviceName), \(DeviceFooter.status(device, library))"))
-            .accessibilityHint(Text("Show recorder details"))
+            .accessibilityHint(Text(DeviceWord.showDetails(heart: heart)))
         }
         .padding(.horizontal, 12)
         .padding(.bottom, 10)
@@ -294,6 +349,7 @@ struct SyncToolbarButton: View {
     @State private var showDetail = false
 
     private var pending: Int { library.recordings.filter { $0.onDevice && !$0.downloaded && !$0.isDictation }.count }
+    private var heart: Bool { library.settings.mode.callsDeviceHeartBean }
 
     var body: some View {
         switch library.sync {
@@ -304,7 +360,7 @@ struct SyncToolbarButton: View {
                     Text(progressLine(done: done, total: total)).monospacedDigit()
                 }
             }
-            .help("Syncing recordings from the recorder")
+            .help(heart ? Text("Syncing recordings from the Heart bean") : Text("Syncing recordings from the recorder"))
             .accessibilityLabel(Text("Syncing: \(progressLine(done: done, total: total))"))
             .popover(isPresented: $showDetail, arrowEdge: .bottom) {
                 SyncStatus(device: device, library: library)
@@ -349,13 +405,17 @@ struct SyncToolbarButton: View {
 
     private var idleHelp: String {
         if !device.isReady {
-            return pending > 0
-                ? String(localized: "\(pending) new recordings are on the recorder. Sync them once it connects.")
-                : String(localized: "The recorder isn't connected")
+            if pending > 0 {
+                return heart ? String(localized: "\(pending) new recordings are on the Heart bean. Sync them once it connects.")
+                             : String(localized: "\(pending) new recordings are on the recorder. Sync them once it connects.")
+            }
+            return heart ? String(localized: "The Heart bean isn't connected") : String(localized: "The recorder isn't connected")
         }
-        if device.activity == .dictating { return String(localized: "Voice typing is using the recorder") }
+        if device.activity == .dictating {
+            return heart ? String(localized: "Voice typing is using the Heart bean") : String(localized: "Voice typing is using the recorder")
+        }
         if let s = library.pendingSyncSeconds { return String(localized: "About \(SyncStatus.phrase(s)) over Bluetooth") }
-        return String(localized: "Check the recorder for new recordings")
+        return heart ? String(localized: "Check the Heart bean for new recordings") : String(localized: "Check the recorder for new recordings")
     }
 }
 
@@ -397,9 +457,15 @@ struct LibraryPage: View {
         return ContentUnavailableView {
             Label("No recordings yet", systemImage: "waveform")
         } description: {
-            Text(device.isReady
-                 ? "Recordings you make on the recorder show up here after you sync them to this Mac with Sync in the toolbar."
-                 : "Take the recorder out of its case to connect. Its recordings show up here after you sync them.")
+            if model.settings.mode.callsDeviceHeartBean {
+                Text(device.isReady
+                     ? "Recordings you make on the Heart bean show up here after you sync them to this Mac with Sync in the toolbar."
+                     : "Take the Heart bean out of its case to connect. Its recordings show up here after you sync them.")
+            } else {
+                Text(device.isReady
+                     ? "Recordings you make on the recorder show up here after you sync them to this Mac with Sync in the toolbar."
+                     : "Take the recorder out of its case to connect. Its recordings show up here after you sync them.")
+            }
         }
     }
 
@@ -444,6 +510,8 @@ struct DictationHistoryView: View {
     let log: DictationLog
     let settings: Settings
     let library: LibraryStore
+    /// 打开这一页的设置（语音输入设置）
+    var openSettings: () -> Void = {}
     @State private var confirmClear = false
     /// 清理以前留在录音豆上的语音输入文件：确认框里列的条目，和删完的结果
     @State private var leftover: [Recording] = []
@@ -459,8 +527,12 @@ struct DictationHistoryView: View {
                     .font(.callout).foregroundStyle(.secondary).monospacedDigit()
             }
             if !settings.keepHistory {
-                Label("History is off. Turn it on in Settings to keep new voice typing here.", systemImage: "info.circle")
-                    .foregroundStyle(.secondary)
+                HStack {
+                    Label("History is off. New voice typing isn't kept here.", systemImage: "info.circle")
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Voice typing settings…", action: openSettings).buttonStyle(.link)
+                }
             }
             ForEach(sections, id: \.title) { section in
                 Section(section.title) {
@@ -481,11 +553,14 @@ struct DictationHistoryView: View {
                 ContentUnavailableView {
                     Label("No voice typing yet", systemImage: "keyboard")
                 } description: {
-                    Text("Press the recorder's button and speak. What you say is kept here, on this Mac.")
+                    if settings.mode.callsDeviceHeartBean {
+                        Text("Press the Heart bean's button and speak. What you say is kept here, on this Mac.")
+                    } else {
+                        Text("Press the recorder's button and speak. What you say is kept here, on this Mac.")
+                    }
                 }
             }
         }
-        .navigationTitle("Voice typing")
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Menu {

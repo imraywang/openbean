@@ -13,7 +13,7 @@ import SwiftUI
 @MainActor
 enum PreviewFixtures {
     /// 一份摆好状态的 AppModel。state 同 openbean-demo://demo/state/<名字>；select 同 demo/select/<名字>
-    static func model(_ state: String = "connected", section: MainSection = .today, dayOffset: Int = 0, tab: SettingsTab = .voice,
+    static func model(_ state: String = "connected", section: MainSection = .heart, dayOffset: Int = 0, route: SettingsRoute? = nil,
                       select: String? = nil, filter: LibraryStore.Filter = .all, transcribedAll: Bool = false,
                       models: ModelStore.State = .ready, trusted: Bool = true, heart: Bool? = nil,
                       llmReachable: Bool = true) -> AppModel {
@@ -31,7 +31,7 @@ enum PreviewFixtures {
             let b = DayBoundary(startHour: m.settings.dayStartHour)
             m.nav.day = b.day(b.day(of: Date()), offsetBy: dayOffset)
         }
-        m.nav.settingsTab = tab
+        if let route { m.nav.open(route) }
         m.library.filter = filter
         // 「有待办」要摘要在缓存里：预览里直接同步读进来
         for r in m.library.recordings { _ = m.library.notes.summary(r.id) }
@@ -60,7 +60,7 @@ private struct PreviewFrame<Content: View>: View {
 
 // MARK: - 主窗口（侧栏 + 页面）
 
-#Preview("主窗口 · 今天") { PreviewFrame { MainView(model: PreviewFixtures.model()) } }
+#Preview("主窗口 · 心力模式页 · 开（今天）") { PreviewFrame { MainView(model: PreviewFixtures.model()) } }
 #Preview("主窗口 · 今天 · 深色") { PreviewFrame(dark: true) { MainView(model: PreviewFixtures.model()) } }
 #Preview("主窗口 · 今天 · 最小尺寸") { PreviewFrame(width: 960, height: 600) { MainView(model: PreviewFixtures.model()) } }
 #Preview("主窗口 · 今天 · 正在同步") { PreviewFrame { MainView(model: PreviewFixtures.model("syncing")) } }
@@ -178,7 +178,9 @@ private struct PreviewFrame<Content: View>: View {
 
 @MainActor private func device(_ state: String, dark: Bool = false) -> some View {
     let m = PreviewFixtures.model(state)
-    return PreviewFrame(dark: dark, width: 760, height: 700) { DeviceView(device: m.device, dictation: m.dictation, library: m.library) }
+    return PreviewFrame(dark: dark, width: 760, height: 700) {
+        DeviceView(device: m.device, dictation: m.dictation, library: m.library, settings: m.settings)
+    }
 }
 
 #Preview("录音豆 · 已连接") { device("connected") }
@@ -194,28 +196,33 @@ private struct PreviewFrame<Content: View>: View {
 #Preview("录音豆 · 没有蓝牙权限") { device("no-permission") }
 #Preview("录音豆 · 连接断了") { device("lost") }
 
-// MARK: - 设置
+// MARK: - 心力模式页的开和关、各页的设置（设置不再是独立窗口，都在主窗口里）
 
-// 设置窗口的内容（预览里没有窗口的工具栏，分页标签画在内容上方；真实窗口的样子见 bin/ui-shots 的 25–29）
-@MainActor private func settings(_ tab: SettingsTab, dark: Bool = false, heart: Bool? = nil, llm: Bool = true) -> some View {
-    SettingsWindow(model: PreviewFixtures.model(tab: tab, heart: heart, llmReachable: llm)).preferredColorScheme(dark ? .dark : .light)
+@MainActor private func window(_ section: MainSection = .heart, route: SettingsRoute? = nil, dark: Bool = false,
+                             heart: Bool? = nil, llm: Bool = true, state: String = "connected") -> some View {
+    PreviewFrame(dark: dark) {
+        MainView(model: PreviewFixtures.model(state, section: section, route: route, heart: heart, llmReachable: llm))
+    }
 }
 
-#Preview("设置 · 心力模式 · 开") { settings(.heart, heart: true) }
-#Preview("设置 · 心力模式 · 开 · 服务不通 · 深色") { settings(.heart, dark: true, heart: true, llm: false) }
-#Preview("设置 · 心力模式 · 关") { settings(.heart, heart: false) }
-#Preview("设置 · 录音库 · 心力模式开") { settings(.library, heart: true) }
+#Preview("心力模式页 · 关") { window(heart: false) }
+#Preview("心力模式页 · 关 · 深色") { window(dark: true, heart: false) }
+#Preview("心力模式页 · 设置") { window(route: .heart, heart: true) }
+#Preview("心力模式页 · 设置 · 服务不通 · 深色") { window(route: .heart, dark: true, heart: true, llm: false) }
 
-#Preview("设置 · 语音输入") { settings(.voice) }
-#Preview("设置 · 语音输入 · 深色") { settings(.voice, dark: true) }
-#Preview("设置 · 润色") { settings(.polish) }
-#Preview("设置 · 润色 · 深色") { settings(.polish, dark: true) }
-#Preview("设置 · 录音库") { settings(.library) }
-#Preview("设置 · 录音库 · 深色") { settings(.library, dark: true) }
-#Preview("设置 · Agent") { settings(.agent) }
-#Preview("设置 · Agent · 深色") { settings(.agent, dark: true) }
-#Preview("设置 · 关于") { settings(.about) }
-#Preview("设置 · 关于 · 深色") { settings(.about, dark: true) }
+#Preview("语音输入页 · 设置") { window(route: .voiceTyping(cleanUp: false)) }
+#Preview("语音输入页 · 设置 · 深色") { window(route: .voiceTyping(cleanUp: false), dark: true) }
+#Preview("语音输入页 · 设置 · 润色") { window(route: .voiceTyping(cleanUp: true)) }
+
+#Preview("录音豆页 · 设置（普通模式）") { window(route: .recorder, heart: false) }
+#Preview("心力豆页 · 设置（心力模式）") { window(route: .recorder, heart: true) }
+#Preview("心力豆页 · 设置 · 深色") { window(route: .recorder, dark: true, heart: true) }
+
+#Preview("设置页") { window(route: .general(.top)) }
+#Preview("设置页 · 深色") { window(route: .general(.top), dark: true) }
+#Preview("设置页 · 心力模式关") { window(route: .general(.library), heart: false) }
+#Preview("设置页 · Agent") { window(route: .general(.agents)) }
+#Preview("设置页 · 关于") { window(route: .general(.about)) }
 
 // MARK: - 首次使用向导（第一次用：没找到录音豆、没下载模型、没有辅助功能权限）
 
