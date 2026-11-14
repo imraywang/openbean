@@ -627,5 +627,7 @@
 "You can change these later in Heart mode settings.": "以后可以在心力模式的设置里改。",
 "You can turn on Heart mode even if it isn't reachable yet; the diary is written once it is.": "服务暂时连不上也可以打开心力模式，连上后会补写日记。",
 "You used the daily diary. It's part of Heart mode now and stays off until you turn Heart mode on.": "你之前开着「每日日记」。日记现在是心力模式的一部分，打开心力模式之前不会再写。",
-"Your Mac joins the Heart bean's own Wi‑Fi and is offline for a few minutes, then reconnects to your usual network. What Bluetooth has already received is kept.": "Mac 会连上心力豆自己的 Wi‑Fi，断网几分钟，之后连回原来的网络。蓝牙已经收到的部分会保留。"
+"Your Mac joins the Heart bean's own Wi‑Fi and is offline for a few minutes, then reconnects to your usual network. What Bluetooth has already received is kept.": "Mac 会连上心力豆自己的 Wi‑Fi，断网几分钟，之后连回原来的网络。蓝牙已经收到的部分会保留。",
+"Queued…": "排队中…",
+"Waiting for other summaries to finish…": "前面还有摘要或日记在写，轮到就开始…"
 }

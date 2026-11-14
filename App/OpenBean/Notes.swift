@@ -491,8 +491,14 @@ struct SummaryCard: View {
             VStack(alignment: .leading, spacing: 16) {
                 if let progress {
                     HStack(spacing: 10) {
-                        ProgressView(value: progress).frame(width: 120)
-                        Text("Summarising…").foregroundStyle(.secondary)
+                        // 0 = 还在队列里等（前面有别的摘要或日记在写），轮到了才有进度
+                        if progress > 0 {
+                            ProgressView(value: progress).frame(width: 120)
+                            Text("Summarising…").foregroundStyle(.secondary)
+                        } else {
+                            ProgressView().controlSize(.small)
+                            Text("Waiting for other summaries to finish…").foregroundStyle(.secondary)
+                        }
                     }
                 }
                 if let s {
@@ -559,7 +565,11 @@ struct SummariseButton: View {
 
     var body: some View {
         if let p = notes.summarizing[recording.id] {
-            ProgressView(value: p) { Text("Summarising…") }.frame(width: 140)
+            if p > 0 {
+                ProgressView(value: p) { Text("Summarising…") }.frame(width: 140)
+            } else {
+                Text("Queued…").foregroundStyle(.secondary).help("Waiting for other summaries to finish…")
+            }
         } else {
             let again = notes.summary(recording.id) != nil
             Button { notes.summarize(recording.id) } label: {

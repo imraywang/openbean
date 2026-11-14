@@ -165,6 +165,12 @@ final class DiaryService {
         return out.sorted { $0.1.wallStart < $1.1.wallStart }
     }
 
+    private static let signatureEncoder: JSONEncoder = {
+        let e = JSONEncoder()
+        e.outputFormatting = [.sortedKeys]
+        return e
+    }()
+
     /// 重算某一天的日记。返回 .written 也包括「输入没变，不用重写」和「这天已经没有录音」
     @discardableResult
     func refreshDay(_ key: String, force: Bool = false) async -> SyncRun.DiaryResult {
@@ -191,7 +197,8 @@ final class DiaryService {
         }
         included = gather(boundary.interval(of: day0))
         let sig = DayFile.signature(included.map { r, c in
-            let s = (try? JSONEncoder().encode(c.summary)).map { String(decoding: $0, as: UTF8.self) } ?? ""
+            // 键要排序：不排序时 JSONEncoder 的键顺序每次可能不同，签名跟着变，内容没变也会重写日记
+            let s = (try? Self.signatureEncoder.encode(c.summary)).map { String(decoding: $0, as: UTF8.self) } ?? ""
             return "\(r.id)#\(c.index)|\(c.hash)|\(c.kind ?? "")|\(s)|marks=\(c.marks)"
         } + ["diary-v1", "start=\(settings.dayStartHour)", "tz=\(TimeZone.current.identifier)"])
         if !force, let old = DayFile.read(url), old.version == DayFile.currentVersion, old.signature == sig {
