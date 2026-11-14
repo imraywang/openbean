@@ -84,6 +84,8 @@ final class AppModel {
 
     /// 主窗口打开回调（菜单栏菜单第一次渲染时登记，用于 openbean://open、settings）
     var openMain: (() -> Void)?
+    /// 打开首次使用向导（菜单里的「设置向导…」）
+    var openOnboarding: (() -> Void)?
 
     /// 打开主窗口里的某处设置（设置不再是独立窗口：各模块的设置在各自的页面里，通用的在侧栏底部的「设置」页）
     func openSettings(_ route: SettingsRoute = .general(.top)) {
@@ -151,13 +153,7 @@ struct OpenBeanApp: App {
     private let model = AppModel.shared
 
     var body: some Scene {
-        MenuBarExtra {
-            MenuContent(model: model)
-        } label: {
-            MenuIcon(device: model.device, dictation: model.dictation)
-                .background(OpenWindowBinder(model: model))
-        }
-        .menuBarExtraStyle(.menu)
+        // 菜单栏图标不用 MenuBarExtra（它只会「点了出菜单」）：见 StatusItemController，左键开主窗口、右键出菜单
 
         Window("OpenBean", id: "main") {
             MainView(model: model)
@@ -207,25 +203,9 @@ final class Delegate: NSObject, NSApplicationDelegate {
         }
         NSApp.setActivationPolicy(.accessory)
         started = true
-        MainActor.assumeIsolated { AppModel.shared.start() }
-        installStatusItemClick()
-    }
-
-    /// 菜单栏图标：左键直接打开主窗口，右键（或按住 Control 点）才出菜单。
-    /// MenuBarExtra 只会「点了出菜单」，所以在事件到它之前截下左键；右键本来就会弹出状态栏项的菜单，不用管。
-    /// 主窗口还打不开（openMain 没登记）时不截，照旧出菜单。
-    private func installStatusItemClick() {
-        NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { event in
-            guard let w = event.window, w.className.contains("StatusBarWindow"),
-                  !event.modifierFlags.contains(.control) else { return event }
-            return MainActor.assumeIsolated {
-                let m = AppModel.shared
-                guard let open = m.openMain else { return event }
-                Log.write("菜单栏图标：左键，打开主窗口")
-                m.nav.goHome(m.settings.mode)
-                open()
-                return nil
-            }
+        MainActor.assumeIsolated {
+            AppModel.shared.start()
+            StatusItemController.shared.install(model: AppModel.shared)
         }
     }
 
@@ -264,13 +244,16 @@ final class Delegate: NSObject, NSApplicationDelegate {
     }
 }
 
-/// 菜单栏菜单第一次渲染时登记「打开主窗口」的方法（链接 openbean://open、settings 用）
-private struct OpenWindowBinder: View {
+/// 登记「打开主窗口」的方法（菜单栏图标、链接 openbean://open、settings 用）。
+/// 放在菜单栏图标按钮里的一个看不见的 SwiftUI 视图里：App 一启动就在，不用等哪个窗口或菜单先出现
+struct OpenWindowBinder: View {
     let model: AppModel
     @Environment(\.openWindow) private var openWindow
     var body: some View {
-        Color.clear.frame(width: 0, height: 0).onAppear {
+        Color.clear.frame(width: 1, height: 1).onAppear {
             model.openMain = { openWindow(id: "main"); bringToFront("main") }
+            model.openOnboarding = { openWindow(id: "onboarding"); bringToFront("onboarding") }
+            Log.write("菜单栏图标：已登记打开主窗口的方法")
         }
     }
 }
@@ -292,57 +275,11 @@ struct MenuIcon: View {
         }
     }
 
-    private var state: BeanArt.State {
+    private var state: BeanArt.State { Self.state(device: device, dictation: dictation) }
+
+    static func state(device: DeviceController, dictation: Dictation) -> BeanArt.State {
         if dictation.phase == .listening || dictation.phase == .starting { return .listening }
         guard device.state == .ready else { return .disconnected }
         return device.activity == .syncing ? .syncing : .connected
-    }
-}
-
-struct MenuContent: View {
-    let model: AppModel
-    @Environment(\.openWindow) private var openWindow
-
-    var body: some View {
-        let d = model.device, dict = model.dictation, s = model.settings
-        Text(deviceLine(d))
-            .background(OpenWindowBinder(model: model))
-        if let e = dict.lastError { Text("⚠︎ \(e)") }
-        if model.models.state != .ready { Text("Speech models not downloaded") }
-        Divider()
-        Button(dict.phase == .idle ? "Start voice typing" : "Stop voice typing") {
-            Task { await dict.toggle() }
-        }
-        .disabled(!d.isReady)
-        Button("Sync recordings") { Task { await model.library.syncAll() } }
-            .disabled(!d.isReady || d.activity != .idle)
-        Divider()
-        // 菜单只留马上要用的：打字 / 润色的开关在「语音输入」页，检查更新在「设置」页
-        Button("Open OpenBean") { model.nav.goHome(s.mode); open("main") }
-            .keyboardShortcut("o")
-        Button("Settings…") { model.nav.open(.general(.top)); open("main") }
-            .keyboardShortcut(",")
-        if !s.onboardingDone { Button("Set up…") { open("onboarding") } }
-        Divider()
-        Button("Quit OpenBean") { NSApp.terminate(nil) }
-            .keyboardShortcut("q")
-    }
-
-    private func open(_ id: String) {
-        openWindow(id: id)
-        bringToFront(id)
-    }
-
-    private func deviceLine(_ d: DeviceController) -> String {
-        switch d.state {
-        case .idle, .searching:
-            return model.settings.mode.callsDeviceHeartBean ? String(localized: "Looking for your Heart bean…")
-                                                            : String(localized: "Looking for your recorder…")
-        case .connecting: return String(localized: "Connecting…")
-        case .ready:
-            let b = d.battery.map { String(localized: " · battery \($0)%") } ?? ""
-            return (model.settings.mode.callsDeviceHeartBean ? String(localized: "Heart bean connected") : String(localized: "Recorder connected")) + b
-        case let .failed(m): return String(localized: "Not connected: \(d.problem?.title ?? m)")
-        }
     }
 }
