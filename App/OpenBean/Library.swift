@@ -312,11 +312,24 @@ final class LibraryStore {
 
     // MARK: 同步
 
-    func refreshDeviceList() async {
+    /// `quiet`：顺手看一眼（打开主窗口时）。工具栏不闪「正在检查…」，一分钟内看过就不再看，出错也不报
+    func refreshDeviceList(quiet: Bool = false) async {
         guard device.isReady, device.activity == .idle, let s = device.session else { return }
+        if quiet {
+            guard sync == .idle, !quietListing, Date().timeIntervalSince(lastListed) > 60 else { return }
+            quietListing = true
+            defer { quietListing = false }
+            guard let files = try? await s.listFiles() else { return }
+            lastListed = Date()
+            if let newest = files.first?.id { device.newestFileId = max(device.newestFileId ?? 0, newest) }
+            merge(files)
+            onListRefreshed()
+            return
+        }
         sync = .listing
         do {
             let files = try await s.listFiles()
+            lastListed = Date()
             if let newest = files.first?.id { device.newestFileId = max(device.newestFileId ?? 0, newest) }
             merge(files)
             sync = .idle
@@ -325,6 +338,8 @@ final class LibraryStore {
             sync = .failed("\(error)")
         }
     }
+    @ObservationIgnored private var lastListed = Date.distantPast
+    @ObservationIgnored private var quietListing = false
 
     private func merge(_ files: [RecordingFile]) {
         // 续航统计：离线录的音只能事后从列表里知道（新出现或变长的文件各写一行，见 DeviceFileLog）

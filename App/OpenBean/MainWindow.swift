@@ -131,7 +131,8 @@ struct MainView: View {
         .animation(reduceMotion ? nil : .easeOut(duration: 0.18), value: nav.section)
         .frame(minWidth: 960, minHeight: 600)
         .background { shortcuts }
-        .task { await model.library.refreshDeviceList() }
+        // 打开窗口时顺手看一眼设备上有没有新录音：不在工具栏上转圈
+        .task { await model.library.refreshDeviceList(quiet: true) }
         .onAppear { NSApp.activate() }
     }
 
