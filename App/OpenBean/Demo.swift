@@ -56,10 +56,13 @@ enum DemoData {
             "summarizeRecordings": !empty, "notesEnabled": !empty, "notesFolder": empty ? "" : notes.path,
             "autoSync": true, "autoTranscribe": true, "buttonDictates": true, "readySound": true, "keepHistory": true,
             "hotkey": Hotkey.Preset.optionSpace.rawValue, "paragraphGap": 2.5, "sentencePause": 0.8,
-            "deleteDictationAudio": true, "dailyDiary": !empty, "diaryFolder": "",
+            "deleteDictationAudio": true, "diaryFolder": "",
+            ModeKeys.heartMode: !empty, ModeKeys.heartRecordingNotes: false, ModeKeys.heartDeleteFromRecorder: true,
+            ModeKeys.heartAudioRetention: AudioRetention.default.rawValue, ModeKeys.heartAgentTranscripts: false,
         ]
         for (k, v) in values { d.set(v, forKey: k) }
         d.removeObject(forKey: "hotkeyCustom")
+        d.removeObject(forKey: ModeKeys.legacyDailyDiary)
         guard !empty else { return }
         // 假数据改过（版本号变了）：预览的数据目录会一直留着，整个假录音库重新生成
         let marker = AppPaths.library.appendingPathComponent("demo-version")

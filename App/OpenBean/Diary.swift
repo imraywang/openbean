@@ -98,7 +98,7 @@ final class DiaryService {
 
     /// 这条录音涉及的那几天（按段归天，再加上以前的日文件里引用过它的天）重算日记
     func refreshDays(touching id: UInt32) async {
-        guard settings.dailyDiary, let library else { return }
+        guard settings.mode.writesDiary, let library else { return }
         var keys = Set(DayAssignment.days(of: library.conversations.conversations(id), boundary: boundary).keys)
         keys.formUnion(daysReferencing(id))
         for k in keys.sorted() { await refreshDay(k) }
@@ -106,7 +106,7 @@ final class DiaryService {
 
     /// 启动、打开开关时：今天和昨天（排进队列；先等切段补算跑完）
     func catchUp() {
-        guard settings.dailyDiary, let notes, let library else { return }
+        guard settings.mode.writesDiary, let notes, let library else { return }
         let today = boundary.day(of: Date())
         let keys = [key(boundary.day(today, offsetBy: -1)), key(today)]
         notes.enqueue { [weak self] in
@@ -123,7 +123,7 @@ final class DiaryService {
 
     /// 删了某条录音的本机副本：引用过它的那几天重算
     func recordingRemoved(_ id: UInt32) {
-        guard settings.dailyDiary else { return }
+        guard settings.mode.writesDiary else { return }
         let keys = daysReferencing(id)
         guard !keys.isEmpty else { return }
         notes?.enqueue { [weak self] in for k in keys.sorted() { await self?.refreshDay(k) } }
@@ -152,7 +152,7 @@ final class DiaryService {
     }
 
     func refreshDay(_ key: String, force: Bool = false) async {
-        guard settings.dailyDiary, let library, let notes, let day0 = DayFile.day(key, calendar: boundary.calendar) else { return }
+        guard settings.mode.writesDiary, let library, let notes, let day0 = DayFile.day(key, calendar: boundary.calendar) else { return }
         let url = DayFile.url(library: AppPaths.library, date: key)
         var included = gather(boundary.interval(of: day0))
         guard !included.isEmpty else {
@@ -271,7 +271,7 @@ final class DiaryService {
 
     /// 写（或重写）某天的日记笔记。规则同逐条笔记：没被改过就原地覆盖；用户改过就不动它，另写一份
     func writeNote(_ day: DayFile) {
-        guard settings.dailyDiary, let notes, let folder = noteFolder else { return }
+        guard settings.mode.writesDiary, let notes, let folder = noteFolder else { return }
         let fm = FileManager.default
         try? fm.createDirectory(at: folder, withIntermediateDirectories: true)
         var target: URL?

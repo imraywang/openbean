@@ -102,7 +102,7 @@ struct TodayDiarySection: View {
         let file = diary.day(day)
         if let file, let d = file.diary {
             content(file, d)
-        } else if model.settings.dailyDiary {
+        } else if model.settings.mode.writesDiary {
             if diary.working.contains(diary.key(day)) {
                 HStack(spacing: 8) {
                     ProgressView().controlSize(.small)

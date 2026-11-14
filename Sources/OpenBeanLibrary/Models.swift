@@ -18,9 +18,12 @@ public struct LibraryRecording: Sendable, Hashable {
     /// App 记为已转写（转写文件仍可能暂时读不到）
     public var transcribed: Bool
     public var isDictation: Bool
+    /// 在哪种模式下同步进来的（旧录音没有这个字段 = 普通）
+    public var source: RecordingSource
 
     public init(id: UInt32, start: Date, end: Date? = nil, durationMs: UInt32, title: String? = nil,
-                onDevice: Bool = false, downloaded: Bool = true, transcribed: Bool = false, isDictation: Bool = false) {
+                onDevice: Bool = false, downloaded: Bool = true, transcribed: Bool = false, isDictation: Bool = false,
+                source: RecordingSource = .normal) {
         self.id = id
         self.start = start
         self.end = end
@@ -30,6 +33,7 @@ public struct LibraryRecording: Sendable, Hashable {
         self.downloaded = downloaded
         self.transcribed = transcribed
         self.isDictation = isDictation
+        self.source = source
     }
 
     public var duration: TimeInterval { Double(durationMs) / 1000 }
@@ -109,7 +113,8 @@ enum Parse {
             id: id, start: start, end: date(o["end"]), durationMs: uint32(o["durationMs"]) ?? 0,
             title: (o["title"] as? String).flatMap { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : $0 },
             onDevice: bool(o["onDevice"]) ?? false, downloaded: bool(o["downloaded"]) ?? false,
-            transcribed: bool(o["transcribed"]) ?? false, isDictation: bool(o["isDictation"]) ?? false)
+            transcribed: bool(o["transcribed"]) ?? false, isDictation: bool(o["isDictation"]) ?? false,
+            source: RecordingSource(stored: o["source"] as? String))
     }
 
     static func segment(_ v: Any) -> LibrarySegment? {
