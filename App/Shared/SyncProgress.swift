@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import AppKit
 import Observation
 import OpenBeanLibrary
 import UserNotifications
@@ -63,7 +62,7 @@ final class SyncProgress {
         }
     }
 
-    #if DEMO || DEBUG
+    #if DEMO || DEBUG || os(iOS)
     /// 演示版、预览：直接摆一个状态
     func demoSet(_ r: SyncRun?, expanded: Bool = false) {
         run = r
@@ -196,7 +195,7 @@ enum SyncRunText {
 enum Notifier {
     /// 正式运行时才发：预览、演示版、单元测试里没有通知中心可用
     static var enabled: Bool {
-        #if DEMO || DEBUG
+        #if DEMO || DEBUG || os(iOS)
         if Flavor.isFake { return false }
         #endif
         return Bundle.main.bundleIdentifier != nil
@@ -226,21 +225,4 @@ enum Notifier {
             UNUserNotificationCenter.current().add(req) { e in if let e { Log.write("发通知失败：\(e)") } }
         }
     }
-}
-
-/// 点通知：打开主窗口的心力模式页
-final class NotificationOpener: NSObject, UNUserNotificationCenterDelegate {
-    static let shared = NotificationOpener()
-
-    func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
-        await MainActor.run {
-            let m = AppModel.shared
-            m.nav.goHome(m.settings.mode)
-            m.openMain?()
-        }
-    }
-
-    /// App 在前台时也显示横幅（菜单栏 App 常常算在前台）
-    func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification) async
-        -> UNNotificationPresentationOptions { [.banner, .list] }
 }

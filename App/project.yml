@@ -40,6 +40,8 @@ targets:
         LIBRARY_SEARCH_PATHS: "$(inherited) $(SRCROOT)/../Vendor/sherpa-onnx/lib"
     sources:
       - path: OpenBean
+      # 和 iOS 版共用的 App 逻辑（录音库、同步、转写、摘要、日记、设备连接、设置）
+      - path: Shared
     dependencies:
       - package: openbean
         product: OpenBeanKit

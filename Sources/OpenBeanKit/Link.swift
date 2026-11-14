@@ -60,6 +60,9 @@ public final class Link: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     /// 连接断开（BLE 队列上回调）
     public var onDisconnect: (() -> Void)?
     public var verbose = false
+    /// 连接过程的日志（GATT 已连接、服务、通知、断开…）交给谁；不设就写标准错误（命令行和 Mac App 一直是这样）。
+    /// iOS 版设成写进 App 的日志文件，在「设置 → 日志」里看。BLE 队列上回调
+    public var logHandler: ((String) -> Void)?
     public private(set) var rxBytes = 0
 
     public override init() {
@@ -348,6 +351,7 @@ public final class Link: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     }
 
     private func log(_ s: String) {
+        if let logHandler { logHandler(s); return }
         FileHandle.standardError.write(Data("  · \(s)\n".utf8))
     }
 }

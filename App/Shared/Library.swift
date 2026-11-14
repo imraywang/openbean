@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
+#if os(macOS)
 import AppKit
+#endif
 import AVFoundation
 import Foundation
 import Observation
@@ -182,7 +184,7 @@ final class LibraryStore {
     func peaks(_ id: UInt32) -> [Float]? { peaksCache[id] }
 
     func loadPeaks(_ id: UInt32) async {
-        #if DEMO || DEBUG
+        #if DEMO || DEBUG || os(iOS)
         // 演示版、预览没有音频文件，只有造好的 peaks.json
         if Flavor.isFake {
             if peaksCache[id] == nil, let d = try? Data(contentsOf: folder(id).appendingPathComponent("peaks.json")),
@@ -223,7 +225,7 @@ final class LibraryStore {
         return out.map { min($0 / max(ref, 1e-4), 1) }
     }
 
-    #if DEMO || DEBUG
+    #if DEMO || DEBUG || os(iOS)
     /// 演示版、预览：直接摆出同步和转写进度
     /// 预览：假装每条下载了的录音都转写过（「未转写」筛选为空）
     func demoTranscribeAll() {
@@ -513,6 +515,7 @@ final class LibraryStore {
     private var sleepObservers: [NSObjectProtocol] = []
 
     private func observeSleep() {
+        #if os(macOS)
         guard sleepObservers.isEmpty else { return }
         let nc = NSWorkspace.shared.notificationCenter
         sleepObservers.append(nc.addObserver(forName: NSWorkspace.willSleepNotification, object: nil, queue: .main) { [weak self] _ in
@@ -525,6 +528,7 @@ final class LibraryStore {
         sleepObservers.append(nc.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.systemSleeping = false }
         })
+        #endif
     }
 
     // MARK: 同步和语音输入
@@ -536,6 +540,7 @@ final class LibraryStore {
     /// 没完成的那一条是不是长文件（估计 10 分钟以上）
     private(set) var lastFailureLong = false
 
+    #if os(macOS)
     /// 语音输入要开始时问一句：正在下的这一条还要 10 分钟以上、又不能续传时不让，返回给用户看的提示
     func dictationBlockMessage() -> String? {
         guard case .downloading = sync, syncRunning else { return nil }
@@ -544,11 +549,13 @@ final class LibraryStore {
         Log.write("语音输入没开始：正在同步长录音，这一条约剩 \(Int(left)) 秒（不能续传，让出就要从头下）")
         return String(localized: "Syncing a long recording, about \(SyncStatus.phrase(left)) left. Voice typing is available when it finishes.")
     }
+    #endif
 
     // MARK: 改用 Wi‑Fi
 
     private var wifiSwitchRequested = false
 
+    #if os(macOS)
     /// 蓝牙预计要很久时可以改用 Wi‑Fi：正在下的停下（收过的留在临时文件里），剩下的经 Wi‑Fi 下
     func switchToWifi() async {
         let ids = pendingDownloads().map(\.id)
@@ -562,6 +569,7 @@ final class LibraryStore {
         }
         await syncViaWifi(ids: ids)
     }
+    #endif
 
     /// 录音豆上还没下载的录音（短的先下）
     func pendingDownloads(ids: [UInt32]? = nil) -> [Recording] {
@@ -814,6 +822,8 @@ final class LibraryStore {
 
     // MARK: Wi‑Fi 快速同步
 
+    #if os(macOS)
+
     /// 经录音豆的 Wi‑Fi 热点下载（Mac 会暂时断网约一分钟）。和蓝牙一样边收边落盘、按同样的规则校验完整性
     func syncViaWifi(ids: [UInt32]) async {
         let targets = recordings.filter { ids.contains($0.id) && $0.onDevice && !$0.downloaded }
@@ -847,6 +857,7 @@ final class LibraryStore {
             sync = .failed("\(error)")
         }
     }
+    #endif
 
     // MARK: 转写
 
@@ -899,6 +910,7 @@ final class LibraryStore {
         return s
     }
 
+    #if os(macOS)
     func exportMarkdown(_ id: UInt32) {
         guard let r = recordings.first(where: { $0.id == id }) else { return }
         let panel = NSSavePanel()
@@ -922,6 +934,7 @@ final class LibraryStore {
         guard panel.runModal() == .OK, let url = panel.url else { return }
         try? FileManager.default.copyItem(at: audioURL(id), to: url)
     }
+    #endif
 
     static func clock(_ t: Double) -> String {
         let s = Int(t.rounded())

@@ -33,7 +33,7 @@ final class DeviceController {
     /// 故意断开时登记：这个时刻之前收到的一次断开回调是我们自己断的，不当成掉线
     @ObservationIgnored private var intentionalDropUntil: Date?
     @ObservationIgnored private var intentionalDropSeen = false
-    #if DEMO || DEBUG
+    #if DEMO || DEBUG || os(iOS)
     /// 演示版、预览从不连接：用到才建（建 Link 就会初始化 CoreBluetooth、弹蓝牙权限）
     @ObservationIgnored lazy var link = Link()
     #else
@@ -52,7 +52,7 @@ final class DeviceController {
 
     private let lastDeviceFile = AppPaths.support.appendingPathComponent("last-device.txt")
 
-    #if DEMO || DEBUG
+    #if DEMO || DEBUG || os(iOS)
     var isReady: Bool { state == .ready && (session != nil || Flavor.isFake || relinking) }
     #else
     /// 故意重连的几秒里也算可用：快捷键、菜单照常能按，语音输入会等连接回来
@@ -65,13 +65,16 @@ final class DeviceController {
             link.onDisconnect = { [weak self] in
                 Task { @MainActor in self?.lostConnection() }
             }
+            #if os(iOS)
+            link.logHandler = { Log.write("BLE：\($0)") }
+            #endif
         }
         loop = Task { await connectLoop() }
     }
 
     /// 忘掉这台设备：下次重新扫描
     func forget() {
-        #if DEMO || DEBUG
+        #if DEMO || DEBUG || os(iOS)
         if Flavor.isFake { return }
         #endif
         try? FileManager.default.removeItem(at: lastDeviceFile)
@@ -123,9 +126,17 @@ final class DeviceController {
         }
     }
 
+    /// 连接和握手的每一步：iOS 版写进日志（「设置 → 日志」），第一次真机验证靠它看卡在哪一步；Mac 版不写
+    private func step(_ s: @autoclosure () -> String) {
+        #if os(iOS)
+        Log.write("连接：\(s())")
+        #endif
+    }
+
     /// `quiet`：故意重连时不改 state（界面不闪「正在搜索」）、不调用 onConnected（重连完再调用）
     private func connectOnce(quiet: Bool = false) async throws {
         if !quiet { state = .searching }
+        step("开始（上次的设备：\((try? String(contentsOf: lastDeviceFile, encoding: .utf8))?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "无")）")
         var target = (try? String(contentsOf: lastDeviceFile, encoding: .utf8))
             .flatMap { UUID(uuidString: $0.trimmingCharacters(in: .whitespacesAndNewlines)) }
             .flatMap { link.retrieve($0) }
@@ -142,16 +153,23 @@ final class DeviceController {
             }
         }
         if target == nil {
-            guard let d = await link.scan(seconds: 6).first(where: \.serviceMatch) else {
+            step("扫描 6 秒")
+            let found = await link.scan(seconds: 6)
+            step("扫描到 \(found.count) 个：" + found.map { "\($0.name.isEmpty ? "?" : $0.name) rssi=\($0.rssi) 服务\($0.serviceMatch ? "匹配" : "不匹配")\($0.bound.map { $0 ? " 已绑定" : " 未绑定" } ?? "")" }.joined(separator: "；"))
+            guard let d = found.first(where: \.serviceMatch) else {
                 throw LinkError.missing(String(localized: "recorder. Take it out of the case or press the case button to wake it."))
             }
             if !quiet { state = .connecting }
+            step("连接 \(d.name)（\(d.peripheral.identifier.uuidString)）")
             try await link.connect(d.peripheral)
+            step("GATT 连上，通知已打开")
             if !d.name.isEmpty { deviceName = d.name }
             try? d.peripheral.identifier.uuidString.write(to: lastDeviceFile, atomically: true, encoding: .utf8)
         }
         let s = D3200Session(link: link)
+        step("读设备信息")
         info = try await s.deviceInfo()
+        step(info.map { "设备信息：固件 \($0.firmware) 电量 \(Self.field($0.micBattery)) 在录音 \(Self.field($0.recording))" } ?? "设备信息：没读到")
         battery = info?.micBattery
         if let i = info {
             loggedLevels = (i.micBattery, i.caseBattery)
@@ -160,8 +178,11 @@ final class DeviceController {
                       + "charging=\(Self.field(i.micCharging)) caseCharging=\(Self.field(i.caseCharging))"
                       + (quiet ? " intentional=1" : ""))
         }
+        step("握手")
         try await s.handshake()
+        step("握手完成，校时")
         try? await s.syncTime()
+        step("就绪")
         s.observeEvents { [weak self] e in
             Task { @MainActor in self?.handle(e) }
         }
@@ -314,7 +335,7 @@ final class DeviceController {
                   + "recorder=\(Self.field(battery))")
     }
 
-    #if DEMO || DEBUG
+    #if DEMO || DEBUG || os(iOS)
     /// 演示版、预览：直接摆出一种连接状态
     func demoApply(state: State, info: DeviceInfo?, activity: Activity, problem: ConnectionProblem? = nil) {
         self.state = state

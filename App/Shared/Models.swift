@@ -2,7 +2,9 @@
 
 import Foundation
 import Observation
+#if os(macOS)
 import Speech
+#endif
 
 /// 语音模型：SenseVoice（每句定稿/文件转写）、Silero VAD（切句）、Apple 中文听写资源（灰字）
 @MainActor @Observable
@@ -30,7 +32,7 @@ final class ModelStore: NSObject, URLSessionDownloadDelegate {
     /// 下载完成后通知（重新加载识别器）
     var onReady: () -> Void = {}
 
-    #if DEMO || DEBUG
+    #if DEMO || DEBUG || os(iOS)
     /// 演示版、预览：不看磁盘，直接摆出模型状态
     func demoSet(_ s: State) {
         state = s
@@ -46,10 +48,14 @@ final class ModelStore: NSObject, URLSessionDownloadDelegate {
     }
 
     func checkApple() async {
+        #if os(macOS)
         let zh = Locale(identifier: "zh_CN")
         let installed = await DictationTranscriber.installedLocales.contains { $0.identifier.hasPrefix("zh") }
         let supported = await DictationTranscriber.supportedLocale(equivalentTo: zh) != nil
         appleReady = installed || !supported
+        #else
+        appleReady = true  // iOS 版没有语音输入，不用灰字资源
+        #endif
     }
 
     func download() async {
@@ -69,6 +75,13 @@ final class ModelStore: NSObject, URLSessionDownloadDelegate {
                 try FileManager.default.createDirectory(at: dest.deletingLastPathComponent(), withIntermediateDirectories: true)
                 try? FileManager.default.removeItem(at: dest)
                 try FileManager.default.moveItem(at: tmp, to: dest)
+                #if os(iOS)
+                // 模型能重新下载：不进 iCloud 备份
+                var rv = URLResourceValues()
+                rv.isExcludedFromBackup = true
+                var d = dest
+                try? d.setResourceValues(rv)
+                #endif
                 doneBytes += item.bytes
             }
             await installApple()
@@ -81,11 +94,13 @@ final class ModelStore: NSObject, URLSessionDownloadDelegate {
 
     /// Apple 设备端中文听写资源（灰字用）
     func installApple() async {
+        #if os(macOS)
         guard let loc = await DictationTranscriber.supportedLocale(equivalentTo: Locale(identifier: "zh_CN")) else { return }
         let t = DictationTranscriber(locale: loc, preset: .progressiveShortDictation)
         if let req = try? await AssetInventory.assetInstallationRequest(supporting: [t]) {
             try? await req.downloadAndInstall()
         }
+        #endif
         await checkApple()
     }
 

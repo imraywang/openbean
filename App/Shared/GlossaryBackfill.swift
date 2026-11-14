@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
+#if os(macOS)
 import AppKit
+#else
+import UIKit
+#endif
 import Foundation
 import OpenBeanVoice
 
@@ -20,6 +24,11 @@ final class GlossaryBackfill {
     private var activeObserver: NSObjectProtocol?
     /// 上次完整应用到所有转写的词表指纹
     private static let hashKey = "glossaryAppliedHash"
+    #if os(macOS)
+    private static let becameActive = NSApplication.didBecomeActiveNotification
+    #else
+    private static let becameActive = UIApplication.didBecomeActiveNotification
+    #endif
 
     init(library: LibraryStore) {
         self.library = library
@@ -29,7 +38,7 @@ final class GlossaryBackfill {
         check(force: false)
         watchGlossaryFolder()
         activeObserver = NotificationCenter.default.addObserver(
-            forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main
+            forName: Self.becameActive, object: nil, queue: .main
         ) { [weak self] _ in
             MainActor.assumeIsolated { self?.checkSoon() }
         }
