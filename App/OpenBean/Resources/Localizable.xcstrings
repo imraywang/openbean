@@ -762,16 +762,6 @@
         }
       }
     },
-    "Check for Updates…": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "检查更新…"
-          }
-        }
-      }
-    },
     "Check now": {
       "localizations": {
         "zh-Hans": {
@@ -918,16 +908,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "用大模型逐句润色"
-          }
-        }
-      }
-    },
-    "Clean up with an LLM": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "用大模型润色"
           }
         }
       }
