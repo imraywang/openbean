@@ -447,7 +447,7 @@ struct DictationHistoryView: View {
                             .contextMenu {
                                 Button("Copy") { copy(e.text) }
                                 Divider()
-                                Button("Delete", role: .destructive) { log.delete(e.id) }
+                                Button("Delete This Entry", role: .destructive) { log.delete(e.id) }
                             }
                     }
                 }

@@ -972,6 +972,16 @@
         }
       }
     },
+    "Delete This Entry": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除这条记录"
+          }
+        }
+      }
+    },
     "Delete from recorder": {
       "localizations": {
         "zh-Hans": {

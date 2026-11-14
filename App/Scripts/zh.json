@@ -115,6 +115,7 @@
 "Day": "日期",
 "Decided": "定了的事",
 "Delete": "删除",
+"Delete This Entry": "删除这条记录",
 "Delete %lld voice-typing files (%@ in total) from the recorder?": "从录音豆删除 %lld 个语音输入文件（共 %@）？",
 "Delete from recorder": "从录音豆删除",
 "Delete from recorder…": "从录音豆删除…",
