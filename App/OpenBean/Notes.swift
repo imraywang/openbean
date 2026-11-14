@@ -195,6 +195,15 @@ final class NoteService {
         URL(string: settings.polishEndpoint).map { LLMService(endpoint: $0, apiKey: settings.polishAPIKey, model: settings.polishModel) }
     }
 
+    /// 大模型服务现在连得上（日记没写成时分清原因用）
+    func serviceReachable() async -> Bool {
+        guard let service else { return false }
+        return await service.check() == .ok
+    }
+
+    /// 转写后写完（或没写成）日记时报给心力模式的四步条
+    @ObservationIgnored var onDiaryResult: ((UInt32, SyncRun.DiaryResult) -> Void)?
+
     func canSummarize(_ r: Recording) -> Bool {
         !r.isDictation && r.transcribed && !(library?.transcript(r.id).isEmpty ?? true)
     }
@@ -219,7 +228,7 @@ final class NoteService {
             if self.settings.summarizeRecordings { await self.runSummary(id, manual: false) }
             else if self.settings.mode.writesDiary { _ = await self.diary.summarizeConversations(id, force: false) }
             if self.settings.mode.writesRecordingNotes { _ = self.writeNote(id, mode: .auto) }
-            if self.settings.mode.writesDiary { await self.diary.refreshDays(touching: id) }
+            if self.settings.mode.writesDiary { self.onDiaryResult?(id, await self.diary.refreshDays(touching: id)) }
         }
     }
 

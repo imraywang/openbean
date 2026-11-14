@@ -85,8 +85,9 @@ struct TodayView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 26) {
                 header(day: day, today: today)
-                // 设备状态是「现在」的事：只在看今天时显示
+                // 设备状态和同步进度是「现在」的事：只在看今天时显示
                 if day == today {
+                    HeartSyncStrip(progress: library.progress) { model.nav.open(.voiceTyping(cleanUp: true)) }
                     TodayDeviceLine(device: model.device, library: library) { model.nav.section = .recorder }
                 }
                 if firstRun {

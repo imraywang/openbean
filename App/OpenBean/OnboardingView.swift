@@ -9,6 +9,7 @@ struct OnboardingView: View {
     @State private var trusted = Typist.trusted
     @State private var tryText = ""
     @Environment(\.dismissWindow) private var dismiss
+    @Environment(\.openWindow) private var openWindow
     private let tick = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
     private let steps = 5
 
@@ -48,6 +49,11 @@ struct OnboardingView: View {
                     Button("Done") {
                         model.settings.onboardingDone = true
                         dismiss(id: "onboarding")
+                        // 新装的人：向导走完接着介绍心力模式（不和向导同时弹出）
+                        if model.settings.heartIntroPending {
+                            openWindow(id: "heart-intro")
+                            bringToFront("heart-intro")
+                        }
                     }
                     .keyboardShortcut(.defaultAction)
                 }

@@ -6,18 +6,22 @@ import SwiftUI
 // MARK: - 心力模式页（侧栏第一项）
 //
 // 开着：今天的内容（标题「今天」、日期、前后翻天），右上角齿轮切到心力模式的设置。
-// 关着：一个空状态和「开启心力模式」按钮；其他页面照普通模式工作。
-// 心力模式的开关只在这一页（关着时的按钮、设置里最上面的开关）。
+// 关着：一个空状态和「设置心力模式…」按钮（打开心力模式介绍，走完才开）；其他页面照普通模式工作。
+// 两种模式下打开主窗口都落在这一页。心力模式的开关只在介绍的最后一步和设置里最上面的开关。
 
 struct HeartPage: View {
     let model: AppModel
+    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         let settings = model.settings, nav = model.nav
         Group {
             if !settings.heartMode {
-                HeartOffView { settings.heartMode = true }
-                    .navigationTitle("Heart mode")
+                HeartOffView {
+                    openWindow(id: "heart-intro")
+                    bringToFront("heart-intro")
+                }
+                .navigationTitle("Heart mode")
             } else if nav.showsSettings(.heart) {
                 HeartSettings(settings: settings, notes: model.library.notes, nav: nav)
                     .navigationTitle("Heart mode")
@@ -44,9 +48,9 @@ struct HeartPage: View {
     }
 }
 
-/// 心力模式关着时整页一个空状态
+/// 心力模式关着时整页一个空状态；按钮打开心力模式介绍
 struct HeartOffView: View {
-    let turnOn: () -> Void
+    let setUp: () -> Void
 
     var body: some View {
         ContentUnavailableView {
@@ -54,7 +58,7 @@ struct HeartOffView: View {
         } description: {
             Text("Wear it all day, put it back in its case, and it's sorted into today's record automatically. Recording and voice typing work as usual.")
         } actions: {
-            Button("Turn on Heart mode", action: turnOn)
+            Button("Set up Heart mode…", action: setUp)
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
         }

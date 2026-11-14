@@ -224,6 +224,55 @@ private struct PreviewFrame<Content: View>: View {
 #Preview("设置页 · Agent") { window(route: .general(.agents)) }
 #Preview("设置页 · 关于") { window(route: .general(.about)) }
 
+// MARK: - 心力模式页顶上的四步条（同步进度）：单独的条，和放在「今天」里的样子
+
+@MainActor private func strip(_ name: String, dark: Bool = false, llm: Bool = true) -> some View {
+    let m = PreviewFixtures.model(llmReachable: llm)
+    DemoSyncRun.apply(name, to: m.library.progress)
+    return HeartSyncStrip(progress: m.library.progress)
+        .frame(width: 680).padding(20)
+        .background(Color(nsColor: .windowBackgroundColor))
+        .preferredColorScheme(dark ? .dark : .light)
+}
+
+#Preview("四步条 · 下载中") { strip("downloading") }
+#Preview("四步条 · 转写中") { strip("transcribing") }
+#Preview("四步条 · 写日记") { strip("diary") }
+#Preview("四步条 · 大模型服务不通，日记跳过") { strip("llm-down") }
+#Preview("四步条 · 大模型服务不通 · 深色") { strip("llm-down", dark: true) }
+#Preview("四步条 · 等心力豆空出来再删") { strip("cleanup-busy") }
+#Preview("四步条 · 清理完（删了几条、音频留多久）") { strip("cleaned") }
+#Preview("四步条 · 下载没完成") { strip("failed") }
+#Preview("四步条 · 结束后收起") { strip("finished") }
+#Preview("四步条 · 结束后展开 · 深色") { strip("finished-expanded", dark: true) }
+#Preview("今天 · 正在同步（四步条）") {
+    let m = PreviewFixtures.model("syncing")
+    let _ = DemoSyncRun.apply("transcribing", to: m.library.progress)
+    PreviewFrame { MainView(model: m) }
+}
+#Preview("今天 · 同步结束（收起的一行）") {
+    let m = PreviewFixtures.model()
+    let _ = DemoSyncRun.apply("finished", to: m.library.progress)
+    PreviewFrame { MainView(model: m) }
+}
+
+// MARK: - 心力模式介绍（升级后第一次启动、新装的人向导之后、心力模式页关着时）
+
+@MainActor private func heartIntro(_ step: Int, dark: Bool = false, diary: Bool = false, llm: Bool = true) -> some View {
+    let m = PreviewFixtures.model(heart: false, llmReachable: llm)
+    return HeartIntroView(model: m, step: step, prefill: HeartIntro.Prefill(hadDailyDiary: diary))
+        .preferredColorScheme(dark ? .dark : .light)
+}
+
+#Preview("心力模式介绍 1 · 是什么") { heartIntro(0) }
+#Preview("心力模式介绍 1 · 以前开着每日日记") { heartIntro(0, diary: true) }
+#Preview("心力模式介绍 1 · 深色") { heartIntro(0, dark: true) }
+#Preview("心力模式介绍 2 · 大模型服务通") { heartIntro(1) }
+#Preview("心力模式介绍 2 · 大模型服务不通") { heartIntro(1, llm: false) }
+#Preview("心力模式介绍 3 · 同步后的选择") { heartIntro(2) }
+#Preview("心力模式介绍 3 · 深色") { heartIntro(2, dark: true) }
+#Preview("心力模式介绍 4 · 打开") { heartIntro(3) }
+
 // MARK: - 首次使用向导（第一次用：没找到录音豆、没下载模型、没有辅助功能权限）
 
 @MainActor private func onboarding(_ step: Int, dark: Bool = false) -> some View {

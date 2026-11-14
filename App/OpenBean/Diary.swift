@@ -99,12 +99,23 @@ final class DiaryService {
 
     // MARK: 日
 
-    /// 这条录音涉及的那几天（按段归天，再加上以前的日文件里引用过它的天）重算日记
-    func refreshDays(touching id: UInt32) async {
-        guard settings.mode.writesDiary, let library else { return }
+    /// 这条录音涉及的那几天（按段归天，再加上以前的日文件里引用过它的天）重算日记。
+    /// 返回汇总的结果（心力模式页的四步条用）：哪天服务不通就算服务不通，哪天没写成就算没写成
+    @discardableResult
+    func refreshDays(touching id: UInt32) async -> SyncRun.DiaryResult {
+        guard settings.mode.writesDiary, let library else { return .written }
         var keys = Set(DayAssignment.days(of: library.conversations.conversations(id), boundary: boundary).keys)
         keys.formUnion(daysReferencing(id))
-        for k in keys.sorted() { await refreshDay(k) }
+        var results: [SyncRun.DiaryResult] = []
+        for k in keys.sorted() { results.append(await refreshDay(k)) }
+        if results.contains(.serviceUnavailable) { return .serviceUnavailable }
+        if results.contains(.failed) { return .failed }
+        return .written
+    }
+
+    /// 没写成时分清是服务不通还是别的原因
+    private func failure() async -> SyncRun.DiaryResult {
+        await notes?.serviceReachable() == true ? .failed : .serviceUnavailable
     }
 
     /// 启动、打开开关时：今天和昨天（排进队列；先等切段补算跑完）
@@ -154,8 +165,10 @@ final class DiaryService {
         return out.sorted { $0.1.wallStart < $1.1.wallStart }
     }
 
-    func refreshDay(_ key: String, force: Bool = false) async {
-        guard settings.mode.writesDiary, let library, let notes, let day0 = DayFile.day(key, calendar: boundary.calendar) else { return }
+    /// 重算某一天的日记。返回 .written 也包括「输入没变，不用重写」和「这天已经没有录音」
+    @discardableResult
+    func refreshDay(_ key: String, force: Bool = false) async -> SyncRun.DiaryResult {
+        guard settings.mode.writesDiary, let library, let notes, let day0 = DayFile.day(key, calendar: boundary.calendar) else { return .written }
         let url = DayFile.url(library: AppPaths.library, date: key)
         var included = gather(boundary.interval(of: day0))
         guard !included.isEmpty else {
@@ -167,13 +180,13 @@ final class DiaryService {
             cache[key] = nil
             missing.insert(key)
             revision += 1
-            return
+            return .written
         }
         // 先把段摘要补齐；没补齐就不写（不写半成品）
         for id in Set(included.filter { $0.1.kind == nil }.map(\.0.id)).sorted() {
             guard await summarizeConversations(id, force: false) else {
                 Log.write("日记 \(key)：段摘要没写完，下次再试")
-                return
+                return await failure()
             }
         }
         included = gather(boundary.interval(of: day0))
@@ -183,11 +196,11 @@ final class DiaryService {
         } + ["diary-v1", "start=\(settings.dayStartHour)", "tz=\(TimeZone.current.identifier)"])
         if !force, let old = DayFile.read(url), old.version == DayFile.currentVersion, old.signature == sig {
             if notes.notesFolder != nil, noteRecord(key) == nil { writeNote(old) }
-            return
+            return .written
         }
         guard let service = notes.service, await service.check() == .ok else {
             Log.write("日记 \(key)：服务不可用，下次再试")
-            return
+            return .serviceUnavailable
         }
         working.insert(key)
         defer { working.remove(key) }
@@ -214,7 +227,7 @@ final class DiaryService {
             out = try await DiaryWriter(await notes.summarizer(service)).write(inputs, languageSample: sample)
         } catch {
             Log.write("日记 \(key) 没写成：\(error)，下次再试")
-            return
+            return await failure()
         }
         let secs = Date().timeIntervalSince(t0)
         let day = DayFile(date: key, timeZone: TimeZone.current.identifier, dayStartHour: settings.dayStartHour, signature: sig,
@@ -231,7 +244,7 @@ final class DiaryService {
             try day.encoded().write(to: url, options: .atomic)
         } catch {
             Log.write("写日文件失败 \(key)：\(error)")
-            return
+            return .failed
         }
         cache[key] = day
         missing.remove(key)
@@ -239,6 +252,7 @@ final class DiaryService {
         Log.write(String(format: "已写日记 %@：%d 段，%@，%d 次调用，%.0f 秒，丢掉出处对不上的 %d 条、重复的 %d 条、不认的负责人 %d 个",
                          key, included.count, out.status.rawValue, out.calls, secs, out.dropped, out.duplicates, out.droppedOwners))
         writeNote(day)
+        return .written
     }
 
     // MARK: 日记笔记
