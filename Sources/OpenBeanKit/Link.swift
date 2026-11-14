@@ -140,7 +140,10 @@ public final class Link: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
 
     // MARK: 连接
 
-    public func connect(_ p: CBPeripheral, timeout: Double = 25) async throws {
+    /// `scanAssist`：连接挂着的同时开着扫描。按系统记住的 identifier 直连时，系统要先收到设备的广播才连得上；
+    /// 新启动的进程里光等常常 8 秒都等不到（开发版日志里启动后的直连约八成超时，改扫描后几秒就连上），
+    /// 主动扫描让系统更快看到广播。连上、失败或超时都会停掉扫描。
+    public func connect(_ p: CBPeripheral, timeout: Double = 25, scanAssist: Bool = false) async throws {
         try await withCheckedThrowingContinuation { (c: CheckedContinuation<Void, Error>) in
             q.async {
                 self.peripheral = p
@@ -149,9 +152,14 @@ public final class Link: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                 p.delegate = self
                 self.connecting = c
                 self.central.connect(p)
+                if scanAssist {
+                    self.assistScanning = true
+                    self.central.scanForPeripherals(withServices: nil, options: [CBCentralManagerScanOptionAllowDuplicatesKey: false])
+                }
                 self.q.asyncAfter(deadline: .now() + timeout) {
                     guard let c = self.connecting else { return }
                     self.connecting = nil
+                    self.stopAssistScan()
                     self.central.cancelPeripheralConnection(p)
                     c.resume(throwing: LinkError.timeout("连接 / 发现服务"))
                 }
@@ -159,15 +167,24 @@ public final class Link: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         }
     }
 
+    private var assistScanning = false
+    private func stopAssistScan() {
+        guard assistScanning else { return }
+        assistScanning = false
+        central.stopScan()
+    }
+
     private func finishConnect(_ r: Result<Void, Error>) {
         guard let c = connecting else { return }
         connecting = nil
+        stopAssistScan()
         if case .success = r { established = true }
         c.resume(with: r)
     }
 
     public func centralManager(_ c: CBCentralManager, didConnect p: CBPeripheral) {
         log("GATT 已连接，发现服务…")
+        stopAssistScan()
         p.discoverServices(nil)
     }
 

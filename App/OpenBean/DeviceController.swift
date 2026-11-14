@@ -132,7 +132,11 @@ final class DeviceController {
         if let p = target {
             if !quiet { state = .connecting }
             Log.write("按上次的设备直连")
-            do { try await link.connect(p, timeout: 8) } catch {
+            let t0 = Date()
+            do {
+                try await link.connect(p, timeout: 8, scanAssist: true)
+                Log.write(String(format: "直连成功，用了 %.1f 秒", Date().timeIntervalSince(t0)))
+            } catch {
                 Log.write("直连失败：\(error)，改为扫描")
                 target = nil
             }
