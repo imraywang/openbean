@@ -318,6 +318,14 @@ public final class Link: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     /// 连着、通知已打开。只在 `sync` 里读
     public var isConnected: Bool { established && peripheral?.state == .connected }
 
+    /// 实验用：开 / 关通知特征的订阅（不断开连接）
+    public func setNotify(_ on: Bool) {
+        q.sync {
+            guard let p = peripheral else { return }
+            for sv in p.services ?? [] { for ch in sv.characteristics ?? [] where ch.uuid == UUIDs.notify { p.setNotifyValue(on, for: ch) } }
+        }
+    }
+
     public func disconnect() {
         q.sync { if let p = peripheral { central.cancelPeripheralConnection(p) } }
     }
