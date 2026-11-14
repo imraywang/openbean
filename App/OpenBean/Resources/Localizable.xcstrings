@@ -3332,6 +3332,16 @@
         }
       }
     },
+    "Recordings": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "录音"
+          }
+        }
+      }
+    },
     "Recordings are deleted from the Heart bean after they're synced": {
       "localizations": {
         "zh-Hans": {
