@@ -92,6 +92,13 @@ public struct DiaryWriter: Sendable {
     """
 
     public func write(_ inputs: [Input], languageSample: String) async throws -> Output {
+        do { return try await writeOnce(inputs, languageSample: languageSample) } catch LLMBackendError.contextExceeded {
+            guard let smaller = base.shrunk() else { throw LLMBackendError.contextExceeded }
+            return try await DiaryWriter(smaller, timeZone: timeZone).write(inputs, languageSample: languageSample)
+        }
+    }
+
+    private func writeOnce(_ inputs: [Input], languageSample: String) async throws -> Output {
         let use = Self.usable(inputs)
         let people = Self.names(use) { $0.people }, things = Self.names(use) { $0.things }
         guard !Self.isBrief(inputs) else {
@@ -100,12 +107,12 @@ public struct DiaryWriter: Sendable {
         let labels = Dictionary(uniqueKeysWithValues: use.enumerated().map { ("S\($0.offset + 1)", $0.element) })
         // 不放词表：输入已经是摘要，词表只在事后纠正拼写
         let lang = Summarizer.languageLine(for: languageSample)
-        let session = base.service.makeSession(timeout: base.timeout)
+        let session = base.backend.open(timeout: base.timeout)
         var calls = 0
-        func ask(_ system: String, _ user: String) async throws -> [String: Any] {
+        func ask(_ system: String, _ user: String, shape: ReplyShape) async throws -> [String: Any] {
             for _ in 0..<2 {
                 calls += 1
-                if let o = JSONReply.object(try await chat(system, user, session)) { return o }
+                if let o = JSONReply.object(try await chat(system, user, session, shape)) { return o }
             }
             throw Summarizer.Failure.unusable
         }
@@ -124,7 +131,7 @@ public struct DiaryWriter: Sendable {
         var overviews: [String] = [], decisions: [DiaryItem] = [], todos: [DiaryItem] = []
         var dropped = 0
         for g in groups {
-            let o = try await ask(Self.prompt + "\n" + lang, "Conversations:\n\n" + g.joined(separator: "\n\n"))
+            let o = try await ask(Self.prompt + "\n" + lang, "Conversations:\n\n" + g.joined(separator: "\n\n"), shape: Self.shape)
             let ov = JSONReply.string(o, "overview", "summary")
             if !ov.isEmpty { overviews.append(ov) }
             let d = Self.items(o["decisions"], labels: labels) { !($0.summary?.decisions.isEmpty ?? true) }
@@ -136,7 +143,7 @@ public struct DiaryWriter: Sendable {
         var overview = overviews.first
         if overviews.count > 1 {
             let o = try await ask(Self.overviewPrompt + "\n" + lang, overviews.enumerated().map { "Part \($0.offset + 1): \($0.element)" }
-                .joined(separator: "\n\n"))
+                .joined(separator: "\n\n"), shape: Self.overviewShape)
             let ov = JSONReply.string(o, "overview", "summary")
             overview = ov.isEmpty ? overviews.joined(separator: " ") : ov
         }
@@ -159,11 +166,25 @@ public struct DiaryWriter: Sendable {
         return Output(status: .diary, diary: diary, calls: calls, dropped: dropped, duplicates: duplicates, droppedOwners: droppedOwners)
     }
 
-    private func chat(_ system: String, _ user: String, _ session: URLSession) async throws -> String {
-        let extra: [String: Any] = base.service.isLocal ? ["chat_template_kwargs": ["enable_thinking": false]] : [:]
-        return try await base.service.chat(system: system, user: user, maxTokens: base.maxOutput, temperature: 0.2,
-                                           extra: extra, session: session)
+    private func chat(_ system: String, _ user: String, _ session: any LLMChannel, _ shape: ReplyShape) async throws -> String {
+        try await session.complete(LLMRequest(system: system, user: user, maxTokens: base.maxOutput, temperature: 0.2, shape: shape))
     }
+
+    /// 回复的结构（端侧模型做结构化生成用；OpenAI 兼容服务不发）
+    static let shape = ReplyShape.object("DayDiary", [
+        .init("overview", .text("2 to 4 sentences on the day's recorded conversations, in time order")),
+        .init("decisions", .list(.object("Decision", [
+            .init("text", .text()),
+            .init("refs", .list(.text("A conversation label such as S1"), max: 4)),
+        ]), max: maxDecisions)),
+        .init("todos", .list(.object("Todo", [
+            .init("text", .text()),
+            .init("owner", .text("A person's name from those conversations, or empty")),
+            .init("refs", .list(.text("A conversation label such as S2"), max: 4)),
+        ]), max: maxTodos)),
+    ])
+
+    static let overviewShape = ReplyShape.object("DayOverview", [.init("overview", .text("2 to 4 sentences"))])
 
     func render(_ i: Input, label: String) -> String {
         let f = DateFormatter()

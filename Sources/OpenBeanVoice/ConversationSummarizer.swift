@@ -112,6 +112,13 @@ public struct ConversationSummarizer: Sendable {
 
     /// `marked`：用户在录音豆上做了重点标记的句子（`lines` 的下标，见 MarkPlacement）
     public func summarize(_ lines: [TimedLine], marked: Set<Int> = []) async throws -> Result {
+        do { return try await summarizeOnce(lines, marked: marked) } catch LLMBackendError.contextExceeded {
+            guard let smaller = base.shrunk() else { throw LLMBackendError.contextExceeded }
+            return try await ConversationSummarizer(smaller).summarize(lines, marked: marked)
+        }
+    }
+
+    private func summarizeOnce(_ lines: [TimedLine], marked: Set<Int>) async throws -> Result {
         let text = lines.map(\.text).joined()
         let chunks = Summarizer.chunk(Self.annotate(lines, marked: marked), budget: base.budget)
         guard !chunks.isEmpty, Summarizer.estimateTokens(text) >= Summarizer.minTokens else {
@@ -119,7 +126,7 @@ public struct ConversationSummarizer: Sendable {
         }
         // 不把词表放进提示词：模型会把词表原样抄进「人」和「事」。词表只在事后纠正拼写（finish）
         let lang = Summarizer.languageLine(for: text)
-        let session = base.service.makeSession(timeout: base.timeout)
+        let session = base.backend.open(timeout: base.timeout)
         var calls = 0
         func ask(_ system: String, _ user: String) async throws -> Parsed {
             // 回复不可用时再试一次；网络错误直接抛
@@ -137,8 +144,8 @@ public struct ConversationSummarizer: Sendable {
             var parts: [Parsed] = []
             for (i, c) in chunks.enumerated() {
                 let user = "Part \(i + 1) of \(chunks.count). Transcript:\n" + c.map(Summarizer.line).joined(separator: "\n")
-                if let p = try? await ask(Self.partPrompt + "\n" + lang, user) { parts.append(p) }
-                else if await base.service.check() != .ok { throw URLError(.cannotConnectToHost) }
+                if let p = try await Summarizer.skippable({ try await ask(Self.partPrompt + "\n" + lang, user) }) { parts.append(p) }
+                else if await base.backend.check() != .ok { throw URLError(.cannotConnectToHost) }
             }
             guard !parts.isEmpty else { throw Summarizer.Failure.unusable }
             // 合并：分组合并到只剩一份；人和事由代码从各部分收集
@@ -160,11 +167,21 @@ public struct ConversationSummarizer: Sendable {
         return finish(merged, transcript: text, calls: calls)
     }
 
-    private func chat(_ system: String, _ user: String, _ session: URLSession) async throws -> String {
-        let extra: [String: Any] = base.service.isLocal ? ["chat_template_kwargs": ["enable_thinking": false]] : [:]
-        return try await base.service.chat(system: system, user: user, maxTokens: base.maxOutput, temperature: 0.2,
-                                           extra: extra, session: session)
+    private func chat(_ system: String, _ user: String, _ session: any LLMChannel) async throws -> String {
+        try await session.complete(LLMRequest(system: system, user: user, maxTokens: base.maxOutput, temperature: 0.2, shape: Self.shape))
     }
+
+    /// 回复的结构（端侧模型做结构化生成用；OpenAI 兼容服务不发）。上限比代码里的封顶宽一点，收尾时再封顶
+    static let shape = ReplyShape.object("ConversationSummary", [
+        .init("title", .text("A few words naming what was talked about")),
+        .init("summary", .text("1 to 3 sentences")),
+        .init("kind", .choice(["conversation", "monologue", "media", "fragment"])),
+        .init("key_points", .list(.text(), max: maxKeyPoints)),
+        .init("decisions", .list(.text(), max: maxDecisions, "Only what was clearly settled; usually empty")),
+        .init("todos", .list(.text(), max: maxTodos, "Concrete actions someone committed to; usually empty")),
+        .init("people", .list(.text(), max: maxPeople, "Real names written exactly as in the transcript")),
+        .init("things", .list(.text(), max: maxThings, "Named projects, products, companies or places")),
+    ])
 
     /// 收尾：词表纠正；人名去掉代词和泛称、和专有名词一样要在转写里找得到；待办去掉泛称的负责人；
     /// 和待办相近的决定去掉（同一件事只归一类，有动作的算待办）；短段不出待办；封顶

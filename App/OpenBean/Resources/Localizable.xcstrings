@@ -1022,6 +1022,16 @@
         }
       }
     },
+    "Connect to Wi‑Fi to download the speech model, or turn off Wi‑Fi only.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请连上 Wi‑Fi 再下载语音模型，或关掉「仅 Wi‑Fi 下载」。"
+          }
+        }
+      }
+    },
     "Connect your Heart bean": {
       "localizations": {
         "zh-Hans": {
@@ -2432,6 +2442,16 @@
         }
       }
     },
+    "No model is set up for summaries. Choose one in Settings.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "还没有整理用的模型，请在设置里选一个。"
+          }
+        }
+      }
+    },
     "No recordings": {
       "localizations": {
         "zh-Hans": {
@@ -2488,6 +2508,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "今天还没有录音"
+          }
+        }
+      }
+    },
+    "No service is set up yet, so nothing is sent anywhere.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "还没设置好服务，所以什么都不会发出去。"
           }
         }
       }
@@ -3962,6 +3992,16 @@
         }
       }
     },
+    "Summaries are written by Apple's on-device model. Nothing leaves this iPhone.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "摘要由苹果端侧模型在这台 iPhone 上完成，任何内容都不会离开手机。"
+          }
+        }
+      }
+    },
     "Summaries with action items show up here.": {
       "localizations": {
         "zh-Hans": {
@@ -4808,6 +4848,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "生成摘要时转写文字会发送到 %@。"
+          }
+        }
+      }
+    },
+    "Transcripts are sent to %@ on your local network. Audio never leaves this iPhone.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "转写文字会发送给局域网里的 %@，音频不会离开手机。"
+          }
+        }
+      }
+    },
+    "Transcripts are sent to %@ to write summaries. Audio never leaves this iPhone.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "转写文字会发送给 %@ 来写摘要，音频不会离开手机。"
           }
         }
       }

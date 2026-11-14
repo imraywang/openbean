@@ -111,6 +111,14 @@ final class Settings {
     var polishModel: String { didSet { d.set(polishModel, forKey: "polishModel") } }
     /// 云端润色服务的 Key，存钥匙串，不进 UserDefaults
     var polishAPIKey: String { didSet { Keychain.set(polishAPIKey, for: "polishAPIKey") } }
+    /// 整理用哪种后端："onDevice" / "service" / 空（没选过：iOS 上端侧能用就用端侧，否则不整理；Mac 不看它）
+    var llmChoiceStored: String { didSet { d.set(llmChoiceStored, forKey: "llmBackend") } }
+    /// 选的预置服务（CloudPreset.id）；空 = 没选过
+    var cloudProvider: String { didSet { d.set(cloudProvider, forKey: "cloudProvider") } }
+    /// 确认过「转写文字会发给云端服务」（第一次从端侧切到云端时问一次）
+    var cloudConfirmed: Bool { didSet { d.set(cloudConfirmed, forKey: "cloudConfirmed") } }
+    /// 语音识别模型只在 Wi‑Fi 下下载（iOS）
+    var modelWifiOnly: Bool { didSet { d.set(modelWifiOnly, forKey: "modelWifiOnly") } }
     var paragraphGap: Double { didSet { d.set(paragraphGap, forKey: "paragraphGap") } }
     /// 停顿多久算一句结束；重启 App 后生效
     var sentencePause: Double { didSet { d.set(sentencePause, forKey: "sentencePause") } }
@@ -189,6 +197,13 @@ final class Settings {
     var deleteDictationAudio: Bool { didSet { d.set(deleteDictationAudio, forKey: "deleteDictationAudio") } }
     @ObservationIgnored var onHotkeyChange: (() -> Void)?
 
+    /// 大模型服务地址的默认值：Mac 上是 App 自己起的本机 llama-server；手机上没有本机服务，默认空（选服务时填）
+    #if os(macOS)
+    static let defaultEndpoint = "http://127.0.0.1:8092"
+    #else
+    static let defaultEndpoint = ""
+    #endif
+
     /// 「语音输入后删设备文件」的默认值（只改这一处）
     static let deleteDictationAudioDefault = true
 
@@ -203,7 +218,8 @@ final class Settings {
         }
         d.register(defaults: ModeDefaults.registeredDefaults)
         d.register(defaults: ["typeIntoApp": true, "polishEnabled": false,
-                              "polishEndpoint": "http://127.0.0.1:8092", "polishModel": "local",
+                              "polishEndpoint": Self.defaultEndpoint, "polishModel": "local",
+                              "llmBackend": "", "cloudProvider": "", "cloudConfirmed": false, "modelWifiOnly": true,
                               "paragraphGap": 2.5, "sentencePause": 0.8,
                               "autoTranscribe": true,
                               "onboardingDone": false, "buttonDictates": true, "readySound": true,
@@ -219,6 +235,10 @@ final class Settings {
         polishEndpoint = d.string(forKey: "polishEndpoint") ?? ""
         polishModel = d.string(forKey: "polishModel") ?? "local"
         polishAPIKey = Keychain.get("polishAPIKey") ?? ""
+        llmChoiceStored = d.string(forKey: "llmBackend") ?? ""
+        cloudProvider = d.string(forKey: "cloudProvider") ?? ""
+        cloudConfirmed = d.bool(forKey: "cloudConfirmed")
+        modelWifiOnly = d.bool(forKey: "modelWifiOnly")
         paragraphGap = d.double(forKey: "paragraphGap")
         sentencePause = d.double(forKey: "sentencePause")
         #if os(macOS)

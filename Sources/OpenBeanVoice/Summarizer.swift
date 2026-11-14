@@ -27,10 +27,13 @@ public struct RecordingSummary: Codable, Sendable, Hashable {
     }
 }
 
-/// 录音摘要：用润色同一个大模型服务。转写太长时按 token 预算分块，各块先出局部摘要，再合并成一份。
+/// 录音摘要：用润色同一个大模型服务（或端侧模型，见 LLMBackend）。转写太长时按 token 预算分块，各块先出局部摘要，再合并成一份。
 /// 本机服务常开 4k 上下文：默认每块转写约 1800 token，加提示词约 350、输出上限 1000，留有余量。
 public struct Summarizer: Sendable {
-    public let service: LLMService
+    /// 调模型用的后端
+    public let backend: any LLMBackend
+    /// 后端是 OpenAI 兼容服务时就是它（旧代码和测试用）
+    public var service: LLMService? { backend as? LLMService }
     /// 每次请求里放多少 token 的转写（或局部摘要）
     public let budget: Int
     /// 每次请求的输出上限
@@ -40,32 +43,57 @@ public struct Summarizer: Sendable {
     /// 个人词表（原始行，可带 `词 = 误听写法`）：提示模型按这些词改认错的词，输出再过一遍同音纠正
     public let glossary: [String]
 
-    public init(service: LLMService, budget: Int = Summarizer.defaultBudget, maxOutput: Int = 1000, timeout: TimeInterval? = nil,
+    public init(backend: any LLMBackend, budget: Int = Summarizer.defaultBudget, maxOutput: Int? = nil, timeout: TimeInterval? = nil,
                 glossary: [String] = []) {
-        self.service = service
+        self.backend = backend
         self.glossary = glossary
         self.budget = max(budget, 200)
-        self.maxOutput = maxOutput
-        self.timeout = timeout ?? (service.isLocal ? 300 : 120)
+        self.maxOutput = maxOutput ?? backend.preferredMaxOutput ?? 1000
+        self.timeout = timeout ?? backend.defaultTimeout
+    }
+
+    public init(service: LLMService, budget: Int = Summarizer.defaultBudget, maxOutput: Int = 1000, timeout: TimeInterval? = nil,
+                glossary: [String] = []) {
+        self.init(backend: service, budget: budget, maxOutput: maxOutput, timeout: timeout, glossary: glossary)
     }
 
     /// 读不到上下文长度时每块的转写预算（按 4k 上下文定的）
     public static let defaultBudget = 1800
 
-    /// 按服务的上下文长度定每块放多少 token：扣掉输出上限和提示词（约 700），再留 15% 余量（不同模型的分词器
-    /// 算出来的 token 数不一样）；最多 24000（太长的请求本机模型要读很久，也更容易漏内容）。读不到时用 defaultBudget
-    public static func budget(contextLength: Int?, maxOutput: Int = 1000) -> Int {
+    /// 按服务的上下文长度定每块放多少 token：扣掉输出上限和提示词（约 700）和后端额外占的（overhead，端侧模型的格式说明），
+    /// 再留 15% 余量（不同模型的分词器算出来的 token 数不一样）；最多 24000（太长的请求本机模型要读很久，也更容易漏内容）。
+    /// 读不到时用 defaultBudget
+    public static func budget(contextLength: Int?, maxOutput: Int = 1000, overhead: Int = 0) -> Int {
         guard let n = contextLength, n > 0 else { return defaultBudget }
-        let usable = Double(n - maxOutput - 700) * 0.85
+        let usable = Double(n - maxOutput - 700 - overhead) * 0.85
         return min(max(Int(usable), 600), 24_000)
     }
 
-    /// 先问服务的上下文长度，再按它建一个 Summarizer（整条摘要、段摘要、日记都用这一个入口）
+    /// 按后端定预算：扣掉它额外占的 token，再按它的分词器放宽（OpenAI 兼容服务：和 budget(contextLength:) 一样）
+    public static func budget(for backend: any LLMBackend, contextLength: Int?, maxOutput: Int) -> Int {
+        let b = budget(contextLength: contextLength, maxOutput: maxOutput, overhead: backend.promptOverhead)
+        return backend.tokenEstimateSlack > 1 ? Int(Double(b) * backend.tokenEstimateSlack) : b
+    }
+
+    /// 先问后端的上下文长度，再按它建一个 Summarizer（整条摘要、段摘要、日记都用这一个入口）
+    public static func sized(backend: any LLMBackend, maxOutput: Int? = nil, glossary: [String] = []) async -> Summarizer {
+        let n = await backend.contextLength()
+        let out = maxOutput ?? backend.preferredMaxOutput ?? 1000
+        return Summarizer(backend: backend, budget: budget(for: backend, contextLength: n, maxOutput: out),
+                          maxOutput: out, glossary: glossary)
+    }
+
     public static func sized(service: LLMService, maxOutput: Int = 1000, glossary: [String] = []) async -> Summarizer {
-        let n = await service.contextLength()
-        return Summarizer(service: service, budget: budget(contextLength: n, maxOutput: maxOutput), maxOutput: maxOutput,
+        await sized(backend: service, maxOutput: maxOutput, glossary: glossary)
+    }
+
+    /// 超出上下文时换小一号的分块再来（端侧模型的分词器和估算对不上时会遇到）。太小了就不再缩，返回 nil
+    func shrunk() -> Summarizer? {
+        guard budget > Self.minShrinkBudget else { return nil }
+        return Summarizer(backend: backend, budget: max(budget * 3 / 5, Self.minShrinkBudget), maxOutput: maxOutput, timeout: timeout,
                           glossary: glossary)
     }
+    static let minShrinkBudget = 300
 
     // MARK: 提示词
 
@@ -323,12 +351,19 @@ public struct Summarizer: Sendable {
     /// 生成摘要。progress 报告已完成的请求比例（0…1）。
     /// 服务不通时抛网络错误；模型回复不可用时抛 `Failure.unusable`（调用方不写入任何摘要）。
     public func summarize(_ lines: [TimedLine], progress: (@Sendable (Double) -> Void)? = nil) async throws -> RecordingSummary {
+        do { return try await summarizeOnce(lines, progress: progress) } catch LLMBackendError.contextExceeded {
+            guard let smaller = shrunk() else { throw LLMBackendError.contextExceeded }
+            return try await smaller.summarize(lines, progress: progress)
+        }
+    }
+
+    private func summarizeOnce(_ lines: [TimedLine], progress: (@Sendable (Double) -> Void)?) async throws -> RecordingSummary {
         let chunks = Self.chunk(lines, budget: budget)
         guard !chunks.isEmpty else { throw Failure.empty }
         guard Self.estimateTokens(lines.map(\.text).joined()) >= Self.minTokens else { throw Failure.tooShort }
         let lang = Self.languageLine(for: lines.map(\.text).joined()) + Self.termsLine(glossary)
         let corrector = GlossaryCorrector(terms: glossary)
-        let session = service.makeSession(timeout: timeout)
+        let session = backend.open(timeout: timeout)
         // 估计总请求数：每块一次，多块时再加合并
         let total = Double(chunks.count + (chunks.count > 1 ? max(1, chunks.count / 4) : 0))
         var done = 0.0
@@ -349,9 +384,9 @@ public struct Summarizer: Sendable {
         var parts: [RecordingSummary] = []
         for (i, c) in chunks.enumerated() {
             let user = "Part \(i + 1) of \(chunks.count). Transcript:\n" + c.map(Self.line).joined(separator: "\n")
-            var got = try? await ask(Self.partPrompt + "\n" + lang, user, session: session)
-            if got == nil { got = try? await ask(Self.partPrompt + "\n" + lang, user, session: session) }
-            if let got { parts.append(got) } else if await service.check() != .ok {
+            var got = try await Self.skippable { try await ask(Self.partPrompt + "\n" + lang, user, session: session) }
+            if got == nil { got = try await Self.skippable { try await ask(Self.partPrompt + "\n" + lang, user, session: session) } }
+            if let got { parts.append(got) } else if await backend.check() != .ok {
                 throw URLError(.cannotConnectToHost)
             }
             step()
@@ -377,12 +412,19 @@ public struct Summarizer: Sendable {
     /// 把几份已有的摘要（例如一条录音各段对话的摘要）合并成整条录音的一份，用和长录音分块时同一个合并提示词。
     /// 只有一份时原样返回、不调用大模型。languageSample：判断输出语言用的原文（转写），不要传摘要
     public func merge(_ parts: [RecordingSummary], languageSample: String) async throws -> (RecordingSummary, calls: Int) {
+        do { return try await mergeOnce(parts, languageSample: languageSample) } catch LLMBackendError.contextExceeded {
+            guard let smaller = shrunk() else { throw LLMBackendError.contextExceeded }
+            return try await smaller.merge(parts, languageSample: languageSample)
+        }
+    }
+
+    private func mergeOnce(_ parts: [RecordingSummary], languageSample: String) async throws -> (RecordingSummary, calls: Int) {
         var level = parts
         guard !level.isEmpty else { throw Failure.empty }
         if level.count == 1 { return (level[0], 0) }
         let lang = Self.languageLine(for: languageSample) + Self.termsLine(glossary)
         let corrector = GlossaryCorrector(terms: glossary)
-        let session = service.makeSession(timeout: timeout)
+        let session = backend.open(timeout: timeout)
         var calls = 0
         while level.count > 1 {
             var next: [RecordingSummary] = []
@@ -424,12 +466,23 @@ public struct Summarizer: Sendable {
         return t
     }
 
-    private func ask(_ system: String, _ user: String, session: URLSession) async throws -> RecordingSummary {
-        // 本机服务（llama-server 等）关掉思考模式，免得思考把输出额度用光；云端不认识这个参数，不发
-        let extra: [String: Any] = service.isLocal ? ["chat_template_kwargs": ["enable_thinking": false]] : [:]
-        let raw = try await service.chat(system: system, user: user, maxTokens: maxOutput, temperature: 0.2,
-                                         extra: extra, session: session)
+    private func ask(_ system: String, _ user: String, session: any LLMChannel) async throws -> RecordingSummary {
+        let raw = try await session.complete(LLMRequest(system: system, user: user, maxTokens: maxOutput, temperature: 0.2,
+                                                        shape: Self.shape))
         guard let s = Self.parse(raw) else { throw Failure.unusable }
         return s
+    }
+
+    /// 回复的结构（端侧模型做结构化生成用；OpenAI 兼容服务不发）
+    static let shape = ReplyShape.object("RecordingSummary", [
+        .init("title", .text("A short title, at most 12 words or 20 Chinese characters")),
+        .init("summary", .text("2 to 4 sentences")),
+        .init("key_points", .list(.text(), max: maxKeyPoints)),
+        .init("action_items", .list(.text(), max: maxActionItems, "Concrete to-dos; empty when there are none")),
+    ])
+
+    /// 分块时某一块失败可以跳过（再试一次、或用别的块）；超出上下文要整体缩小分块重来，不能跳过
+    static func skippable<T>(_ body: () async throws -> T) async throws -> T? {
+        do { return try await body() } catch LLMBackendError.contextExceeded { throw LLMBackendError.contextExceeded } catch { return nil }
     }
 }

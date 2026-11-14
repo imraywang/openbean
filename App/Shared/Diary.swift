@@ -62,10 +62,10 @@ final class DiaryService {
         guard let library, let notes, let r = library.recordings.first(where: { $0.id == id }), r.transcribed, !r.isDictation else { return }
         let todo = library.conversations.conversations(id).filter { force || $0.kind == nil }
         guard !todo.isEmpty else { return }
-        guard let service = notes.service else { throw URLError(.badURL) }
-        guard await service.check() == .ok else { throw URLError(.cannotConnectToHost) }
+        guard let backend = notes.backend else { throw URLError(.badURL) }
+        guard await backend.check() == .ok else { throw URLError(.cannotConnectToHost) }
         let segs = library.transcript(id)
-        let summarizer = ConversationSummarizer(await notes.summarizer(service))
+        let summarizer = ConversationSummarizer(await notes.summarizer(backend))
         let t0 = Date()
         var calls = 0, dropped = 0
         let spans = segs.map { (start: $0.start, end: $0.end) }
@@ -80,7 +80,7 @@ final class DiaryService {
             calls += res.calls
             dropped += res.droppedNames
             library.conversations.setSummary(id, index: c.index, hash: c.hash, kind: res.kind, summary: res.summary,
-                                             model: settings.polishModel)
+                                             model: backend.modelName)
         }
         Log.write(String(format: "段摘要 %u：%d 段，%d 次调用，%.0f 秒，丢掉转写里找不到的名字 %d 个",
                          id, todo.count, calls, Date().timeIntervalSince(t0), dropped))
@@ -89,12 +89,12 @@ final class DiaryService {
     /// 开着日记时整条录音的摘要：以段摘要为准。一段直接用；多段时用合并提示词合成一份（一次调用）
     func recordingSummary(_ id: UInt32, force: Bool) async throws -> RecordingSummary {
         try await summarize(id, force: force)
-        guard let library, let notes, let service = notes.service else { throw URLError(.badURL) }
+        guard let library, let notes, let backend = notes.backend else { throw URLError(.badURL) }
         let parts = library.conversations.conversations(id).compactMap(\.summary)
             .map { RecordingSummary(title: $0.title, summary: $0.summary, keyPoints: $0.keyPoints, actionItems: $0.todos) }
         guard !parts.isEmpty else { throw Summarizer.Failure.tooShort }
         let sample = String(library.transcript(id).map(\.text).joined().prefix(4000))
-        return try await notes.summarizer(service).merge(parts, languageSample: sample).0
+        return try await notes.summarizer(backend).merge(parts, languageSample: sample).0
     }
 
     // MARK: 日
@@ -205,7 +205,7 @@ final class DiaryService {
             if notes.notesFolder != nil, noteRecord(key) == nil { writeNote(old) }
             return .written
         }
-        guard let service = notes.service, await service.check() == .ok else {
+        guard let backend = notes.backend, await backend.check() == .ok else {
             Log.write("日记 \(key)：服务不可用，下次再试")
             return .serviceUnavailable
         }
@@ -231,7 +231,7 @@ final class DiaryService {
         }.joined().prefix(4000))
         let out: DiaryWriter.Output
         do {
-            out = try await DiaryWriter(await notes.summarizer(service)).write(inputs, languageSample: sample)
+            out = try await DiaryWriter(await notes.summarizer(backend)).write(inputs, languageSample: sample)
         } catch {
             Log.write("日记 \(key) 没写成：\(error)，下次再试")
             return await failure()
@@ -244,7 +244,7 @@ final class DiaryService {
                                               wallEnd: c.wallEnd, wallApprox: c.wallApprox, kind: c.kind,
                                               title: c.summary?.title, summary: c.summary?.summary)
                           },
-                          diary: out.diary, model: settings.polishModel, createdAt: Date(),
+                          diary: out.diary, model: backend.modelName, createdAt: Date(),
                           stats: DayStats(calls: out.calls, seconds: secs, dropped: out.dropped), marks: marks)
         do {
             try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
