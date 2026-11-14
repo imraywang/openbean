@@ -96,7 +96,7 @@ final class AppModel {
         case "settings":
             openSettings?()
         case let p where p.hasPrefix("settings/"):
-            // openbean://settings/voice|polish|library|agent|about（models 是 about 的旧名）
+            // openbean://settings/heart|voice|polish|library|agent|about（models 是 about 的旧名）
             if let tab = SettingsTab(link: String(p.dropFirst(9))) { nav.settingsTab = tab }
             openSettings?()
         case let p where p.hasPrefix("summarize/"):

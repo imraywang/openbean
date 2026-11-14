@@ -5,10 +5,11 @@ import Carbon.HIToolbox
 import SwiftUI
 
 enum SettingsTab: String, CaseIterable, Identifiable {
-    case voice, polish, library, agent, about
+    case heart, voice, polish, library, agent, about
     var id: String { rawValue }
     var title: LocalizedStringKey {
         switch self {
+        case .heart: return "Heart mode"
         case .voice: return "Voice typing"
         case .polish: return "Clean-up"
         case .library: return "Library"
@@ -18,6 +19,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
     }
     var icon: String {
         switch self {
+        case .heart: return "heart"
         case .voice: return "keyboard"
         case .polish: return "sparkles"
         case .library: return "waveform"
@@ -39,6 +41,9 @@ struct SettingsWindow: View {
     var body: some View {
         @Bindable var nav = model.nav
         TabView(selection: $nav.settingsTab) {
+            Tab(SettingsTab.heart.title, systemImage: SettingsTab.heart.icon, value: .heart) {
+                HeartSettings(settings: model.settings, notes: model.library.notes, nav: model.nav).frame(height: 700)
+            }
             Tab(SettingsTab.voice.title, systemImage: SettingsTab.voice.icon, value: .voice) {
                 VoiceSettings(settings: model.settings).frame(height: 700)
             }
@@ -294,10 +299,13 @@ private struct LibrarySettings: View {
     var body: some View {
         Form {
             Section {
-                Toggle(isOn: $settings.autoSync) {
+                // 心力模式下固定自动同步：开关锁住、显示为开（关掉心力模式后回到用户自己的选择）
+                Toggle(isOn: settings.mode.autoSyncLocked ? .constant(true) : $settings.autoSync) {
                     Text("Sync new recordings automatically")
-                    Text("Over Bluetooth, when the recorder connects or goes back in its case")
+                    Text(settings.mode.autoSyncLocked ? "Always on in Heart mode"
+                                                      : "Over Bluetooth, when the recorder connects or goes back in its case")
                 }
+                .disabled(settings.mode.autoSyncLocked)
                 Toggle(isOn: $settings.autoTranscribe) {
                     Text("Transcribe recordings after download")
                     Text("Runs on this Mac with SenseVoice")
@@ -307,14 +315,10 @@ private struct LibrarySettings: View {
                 }
             }
             Section {
-                Picker("A day starts at", selection: $settings.dayStartHour) {
-                    ForEach(0..<7) { h in
-                        Text(Calendar.current.date(bySettingHour: h, minute: 0, second: 0, of: Date())!
-                            .formatted(date: .omitted, time: .shortened)).tag(h)
-                    }
-                }
+                // 和心力模式标签里的是同一个设置
+                DayStartPicker(settings: settings)
             } footer: {
-                Text("Today groups recordings by day. With 4:00 AM, a conversation at 2 AM still counts as the day before.")
+                Text("Today groups recordings by day.")
                     .font(.caption).foregroundStyle(.secondary)
             }
             NoteSettingsSections(settings: settings, notes: AppModel.shared.library.notes)

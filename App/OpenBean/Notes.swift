@@ -626,11 +626,12 @@ struct NoteSettingsSections: View {
 
         Section {
             // 每日日记现在是心力模式的一部分（0.5 以前是这里的一个开关）
-            VStack(alignment: .leading, spacing: 2) {
+            LabeledContent {
+                Button("Heart mode settings…") { AppModel.shared.nav.settingsTab = .heart }
+            } label: {
                 Text(settings.mode.writesDiary ? "Heart mode is on: a diary is written for each day"
                                                : "A diary for each day is part of Heart mode")
                 Text("Diary folder, day start and what happens after sync are set in Heart mode.")
-                    .font(.caption).foregroundStyle(.secondary)
             }
         } header: {
             Text("Daily diary")

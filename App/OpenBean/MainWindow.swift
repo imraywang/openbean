@@ -40,7 +40,7 @@ final class Navigator {
     var section: MainSection = .today
     /// 「今天」页看的是哪一天（那个日历日的 0 点）；nil = 今天（跟着时间走，过了凌晨 4 点自动换天）
     var day: Date?
-    var settingsTab: SettingsTab = .voice
+    var settingsTab: SettingsTab = .heart
     /// 刚从别处跳过来的录音：那一行亮一下，提示「你在这」
     var flash: UInt32?
 

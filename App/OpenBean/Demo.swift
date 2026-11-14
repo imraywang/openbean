@@ -7,7 +7,7 @@
 // 切状态用链接 openbean-demo://demo/<命令>[?seq=N]，带 seq 时处理完写 <数据目录>/demo-ack.json（截图脚本据此等待并取窗口号）：
 //   state/connected|searching|connecting|failed|bluetooth-off|no-permission|lost|syncing|sync-failed|dictating|recording|low-battery|charging
 //   hud/hidden|starting|listening|polishing|wrapping|typed|copied|nothing|error
-//   page/today|library|dictation|recorder（overview 同 today）   today/<天数，负数往前>   settings/voice|polish|library|agent|about（设置窗口）
+//   page/today|library|dictation|recorder（overview 同 today）   today/<天数，负数往前>   settings/heart|voice|polish|library|agent|about（设置窗口）
 //   select/summary|untranscribed|ondevice|long|segmented|none   search/<词>   filter/all|onRecorder|untranscribed|todos
 //   play/<秒>|off   todo/check|clear   onboarding/<0–4>   close/onboarding|main|settings   window/main|onboarding/<宽>x<高>   appearance/light|dark|auto
 //   trusted/yes|no   models/ready|missing|downloading   menu/open   ping   quit
@@ -33,6 +33,8 @@ final class DemoState {
     var playAt: Double?
     /// 假装已经有辅助功能权限
     nonisolated(unsafe) static var trustedValue = true
+    /// 预览、演示里大模型服务算不算连得上（设置 → 心力模式的状态行）
+    nonisolated(unsafe) static var llmReachable = true
     var trusted: Bool { get { access(keyPath: \.trusted); return Self.trustedValue }
                         set { withMutation(keyPath: \.trusted) { Self.trustedValue = newValue } } }
 
