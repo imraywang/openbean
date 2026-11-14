@@ -9,3 +9,5 @@ App/build/
 App/build-demo/
 App/build-release/
 __pycache__/
+App/build-ios/
+App/build-ios-device/

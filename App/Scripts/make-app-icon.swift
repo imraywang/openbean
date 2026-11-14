@@ -1,14 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
 // 生成 App 图标（「声豆」）：swift App/Scripts/make-app-icon.swift
 // 输出到 App/OpenBean/Resources/Assets.xcassets/AppIcon.appiconset。图形和设计稿一致（100×100 网格，y 向下）。
+// iOS 版：swift App/Scripts/make-app-icon.swift --ios → App/Mobile/Resources/Assets.xcassets/AppIcon.appiconset，
+// 一张 1024 的满版方图（不透明、不带圆角和阴影，系统自己裁圆角）。
 
 import AppKit
 import CoreGraphics
 import ImageIO
 import UniformTypeIdentifiers
 
-let out = URL(fileURLWithPath: CommandLine.arguments.count > 1 ? CommandLine.arguments[1]
-    : "App/OpenBean/Resources/Assets.xcassets/AppIcon.appiconset")
+let ios = CommandLine.arguments.contains("--ios")
+let args = CommandLine.arguments.dropFirst().filter { $0 != "--ios" }
+let out = URL(fileURLWithPath: args.first
+    ?? (ios ? "App/Mobile/Resources/Assets.xcassets/AppIcon.appiconset" : "App/OpenBean/Resources/Assets.xcassets/AppIcon.appiconset"))
 
 func beanPath(scale: CGFloat) -> CGPath {
     let p = CGMutablePath()
@@ -32,14 +36,16 @@ func render(px: Int) -> CGImage {
     let n = CGFloat(px)
     let ctx = CGContext(data: nil, width: px, height: px, bitsPerComponent: 8, bytesPerRow: 0,
                         space: CGColorSpace(name: CGColorSpace.sRGB)!,
-                        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+                        bitmapInfo: (ios ? CGImageAlphaInfo.noneSkipLast : .premultipliedLast).rawValue)!
     // y 向下，和设计稿一致
     ctx.translateBy(x: 0, y: n); ctx.scaleBy(x: 1, y: -1)
 
     // macOS 图标网格：1024 画布里 824 的圆角方块，四周留阴影
-    let inset = n * 100 / 1024, side = n * 824 / 1024
+    // iOS：整张画布就是图标，圆角由系统裁；图形按 824 网格的比例放大到满版
+    let inset = ios ? 0 : n * 100 / 1024, side = ios ? n : n * 824 / 1024
     let body = CGRect(x: inset, y: inset, width: side, height: side)
-    let shape = CGPath(roundedRect: body, cornerWidth: side * 0.225, cornerHeight: side * 0.225, transform: nil)
+    let shape = ios ? CGPath(rect: body, transform: nil)
+        : CGPath(roundedRect: body, cornerWidth: side * 0.225, cornerHeight: side * 0.225, transform: nil)
 
     ctx.saveGState()
     ctx.setShadow(offset: CGSize(width: 0, height: -n * 10 / 1024), blur: n * 20 / 1024,
@@ -74,7 +80,14 @@ func render(px: Int) -> CGImage {
 }
 
 var images: [[String: String]] = []
-for (pt, scale) in [(16, 1), (16, 2), (32, 1), (32, 2), (128, 1), (128, 2), (256, 1), (256, 2), (512, 1), (512, 2)] {
+if ios {
+    let name = "icon-1024.png"
+    let dest = CGImageDestinationCreateWithURL(out.appendingPathComponent(name) as CFURL, UTType.png.identifier as CFString, 1, nil)!
+    CGImageDestinationAddImage(dest, render(px: 1024), nil)
+    CGImageDestinationFinalize(dest)
+    images.append(["idiom": "universal", "platform": "ios", "size": "1024x1024", "filename": name])
+}
+for (pt, scale) in ios ? [] : [(16, 1), (16, 2), (32, 1), (32, 2), (128, 1), (128, 2), (256, 1), (256, 2), (512, 1), (512, 2)] {
     let name = "icon_\(pt)x\(pt)\(scale == 2 ? "@2x" : "").png"
     let dest = CGImageDestinationCreateWithURL(out.appendingPathComponent(name) as CFURL, UTType.png.identifier as CFString, 1, nil)!
     CGImageDestinationAddImage(dest, render(px: pt * scale), nil)

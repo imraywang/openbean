@@ -1,0 +1,30 @@
+#!/bin/zsh
+# 编译 iOS 版（App/project.yml 的 OpenBeanMobile，Xcode 工程由 XcodeGen 生成）。
+#   bin/build-ios          模拟器构建（不需要证书），产物 .build/ios-simulator/OpenBean.app
+#   bin/build-ios device   真机构建（generic iOS device，UPTHOS LLC 自动签名），产物 .build/ios-device/OpenBean.app
+# 装到模拟器并用演示数据启动（不打开 Simulator 窗口也行）：
+#   xcrun simctl install booted .build/ios-simulator/OpenBean.app
+#   xcrun simctl launch booted dev.openbean.ios -demo YES
+set -e
+ROOT="${0:A:h}/.."
+cd "$ROOT"
+command -v xcodegen >/dev/null || { echo "需要 XcodeGen：brew install xcodegen"; exit 1; }
+[[ -f Vendor/sherpa-onnx-ios/sherpa-onnx.xcframework/Info.plist && -f Vendor/sherpa-onnx-ios/onnxruntime.xcframework/Info.plist ]] \
+  || Scripts/fetch-deps.sh --ios
+(cd App && xcodegen generate -q)
+if [[ "$1" == device ]]; then
+  OUT=.build/ios-device; DERIVED=App/build-ios-device; PLATFORM=iphoneos
+  # 自动签名：描述文件由 Xcode 按需生成（需要 Xcode 里登录了 UPTHOS LLC 团队的账号）
+  ARGS=(-destination 'generic/platform=iOS' -allowProvisioningUpdates)
+else
+  OUT=.build/ios-simulator; DERIVED=App/build-ios; PLATFORM=iphonesimulator
+  # 模拟器用临时签名，不需要证书和描述文件
+  ARGS=(-destination 'generic/platform=iOS Simulator' CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM=)
+fi
+# 不加 netrc 的话 xcodebuild 会去钥匙串查 github.com 的密码（下载 Sparkle 这类公开包时弹窗卡住）
+xcodebuild -project App/OpenBean.xcodeproj -scheme OpenBeanMobile -configuration Release \
+  -derivedDataPath "$DERIVED" "${ARGS[@]}" -packageAuthorizationProvider netrc -quiet build
+rm -rf "$OUT"
+mkdir -p "$OUT"
+cp -R "$DERIVED/Build/Products/Release-$PLATFORM/OpenBean.app" "$OUT/"
+echo "已编译：$ROOT/$OUT/OpenBean.app"

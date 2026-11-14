@@ -4,6 +4,7 @@ options:
   bundleIdPrefix: dev.openbean
   deploymentTarget:
     macOS: "26.0"
+    iOS: "26.0"
   createIntermediateGroups: true
   developmentLanguage: en
 settings:
@@ -82,3 +83,58 @@ targets:
         # 默认就在后台每天检查一次，不再弹「要不要自动检查」的询问
         SUEnableAutomaticChecks: true
         SUScheduledCheckInterval: 86400
+
+  # iOS 版（OpenBean for iPhone）：录音库、心力模式、录音豆连接和同步、摘要。没有语音输入、MCP、自动更新、菜单栏。
+  # 编译：bin/build-ios（模拟器）、bin/build-ios device（真机）
+  OpenBeanMobile:
+    type: application
+    platform: iOS
+    deploymentTarget: "26.0"
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.openbean.ios
+        PRODUCT_NAME: OpenBean
+        # iOS 版自己的构建号（版本号沿用上面的 MARKETING_VERSION）
+        CURRENT_PROJECT_VERSION: "1"
+        TARGETED_DEVICE_FAMILY: "1"
+        # 真机用 UPTHOS LLC 的自动签名；模拟器不签名也能装
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_IDENTITY: "Apple Development"
+        DEVELOPMENT_TEAM: ZHPS34Z8M9
+        ARCHS: "$(ARCHS_STANDARD)"
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+    sources:
+      - path: Mobile
+      - path: Shared
+    dependencies:
+      - package: openbean
+        product: OpenBeanKit
+      - package: openbean
+        product: OpenBeanVoice
+      - package: openbean
+        product: OpenBeanLibrary
+      # sherpa-onnx 和 onnxruntime 的 iOS 静态 xcframework（Scripts/fetch-deps.sh --ios），静态链接进 App，不用嵌入
+      - framework: ../Vendor/sherpa-onnx-ios/sherpa-onnx.xcframework
+        embed: false
+      - framework: ../Vendor/sherpa-onnx-ios/onnxruntime.xcframework
+        embed: false
+    info:
+      path: Mobile/Info.plist
+      properties:
+        CFBundleDisplayName: OpenBean
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        CFBundleDevelopmentRegion: en
+        CFBundleLocalizations: [en, zh-Hans]
+        LSRequiresIPhoneOS: true
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        UIApplicationSupportsIndirectInputEvents: true
+        NSBluetoothAlwaysUsageDescription: OpenBean connects to your soundcore Work recorder to sync its recordings to this iPhone.
+        # 录音豆放回盒子时在后台继续连接、同步（完整的后台同步还没做，见 App/Mobile/BackgroundSync.swift）
+        UIBackgroundModes: [bluetooth-central]
+        # 大模型服务可以是局域网里的 http 地址（如另一台电脑上的本机模型）
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+        NSLocalNetworkUsageDescription: OpenBean connects to the LLM service you set in Settings when it runs on your local network.
