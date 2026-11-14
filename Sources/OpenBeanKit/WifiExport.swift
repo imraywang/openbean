@@ -41,11 +41,16 @@ public final class WifiExport: NSObject, URLSessionDelegate, URLSessionWebSocket
         super.init()
         let cfg = URLSessionConfiguration.ephemeral
         // 系统代理（Surge 等）不要碰设备热点
+        #if os(macOS)
         cfg.connectionProxyDictionary = [
             kCFNetworkProxiesHTTPEnable as String: 0,
             kCFNetworkProxiesHTTPSEnable as String: 0,
             kCFNetworkProxiesSOCKSEnable as String: 0,
         ]
+        #else
+        // iOS 只有 HTTP 一项常量；空字典就是不走任何代理
+        cfg.connectionProxyDictionary = [:]
+        #endif
         cfg.timeoutIntervalForRequest = 12
         session = URLSession(configuration: cfg, delegate: self, delegateQueue: nil)
     }

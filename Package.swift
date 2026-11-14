@@ -18,16 +18,23 @@ let package = Package(
         // 只读 MCP 服务（stdio，手写的 JSON-RPC，不引入依赖）：协议层和工具在 OpenBeanMCP，可执行文件只管收发
         .target(name: "OpenBeanMCP", dependencies: ["OpenBeanLibrary"]),
         .executableTarget(name: "openbean-mcp", dependencies: ["OpenBeanMCP", "OpenBeanLibrary"]),
-        // sherpa-onnx 动态库由 Scripts/fetch-deps.sh 放到 Vendor/sherpa-onnx
+        // sherpa-onnx：macOS 是动态库，由 Scripts/fetch-deps.sh 放到 Vendor/sherpa-onnx；
+        // iOS 是静态 xcframework（fetch-deps.sh --ios 放到 Vendor/sherpa-onnx-ios），由 App 目标（App/project.yml 的 OpenBeanMobile）链接
         .systemLibrary(name: "CSherpaOnnx", path: "Sources/CSherpaOnnx"),
         .target(
             name: "OpenBeanVoice",
             // OpenBeanLibrary：对话段和日记的数据格式（段摘要、日记合成写的就是它们）
             dependencies: ["OpenBeanKit", "OpenBeanLibrary", "CSherpaOnnx"],
             linkerSettings: [
+                .linkedLibrary("sherpa-onnx-c-api", .when(platforms: [.macOS])),
                 // 绝对路径：Xcode 工程（App/）编译这个包时工作目录不是包根目录
                 .unsafeFlags(["-L\(Context.packageDirectory)/Vendor/sherpa-onnx/lib",
-                              "-Xlinker", "-rpath", "-Xlinker", "@executable_path/../Frameworks"]),
+                              "-Xlinker", "-rpath", "-Xlinker", "@executable_path/../Frameworks"],
+                             .when(platforms: [.macOS])),
+                // onnxruntime 静态库是 C++ 写的，还用到 CoreML（CoreML 执行器）
+                .linkedLibrary("c++", .when(platforms: [.iOS])),
+                .linkedFramework("CoreML", .when(platforms: [.iOS])),
+                .linkedFramework("Accelerate", .when(platforms: [.iOS])),
             ]
         ),
         .executableTarget(

@@ -50,7 +50,11 @@ public struct LLMService: Sendable {
     static func session(for base: URL, timeout: TimeInterval? = nil) -> URLSession {
         let cfg = URLSessionConfiguration.ephemeral
         if isLocal(base) {
+            #if os(macOS)
             cfg.connectionProxyDictionary = [kCFNetworkProxiesHTTPEnable as String: 0, kCFNetworkProxiesHTTPSEnable as String: 0]
+            #else
+            cfg.connectionProxyDictionary = [:]  // iOS 没有 HTTPS 那一项常量；空字典就是直连
+            #endif
         }
         cfg.timeoutIntervalForRequest = timeout ?? (isLocal(base) ? 8 : 15)
         cfg.timeoutIntervalForResource = max(cfg.timeoutIntervalForRequest, 60)

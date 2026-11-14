@@ -1,5 +1,6 @@
+// 链接写在 Package.swift（OpenBeanVoice 的 linkerSettings）：macOS 链 Vendor/sherpa-onnx 的动态库，
+// iOS 由 App 目标直接链 Vendor/sherpa-onnx-ios 的静态 xcframework
 module CSherpaOnnx [system] {
     header "shim.h"
-    link "sherpa-onnx-c-api"
     export *
 }
