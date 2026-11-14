@@ -147,9 +147,24 @@ final class Settings {
     var keepHistory: Bool { didSet { d.set(keepHistory, forKey: "keepHistory") } }
     /// 转写完用大模型（润色那个服务）写摘要
     var summarizeRecordings: Bool { didSet { d.set(summarizeRecordings, forKey: "summarizeRecordings") } }
-    /// 心力模式总开关（0.5 以前的「每天写一篇日记」dailyDiary 启动时迁移过来）。
+    /// 心力模式总开关。默认关，只有走完心力模式介绍（或之后在心力模式设置里打开）才开；
+    /// 0.5 以前开着「每天写一篇日记」的人也一样，只是介绍里会提一句（见 HeartIntro）。
     /// 随模式变的取值都在 `mode`（ModeDefaults）里算，别处不直接判断这个开关
     var heartMode: Bool { didSet { d.set(heartMode, forKey: ModeKeys.heartMode) } }
+    /// 心力模式介绍走完或点过「以后再说」：之后不再自动出现（心力模式页关着时还可以再打开）
+    var heartIntroSeen: Bool { didSet { d.set(heartIntroSeen, forKey: ModeKeys.heartIntroSeen) } }
+    /// 启动时算出的：这次要不要自动出现心力模式介绍、什么时候（启动时 / 首次使用向导之后）
+    @ObservationIgnored private(set) var heartIntroAtLaunch: HeartIntro.Decision = .seen
+    /// 介绍里几项选择的初始值：现在存着的选择（没改过就是出厂值）
+    var heartIntroPrefill: HeartIntro.Prefill {
+        HeartIntro.Prefill(deleteFromRecorder: heartDeleteFromRecorder, audioRetention: heartAudioRetention,
+                           hadDailyDiary: d.bool(forKey: ModeKeys.legacyDailyDiary))
+    }
+    /// 现在该不该自动打开介绍（看过了、已经开着就不）
+    var heartIntroPending: Bool {
+        if case .show = heartIntroAtLaunch { return !heartIntroSeen && !heartMode }
+        return false
+    }
     /// 心力模式：同时为每条录音写一篇笔记（默认关，只写日记）
     var heartRecordingNotes: Bool { didSet { d.set(heartRecordingNotes, forKey: ModeKeys.heartRecordingNotes) } }
     /// 心力模式：同步并转写完成后，从心力豆删除这条录音
@@ -179,8 +194,14 @@ final class Settings {
     static let deleteDictationAudioDefault = true
 
     init() {
-        // 要在注册默认值之前：注册后就分不清 heartMode 是「没设置过」还是「设成了关」
-        if let on = HeartMigration.run(d), on { Log.write("每日日记开着：迁移为心力模式开") }
+        // 要在注册默认值之前：注册后就分不清 heartMode 是「没设置过」还是「设成了关」。
+        // 心力模式开关本身不在这里改：旧的「每日日记」不再自动打开心力模式，只让介绍出现
+        let intro = HeartIntro.run(d)
+        switch intro {
+        case .alreadyOn: Log.write("心力模式已经开着：保持开，不再介绍")
+        case let .show(when, p): Log.write("心力模式介绍：\(when == .atLaunch ? "启动时" : "首次使用向导之后")出现\(p.hadDailyDiary ? "（以前开着每日日记）" : "")")
+        case .seen: break
+        }
         d.register(defaults: ModeDefaults.registeredDefaults)
         d.register(defaults: ["typeIntoApp": true, "polishEnabled": false,
                               "polishEndpoint": "http://127.0.0.1:8092", "polishModel": "local",
@@ -211,6 +232,8 @@ final class Settings {
         notesEnabled = d.bool(forKey: "notesEnabled")
         let m = ModeDefaults(defaults: d)
         heartMode = m.heartMode
+        heartIntroSeen = d.bool(forKey: ModeKeys.heartIntroSeen)
+        heartIntroAtLaunch = intro
         heartRecordingNotes = m.heartRecordingNotes
         heartDeleteFromRecorder = m.heartDeleteFromRecorder
         heartAudioRetention = m.heartAudioRetention

@@ -4,7 +4,7 @@ import Foundation
 
 // MARK: - 心力模式
 //
-// App 只有一个总开关：普通模式和心力模式（Heart mode）共用录音库、详情、MCP 和数据，差别全在这里算出来。
+// App 只有一个总开关（默认关，走完心力模式介绍才开，见 HeartIntro）：普通模式和心力模式（Heart mode）共用录音库、详情、MCP 和数据，差别全在这里算出来。
 // 界面和业务代码都从 `ModeDefaults` 读，不各自写 `if heartMode`。纯值，方便测试；
 // MCP 服务（另一个进程）也按这里的键名去读 App 的偏好设置。
 
@@ -50,6 +50,8 @@ public enum ModeKeys {
     public static let heartMode = "heartMode"
     /// 0.5 以前的「每天写一篇日记」开关；只在迁移时读
     public static let legacyDailyDiary = "dailyDiary"
+    /// 心力模式介绍走完或跳过过（之后不再自动出现）
+    public static let heartIntroSeen = "heartIntroSeen"
     public static let heartRecordingNotes = "heartRecordingNotes"
     public static let heartDeleteFromRecorder = "heartDeleteFromRecorder"
     public static let heartAudioRetention = "heartAudioRetention"
@@ -101,8 +103,8 @@ public struct ModeDefaults: Sendable, Equatable {
         self.heartAgentTranscripts = heartAgentTranscripts
     }
 
-    /// 打开主窗口落在哪：心力模式看今天，普通模式看录音库
-    public var landing: MainLanding { heartMode ? .today : .library }
+    /// 打开主窗口落在哪：两种模式都落在心力模式页（开着是今天，关着是介绍心力模式的空状态）
+    public var landing: MainLanding { .today }
 
     /// 放回充电盒 / 连上时自动同步。心力模式下固定开（设置里显示为说明，不是开关）
     public var autoSync: Bool { heartMode || autoSyncSetting }
@@ -140,27 +142,73 @@ public struct ModeDefaults: Sendable, Equatable {
     }
 }
 
-// MARK: - 迁移
+// MARK: - 心力模式介绍（替代原来的静默迁移）
 
-/// 0.5 以前的「每天写一篇日记」（dailyDiary）升级成心力模式总开关
-public enum HeartMigration {
-    /// 启动时调用（要在 register(defaults:) 之前：注册过默认值后就分不清「没设置过」）。
-    /// - Parameters:
-    ///   - storedHeartMode: 偏好设置里 heartMode 的原始值；从没设置过是 nil
-    ///   - legacyDailyDiary: 旧的 dailyDiary 开关
-    /// - Returns: 要写进去的 heartMode；nil = 已经设置过，不动
-    public static func heartMode(stored storedHeartMode: Any?, legacyDailyDiary: Bool) -> Bool? {
-        guard storedHeartMode == nil else { return nil }
-        return legacyDailyDiary
+/// 心力模式默认关，只有走完介绍（或之后在心力模式设置里打开开关）才会开。
+/// 谁在什么时候看到介绍、里面的选项预先填成什么，都在这里算。纯函数，方便测试
+public enum HeartIntro {
+    /// 介绍里那几项选择的初始值
+    public struct Prefill: Equatable, Sendable {
+        /// 同步并转写完成后，从心力豆删除
+        public var deleteFromRecorder: Bool
+        /// 本机音频留多久
+        public var audioRetention: AudioRetention
+        /// 以前开着「每天写一篇日记」（0.5 以前的 dailyDiary）：介绍里说一句日记现在归心力模式
+        public var hadDailyDiary: Bool
+
+        public init(deleteFromRecorder: Bool = ModeDefaults.heartDeleteFromRecorderDefault,
+                    audioRetention: AudioRetention = .default, hadDailyDiary: Bool = false) {
+            self.deleteFromRecorder = deleteFromRecorder
+            self.audioRetention = audioRetention
+            self.hadDailyDiary = hadDailyDiary
+        }
     }
 
-    /// 在偏好设置上做一次迁移；返回是否开了心力模式（写日志用）
+    /// 什么时候自动出现
+    public enum When: Equatable, Sendable {
+        /// 启动时（已经用过 OpenBean 的人：升级后第一次启动）
+        case atLaunch
+        /// 首次使用向导走完之后（新装的人：不同时弹两个窗口）
+        case afterOnboarding
+    }
+
+    public enum Decision: Equatable, Sendable {
+        /// 心力模式已经开着（这个分支的开发版里打开过）：保持开，不再介绍
+        case alreadyOn
+        /// 看过了（走完或点了「以后再说」）：不自动出现；心力模式页关着时可以再打开
+        case seen
+        case show(When, Prefill)
+    }
+
+    /// - Parameters:
+    ///   - storedHeartMode: 偏好设置里 heartMode 的原始值（没设置过是 nil）
+    ///   - introSeen: 走完或跳过过介绍
+    ///   - onboardingDone: 首次使用向导走完了
+    ///   - legacyDailyDiary: 0.5 以前的「每天写一篇日记」开关
+    ///   - storedDelete / storedRetention: 之前存过的心力模式选择（没有就用出厂值）
+    public static func decide(storedHeartMode: Bool?, introSeen: Bool, onboardingDone: Bool, legacyDailyDiary: Bool,
+                              storedDelete: Bool? = nil, storedRetention: AudioRetention? = nil) -> Decision {
+        if storedHeartMode == true { return .alreadyOn }
+        if introSeen { return .seen }
+        let prefill = Prefill(deleteFromRecorder: storedDelete ?? ModeDefaults.heartDeleteFromRecorderDefault,
+                              audioRetention: storedRetention ?? .default,
+                              hadDailyDiary: legacyDailyDiary)
+        return .show(onboardingDone ? .atLaunch : .afterOnboarding, prefill)
+    }
+
+    /// 从偏好设置算（要在 register(defaults:) 之前：注册过默认值后就分不清 heartMode「没设置过」）。
+    /// 已经开着的记成看过介绍，以后不再问。心力模式开关本身一律不写：不会因为旧开关自动打开
     @discardableResult
-    public static func run(_ d: UserDefaults) -> Bool? {
-        guard let v = heartMode(stored: d.object(forKey: ModeKeys.heartMode),
-                                legacyDailyDiary: d.bool(forKey: ModeKeys.legacyDailyDiary)) else { return nil }
-        d.set(v, forKey: ModeKeys.heartMode)
-        return v
+    public static func run(_ d: UserDefaults) -> Decision {
+        let stored = d.object(forKey: ModeKeys.heartMode) == nil ? nil : d.bool(forKey: ModeKeys.heartMode)
+        let decision = decide(storedHeartMode: stored, introSeen: d.bool(forKey: ModeKeys.heartIntroSeen),
+                              onboardingDone: d.bool(forKey: "onboardingDone"),
+                              legacyDailyDiary: d.bool(forKey: ModeKeys.legacyDailyDiary),
+                              storedDelete: d.object(forKey: ModeKeys.heartDeleteFromRecorder) == nil
+                                  ? nil : d.bool(forKey: ModeKeys.heartDeleteFromRecorder),
+                              storedRetention: d.string(forKey: ModeKeys.heartAudioRetention).flatMap(AudioRetention.init(rawValue:)))
+        if decision == .alreadyOn { d.set(true, forKey: ModeKeys.heartIntroSeen) }
+        return decision
     }
 }
 
