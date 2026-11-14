@@ -66,7 +66,8 @@ struct DayDigest {
 
 // MARK: - 页面
 
-/// 「今天」：打开 OpenBean 就落在这一页。今天录了什么、每段在说什么、要做什么、还有什么没处理；可以前后翻天。
+/// 「今天」：心力模式页开着时的内容（HeartPage），心力模式下打开 OpenBean 就落在这一页。这一页只在心力模式里出现，设备都叫「心力豆」。
+/// 今天录了什么、每段在说什么、要做什么、还有什么没处理；可以前后翻天。
 /// 一天从凌晨 4 点算（设置里可改），和以后的每日日记共用 OpenBeanLibrary 的 DayBoundary。
 struct TodayView: View {
     let model: AppModel
@@ -122,9 +123,12 @@ struct TodayView: View {
 
     private func header(day: Date, today: Date) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(verbatim: day.formatted(.dateTime.year().month().day().weekday(.wide)) + " · "
-                 + String(localized: "starts at \(startLabel)"))
-                .font(.callout).foregroundStyle(.secondary)
+            HStack(spacing: 10) {
+                Text(verbatim: day.formatted(.dateTime.year().month().day().weekday(.wide)) + " · "
+                     + String(localized: "starts at \(startLabel)"))
+                    .font(.callout).foregroundStyle(.secondary)
+                HeartOnBadge()
+            }
             Text(title(day: day, today: today))
                 .font(.system(size: 28, weight: .bold))
                 .accessibilityAddTraits(.isHeader)
@@ -261,7 +265,7 @@ struct TodayView: View {
     private func emptyDay(day: Date, today: Date) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(day == today ? "No recordings yet today" : "No recordings on this day").font(.title3.weight(.semibold))
-            Text("Recordings from the recorder show up here by day after you sync them.")
+            Text("Recordings from the Heart bean show up here by day after you sync them.")
                 .foregroundStyle(.secondary)
             if let prev = DayDigest.previousDay(before: day, boundary: boundary, library: library) {
                 Button {
@@ -335,7 +339,7 @@ struct TodayRecordingBlock: View {
 
     private var status: String {
         if let p = library.transcribing[recording.id] { return String(localized: "Transcribing \(Int(p * 100))%") }
-        if !recording.downloaded { return String(localized: "Still on the recorder. It's transcribed after you sync it.") }
+        if !recording.downloaded { return String(localized: "Still on the Heart bean. It's transcribed after you sync it.") }
         if !recording.transcribed { return String(localized: "Not transcribed") }
         return library.snippet(recording.id) ?? String(localized: "No speech")
     }
@@ -343,7 +347,7 @@ struct TodayRecordingBlock: View {
 
 // MARK: - 设备一行
 
-/// 「今天」顶上的设备一行：平时很淡（名字 · 电量）；有事（没连上、电量低、录音豆上有新录音、正在同步）才变成提示
+/// 「今天」顶上的设备一行（心力模式里，叫心力豆）：平时很淡（名字 · 电量）；有事（没连上、电量低、录音豆上有新录音、正在同步）才变成提示
 struct TodayDeviceLine: View {
     let device: DeviceController
     let library: LibraryStore
@@ -368,21 +372,21 @@ struct TodayDeviceLine: View {
             let p = device.problem
             TodayCallout(icon: p?.symbol ?? "antenna.radiowaves.left.and.right.slash", tint: .orange) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(p?.title ?? String(localized: "The recorder isn't connected")).fontWeight(.medium)
-                    Text(p?.advice ?? String(localized: "Take the recorder out of its case to connect."))
+                    Text(p?.title ?? String(localized: "The Heart bean isn't connected")).fontWeight(.medium)
+                    Text(p?.advice ?? String(localized: "Take the Heart bean out of its case to connect."))
                         .foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                     if !pending.isEmpty {
-                        Text("\(pending.count) new recordings are on the recorder. Sync them once it connects.")
+                        Text("\(pending.count) new recordings are on the Heart bean. Sync them once it connects.")
                             .foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                     }
                 }
             } action: {
-                Button("Recorder details", action: openRecorder)
+                Button("Heart bean details", action: openRecorder)
             }
         } else if !pending.isEmpty {
             TodayCallout(icon: "arrow.down.circle", tint: .accentColor) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("\(pending.count) new recordings on the recorder").fontWeight(.medium)
+                    Text("\(pending.count) new recordings on the Heart bean").fontWeight(.medium)
                     if let s = library.pendingSyncSeconds {
                         Text("About \(SyncStatus.phrase(s)) over Bluetooth. Use Sync in the toolbar.").foregroundStyle(.secondary)
                     }
@@ -392,7 +396,7 @@ struct TodayDeviceLine: View {
         } else if let b = device.battery, b <= 20 {
             TodayCallout(icon: "battery.25percent", tint: .orange) {
                 Text("\(device.deviceName) battery is low (\(b)%). Put it back in its case to charge.")
-            } action: { Button("Recorder details", action: openRecorder) }
+            } action: { Button("Heart bean details", action: openRecorder) }
         } else {
             // 没事：很淡的一行
             Button(action: openRecorder) {
@@ -403,7 +407,7 @@ struct TodayDeviceLine: View {
                 .font(.callout).foregroundStyle(.secondary)
             }
             .buttonStyle(.plain)
-            .help("Show recorder details")
+            .help("Show Heart bean details")
         }
     }
 }
@@ -436,12 +440,12 @@ struct GettingStarted: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Getting started").font(.headline)
-            step(done: model.device.isReady, number: 1, title: "Connect your recorder",
+            step(done: model.device.isReady, number: 1, title: "Connect your Heart bean",
                  detail: "Take it out of its case. OpenBean finds it over Bluetooth.")
             step(done: !model.log.entries.isEmpty, number: 2, title: "Try voice typing",
-                 detail: "Press the recorder's button, speak, then press it again. The text goes where your cursor is.")
+                 detail: "Press the Heart bean's button, speak, then press it again. The text goes where your cursor is.")
             step(done: !model.library.recordings.allSatisfy(\.isDictation), number: 3, title: "Sync your first recording",
-                 detail: "Recordings made on the recorder come to this Mac and are transcribed here.")
+                 detail: "Recordings made on the Heart bean come to this Mac and are transcribed here.")
         }
     }
 

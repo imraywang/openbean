@@ -7,9 +7,13 @@ struct DeviceView: View {
     let device: DeviceController
     let dictation: Dictation
     let library: LibraryStore
+    let settings: Settings
     @State private var confirmForget = false
+    /// 心力模式开着时把设备叫「心力豆」
+    private var heart: Bool { settings.mode.callsDeviceHeartBean }
 
     var body: some View {
+        ScrollViewReader { proxy in
         Form {
             Section {
                 HStack(spacing: 14) {
@@ -50,7 +54,7 @@ struct DeviceView: View {
 
             if let i = device.info {
                 Section("Battery") {
-                    LabeledContent("Recorder", value: battery(device.battery ?? i.micBattery, charging: i.micCharging))
+                    LabeledContent(DeviceWord.title(heart: heart), value: battery(device.battery ?? i.micBattery, charging: i.micCharging))
                     LabeledContent("Charging case", value: battery(i.caseBattery, charging: i.caseCharging))
                 }
                 Section("Storage") {
@@ -74,10 +78,16 @@ struct DeviceView: View {
                         }
                         .disabled(!device.isReady)
                     }
-                    Text("Records on the recorder without voice typing — for meetings and notes. Sync it to the library afterwards.")
-                        .font(.caption).foregroundStyle(.secondary)
+                    Group {
+                        if heart {
+                            Text("Records on the Heart bean without voice typing — for meetings and notes. Sync it to the library afterwards.")
+                        } else {
+                            Text("Records on the recorder without voice typing — for meetings and notes. Sync it to the library afterwards.")
+                        }
+                    }
+                    .font(.caption).foregroundStyle(.secondary)
                 }
-                Section("About this recorder") {
+                Section(DeviceWord.pick(heart, "About this Heart bean", "About this recorder")) {
                     LabeledContent("Firmware", value: i.firmware)
                     LabeledContent("Case firmware", value: i.caseFirmware)
                     LabeledContent("Wi‑Fi firmware", value: i.wifiFirmware)
@@ -85,29 +95,43 @@ struct DeviceView: View {
                 }
             }
 
+            // 同步、清理的设置（原来在设置窗口的「录音库」「语音输入」里）
+            RecorderSettingsSections(settings: settings)
+
             Section {
                 // 没连上时「忘记」不该是页面上最显眼的按钮（它解决不了连接问题），收成说明下面的一个链接
                 if device.isReady {
-                    Button("Forget this recorder…", role: .destructive) { confirmForget = true }
+                    Button(DeviceWord.pick(heart, "Forget this Heart bean…", "Forget this recorder…"), role: .destructive) { confirmForget = true }
                 }
             } footer: {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("OpenBean never pairs, unbinds, resets or updates the recorder. It deletes a recording from the recorder only when you ask and that recording is safely on this Mac, or, after voice typing, the file it created for that dictation (see Settings).")
-                        .font(.caption).foregroundStyle(.secondary)
+                    if heart {
+                        Text("OpenBean never pairs, unbinds, resets or updates the Heart bean. It deletes a recording from the Heart bean only when you ask or Heart mode is set to, and that recording is safely on this Mac, or, after voice typing, the file it created for that dictation (see above).")
+                            .font(.caption).foregroundStyle(.secondary)
+                    } else {
+                        Text("OpenBean never pairs, unbinds, resets or updates the recorder. It deletes a recording from the recorder only when you ask and that recording is safely on this Mac, or, after voice typing, the file it created for that dictation (see above).")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
                     if !device.isReady {
-                        Button("Forget this recorder…") { confirmForget = true }
+                        Button(DeviceWord.pick(heart, "Forget this Heart bean…", "Forget this recorder…")) { confirmForget = true }
                             .buttonStyle(.link).font(.caption)
                     }
                 }
             }
         }
         .formStyle(.grouped)
+        .modifier(ScrollToSettingsAnchor(nav: AppModel.shared.nav, proxy: proxy))
+        }
         // 打开这页时读一次设备信息（和「刷新」一样），录音按钮按真实的录音状态显示
         .task { await device.refreshInfo() }
-        .confirmationDialog("Forget this recorder?", isPresented: $confirmForget) {
+        .confirmationDialog(DeviceWord.pick(heart, "Forget this Heart bean?", "Forget this recorder?"), isPresented: $confirmForget) {
             Button("Forget", role: .destructive) { device.forget() }
         } message: {
-            Text("OpenBean disconnects and searches again. Nothing on the recorder changes.")
+            if heart {
+                Text("OpenBean disconnects and searches again. Nothing on the Heart bean changes.")
+            } else {
+                Text("OpenBean disconnects and searches again. Nothing on the recorder changes.")
+            }
         }
     }
 
@@ -120,7 +144,9 @@ struct DeviceView: View {
             case .idle: return String(localized: "Connected")
             }
         case .connecting: return String(localized: "Connecting…")
-        case .idle, .searching: return String(localized: "Searching… Take the recorder out of its case.")
+        case .idle, .searching:
+            return heart ? String(localized: "Searching… Take the Heart bean out of its case.")
+                         : String(localized: "Searching… Take the recorder out of its case.")
         case .failed: return String(localized: "Not connected · OpenBean keeps trying")
         }
     }

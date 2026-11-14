@@ -2,6 +2,7 @@
 
 import AppKit
 import OpenBeanKit
+import OpenBeanLibrary
 import SwiftUI
 
 @MainActor
@@ -78,10 +79,14 @@ final class AppModel {
         _ = updater
     }
 
-    /// 主窗口打开回调（由 MainView 登记，用于 openbean://open）
+    /// 主窗口打开回调（菜单栏菜单第一次渲染时登记，用于 openbean://open、settings）
     var openMain: (() -> Void)?
-    /// 设置窗口打开回调（菜单栏菜单第一次渲染时登记，用于 ⌘, 和 openbean://settings）
-    var openSettings: (() -> Void)?
+
+    /// 打开主窗口里的某处设置（设置不再是独立窗口：各模块的设置在各自的页面里，通用的在侧栏底部的「设置」页）
+    func openSettings(_ route: SettingsRoute = .general(.top)) {
+        nav.open(route)
+        openMain?()
+    }
 
     func handle(_ url: URL) {
         guard let scheme = url.scheme, Flavor.schemes.contains(scheme) else { return }
@@ -101,11 +106,10 @@ final class AppModel {
             nav.goHome(settings.mode)
             openMain?()
         case "settings":
-            openSettings?()
+            openSettings()
         case let p where p.hasPrefix("settings/"):
-            // openbean://settings/heart|voice|polish|library|agent|about（models 是 about 的旧名）
-            if let tab = SettingsTab(link: String(p.dropFirst(9))) { nav.settingsTab = tab }
-            openSettings?()
+            // openbean://settings/heart|voice|polish|recorder|library|agent|about（老的设置窗口分页名换到新位置，见 SettingsRoute）
+            openSettings(SettingsRoute(link: String(p.dropFirst(9))) ?? .general(.top))
         case let p where p.hasPrefix("summarize/"):
             // openbean://summarize/<录音 id>：摘要（或重新摘要）一条已转写的录音
             if let id = UInt32(p.dropFirst(10)), let r = library.recordings.first(where: { $0.id == id }),
@@ -162,10 +166,6 @@ struct OpenBeanApp: App {
         }
         .windowResizability(.contentSize)
         .defaultLaunchBehavior(model.settings.onboardingDone ? .suppressed : .presented)
-
-        SwiftUI.Settings {
-            SettingsWindow(model: model)
-        }
 
         #if DEMO
         // 演示版：启动时开一个小窗口拿到 openWindow（菜单栏菜单没人点开就拿不到），也用来把菜单内容画成普通窗口
@@ -233,15 +233,13 @@ final class Delegate: NSObject, NSApplicationDelegate {
     }
 }
 
-/// 菜单栏菜单第一次渲染时登记「打开主窗口」「打开设置」的方法（链接 openbean://open、settings 用）
+/// 菜单栏菜单第一次渲染时登记「打开主窗口」的方法（链接 openbean://open、settings 用）
 private struct OpenWindowBinder: View {
     let model: AppModel
     @Environment(\.openWindow) private var openWindow
-    @Environment(\.openSettings) private var openSettings
     var body: some View {
         Color.clear.frame(width: 0, height: 0).onAppear {
             model.openMain = { openWindow(id: "main"); bringToFront("main") }
-            model.openSettings = { openSettings(); bringSettingsToFront() }
         }
     }
 }
@@ -273,14 +271,11 @@ struct MenuIcon: View {
 struct MenuContent: View {
     let model: AppModel
     @Environment(\.openWindow) private var openWindow
-    @Environment(\.openSettings) private var openSettings
 
     var body: some View {
         let d = model.device, dict = model.dictation, s = model.settings
         Text(deviceLine(d))
             .background(OpenWindowBinder(model: model))
-        // 心力模式开着时标一下（不抢眼：一行灰字，菜单里的普通文字行本来就是灰的）
-        if s.mode.heartMode { Text("♡ Heart mode") }
         if let e = dict.lastError { Text("⚠︎ \(e)") }
         if model.models.state != .ready { Text("Speech models not downloaded") }
         Divider()
@@ -299,7 +294,7 @@ struct MenuContent: View {
         Divider()
         Button("Open OpenBean") { model.nav.goHome(s.mode); open("main") }
             .keyboardShortcut("o")
-        Button("Settings…") { openSettings(); bringSettingsToFront() }
+        Button("Settings…") { model.nav.open(.general(.top)); open("main") }
             .keyboardShortcut(",")
         if !s.onboardingDone { Button("Set up…") { open("onboarding") } }
         Button("Check for Updates…") { model.updater.check() }
@@ -316,7 +311,9 @@ struct MenuContent: View {
 
     private func deviceLine(_ d: DeviceController) -> String {
         switch d.state {
-        case .idle, .searching: return String(localized: "Looking for your recorder…")
+        case .idle, .searching:
+            return model.settings.mode.callsDeviceHeartBean ? String(localized: "Looking for your Heart bean…")
+                                                            : String(localized: "Looking for your recorder…")
         case .connecting: return String(localized: "Connecting…")
         case .ready:
             let b = d.battery.map { String(localized: " · battery \($0)%") } ?? ""
