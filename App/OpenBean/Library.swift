@@ -80,10 +80,11 @@ final class LibraryStore {
         var id: String { rawValue }
         /// 侧栏里的二级项（不含「全部」：点「录音」本身就是全部）
         static let actionable: [Filter] = [.onRecorder, .untranscribed, .todos]
-        var label: LocalizedStringKey {
+        /// heart：心力模式开着时把设备叫「心力豆」
+        func label(heart: Bool) -> LocalizedStringKey {
             switch self {
             case .all: return "Library"
-            case .onRecorder: return "On recorder"
+            case .onRecorder: return DeviceWord.pick(heart, "On Heart bean", "On recorder")
             case .untranscribed: return "Not transcribed"
             case .todos: return "Has to-dos"
             }
@@ -109,6 +110,14 @@ final class LibraryStore {
     let notes: NoteService
     /// 按停顿切的对话段（segments.json）
     let conversations = ConversationStore()
+    /// 心力模式下一次同步的进度（心力模式页顶上的四步条、结束时的通知）
+    let progress = SyncProgress()
+    /// 这次同步按开始时的设置算：转写、写日记、从设备删除、本机音频保留
+    private var runOptions: SyncRun.Options {
+        let m = settings.mode
+        return SyncRun.Options(autoTranscribe: settings.autoTranscribe, writesDiary: m.writesDiary,
+                               deletesFromRecorder: m.deletesFromRecorderAfterSync, audioRetention: m.audioRetention)
+    }
     private let work = DispatchQueue(label: "openbean.library", qos: .userInitiated)
     private var resumeAfterDictation = false
     /// syncAll 正在跑（防止手动和自动同步叠在一起）
@@ -141,6 +150,7 @@ final class LibraryStore {
         load()
         notes.library = self
         conversations.library = self
+        notes.onDiaryResult = { [weak self] id, r in self?.progress.diary(id, r) }
     }
 
     var visible: [Recording] { recordings.filter { includes($0, in: filter) } }
@@ -359,6 +369,10 @@ final class LibraryStore {
         guard !pending.isEmpty else { sync = .idle; return }
         guard device.beginSync(), let s = device.session else { return }
         defer { device.endSync() }
+        // 心力模式：四步条从这里开始（让给语音输入后接着下时并进同一次）；改用 Wi‑Fi 时由 Wi‑Fi 那边接着报
+        let tracked = settings.mode.heartMode
+        if tracked { progress.begin(pending.map(\.id), options: runOptions) }
+        defer { if tracked && sync != .paused && !wifiSwitchRequested { progress.downloadEnded() } }
         // 接电源时下载期间不睡；合盖、用电池时系统照样会睡，醒来后这次下载按「Mac 睡眠」中断，重连后再试
         let activity = ProcessInfo.processInfo.beginActivity(options: [.idleSystemSleepDisabled, .userInitiated],
                                                              reason: "Downloading recordings from the recorder")
@@ -406,7 +420,9 @@ final class LibraryStore {
                     lastFailureLong = estimate(durationMs: r.durationMs, rate: known) > SyncPolicy.longFile
                     // 连接没了（断开、Mac 睡过）：后面的也下不了，等重连
                     if result.stop == .disconnected || result.stop == .clockJump || result.stop == .cancelled {
-                        sync = .failed(String(localized: "The connection dropped. Sync continues when the recorder reconnects."))
+                        sync = .failed(settings.mode.callsDeviceHeartBean
+                                       ? String(localized: "The connection dropped. Sync continues when the Heart bean reconnects.")
+                                       : String(localized: "The connection dropped. Sync continues when the recorder reconnects."))
                         return
                     }
                 }
@@ -457,7 +473,10 @@ final class LibraryStore {
                 $0.audioDeletedAt = nil
             }
             // 心力模式同步后自动从设备删除：只认这次同步下载、校验完整（没有补静音）的
-            if source == .heart { syncedThisRun[id] = (result.check.verdict == .complete && written.filled == 0) }
+            if source == .heart {
+                syncedThisRun[id] = (result.check.verdict == .complete && written.filled == 0)
+                progress.downloaded(id)
+            }
             Log.write("已下载 \(id)（\(result.receivedBytes / 1024) KB，\(Int(result.seconds)) 秒，\(via)）"
                       + (written.filled > 0 ? "，缺 \(written.filled) 片已补静音" : ""))
             if settings.autoTranscribe { Task { await transcribe(id) } }
@@ -538,6 +557,7 @@ final class LibraryStore {
 
     private func pauseForDictation() {
         sync = .paused
+        progress.downloadPaused()
         resumeAfterDictation = true
         Log.write("同步让给听写")
     }
@@ -636,9 +656,14 @@ final class LibraryStore {
     /// DeletePolicy（本机音频完整解码、时长核对、设备没在录音、连接空闲）。任何一项不过就不删，写日志
     private func cleanUpRecorder() async {
         let mode = settings.mode
-        for (id, complete) in syncedThisRun.sorted(by: { $0.key < $1.key }) {
-            guard let r = recordings.first(where: { $0.id == id }) else { syncedThisRun[id] = nil; continue }
-            guard r.onDevice else { syncedThisRun[id] = nil; continue }
+        let queue = syncedThisRun.sorted(by: { $0.key < $1.key })
+        // 连接正忙：这条和后面还没轮到的都等下次（四步条上显示「等心力豆空出来」）
+        func busy(from i: Int) {
+            for (id, _) in queue[i...] { progress.cleanUp(id, .busy) }
+        }
+        for (i, (id, complete)) in queue.enumerated() {
+            guard let r = recordings.first(where: { $0.id == id }) else { syncedThisRun[id] = nil; progress.cleanUp(id, .gone); continue }
+            guard r.onDevice else { syncedThisRun[id] = nil; progress.cleanUp(id, .gone); continue }
             if let refusal = RecorderCleanupPolicy.check(mode: mode, source: r.recordingSource, downloadedThisSync: true,
                                                          downloadComplete: complete,
                                                          transcriptExists: r.transcribed && FileManager.default.fileExists(atPath: transcriptURL(id).path)) {
@@ -648,21 +673,25 @@ final class LibraryStore {
                 default:
                     Log.write("心力模式：\(id) 不从设备删除：\(refusal)")
                     syncedThisRun[id] = nil
+                    progress.cleanUp(id, .kept)
                     continue
                 }
             }
             // 连接忙（同步、语音输入、别的删除）：留着，下次同步结束或转写完再试
-            guard recorderIdle else { Log.write("心力模式：\(id) 暂不从设备删除：连接正忙，稍后再试"); return }
+            guard recorderIdle else { Log.write("心力模式：\(id) 暂不从设备删除：连接正忙，稍后再试"); busy(from: i); return }
             do {
                 try await deleteOneFromRecorder(id)
                 Log.write("心力模式：同步并转写完成，已从设备删除 \(id)")
                 syncedThisRun[id] = nil
+                progress.cleanUp(id, .deleted)
             } catch DeleteError.refused(.busy) {
                 Log.write("心力模式：\(id) 暂不从设备删除：连接正忙，稍后再试")
+                busy(from: i)
                 return
             } catch {
                 Log.write("心力模式：\(id) 不从设备删除：\(error)")
                 syncedThisRun[id] = nil
+                progress.cleanUp(id, .kept)
             }
         }
     }
@@ -775,6 +804,9 @@ final class LibraryStore {
         let targets = recordings.filter { ids.contains($0.id) && $0.onDevice && !$0.downloaded }
         guard !targets.isEmpty, device.beginSync(), let s = device.session else { return }
         defer { device.endSync() }
+        let tracked = settings.mode.heartMode
+        if tracked { progress.begin(targets.map(\.id), options: runOptions) }
+        defer { if tracked { progress.downloadEnded() } }
         let activity = ProcessInfo.processInfo.beginActivity(options: [.idleSystemSleepDisabled, .userInitiated],
                                                              reason: "Downloading recordings over Wi‑Fi")
         defer { ProcessInfo.processInfo.endActivity(activity) }
@@ -825,12 +857,14 @@ final class LibraryStore {
             if let d = try? JSONEncoder().encode(segs) { try? d.write(to: transcriptURL(id), options: .atomic) }
             update(id) { $0.transcribed = true }
             Log.write("已转写 \(id)：\(segs.count) 句")
+            progress.transcribed(id, ok: true)
             // 先切段再写笔记：笔记按段分节
             conversations.refresh(id)
             notes.afterTranscription(id)
             Task { await afterSyncHousekeeping() }
         case let .failure(e):
             Log.write("转写失败 \(id)：\(e)")
+            progress.transcribed(id, ok: false)
         }
     }
 

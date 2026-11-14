@@ -11,6 +11,8 @@
 //   select/summary|untranscribed|ondevice|long|segmented|none   search/<词>   filter/all|onRecorder|untranscribed|todos
 //   play/<秒>|off   todo/check|clear   onboarding/<0–4>   close/onboarding|main|settings   window/main|onboarding/<宽>x<高>   appearance/light|dark|auto
 //   trusted/yes|no   models/ready|missing|downloading   menu/open   ping   quit
+//   sync/downloading|transcribing|diary|llm-down|cleanup-busy|cleaned|failed|finished|finished-expanded|none（心力模式页的四步条）
+//   heart-intro/<0–3>|diary（心力模式介绍的各步；diary = 以前开着每日日记的人看到的第一步）
 // 数据档：启动参数 -demoProfile empty 用空数据目录 openbean-demo-empty（第一次用：空库、没连过设备、向导未完成）。
 // Debug 构建里也编进来：Xcode 预览（Previews.swift）用同一套假数据，见 Flavor.isPreview。
 #if DEMO || DEBUG
@@ -29,6 +31,9 @@ final class DemoState {
     var query = ""
     /// 向导停在第几步
     var onboardingStep = 0
+    /// 心力模式介绍停在第几步；以前开着每日日记的人看到的版本
+    var heartIntroStep = 0
+    var heartIntroDiary = false
     /// 详情页假装正在播放到第几秒（nil：没在播放）
     var playAt: Double?
     /// 假装已经有辅助功能权限
@@ -59,7 +64,8 @@ enum DemoData {
             "autoSync": true, "autoTranscribe": true, "buttonDictates": true, "readySound": true, "keepHistory": true,
             "hotkey": Hotkey.Preset.optionSpace.rawValue, "paragraphGap": 2.5, "sentencePause": 0.8,
             "deleteDictationAudio": true, "diaryFolder": "",
-            ModeKeys.heartMode: !empty, ModeKeys.heartRecordingNotes: false, ModeKeys.heartDeleteFromRecorder: true,
+            ModeKeys.heartMode: !empty, ModeKeys.heartIntroSeen: !empty,
+            ModeKeys.heartRecordingNotes: false, ModeKeys.heartDeleteFromRecorder: true,
             ModeKeys.heartAudioRetention: AudioRetention.default.rawValue, ModeKeys.heartAgentTranscripts: false,
         ]
         for (k, v) in values { d.set(v, forKey: k) }
@@ -641,6 +647,12 @@ final class DemoController {
             DemoState.shared.onboardingStep = Int(arg) ?? 0
             openWindow?(id: "onboarding")
             bringToFront("onboarding")
+        case "heart-intro":
+            // heart-intro/<0–3>；heart-intro/diary = 第一步，以前开着每日日记的人看到的版本
+            DemoState.shared.heartIntroDiary = arg == "diary"
+            DemoState.shared.heartIntroStep = Int(arg) ?? 0
+            openWindow?(id: "heart-intro")
+            bringToFront("heart-intro")
         case "close":
             window(arg)?.close()
             delay = 0.4
@@ -649,6 +661,13 @@ final class DemoController {
             delay = 0.6
         case "appearance":
             NSApp.appearance = arg == "dark" ? NSAppearance(named: .darkAqua) : arg == "light" ? NSAppearance(named: .aqua) : nil
+        case "sync":
+            // sync/<名字>：心力模式页顶上的四步条（见 DemoSyncRun.names；sync/none 不显示）
+            DemoSyncRun.apply(arg, to: m.library.progress)
+            m.nav.section = .heart
+            m.nav.day = nil
+            m.nav.showingSettings.remove(.heart)
+            openMain()
         case "trusted": DemoState.shared.trusted = arg != "no"
         case "models":
             m.models.demoSet(arg == "missing" ? .missing : arg == "downloading" ? .downloading(0.42) : .ready)
@@ -802,7 +821,7 @@ final class DemoController {
     /// 告诉截图脚本：第 seq 条命令处理完了，以及各窗口的窗口号（= CGWindowID）
     private func ack(_ seq: String) {
         var windows: [String: Int] = [:]
-        for role in ["main", "onboarding", "hud", "demo"] {
+        for role in ["main", "onboarding", "heart-intro", "hud", "demo"] {
             if let w = window(role), w.isVisible { windows[role] = w.windowNumber }
         }
         var body: [String: Any] = ["seq": seq, "pid": Int(ProcessInfo.processInfo.processIdentifier), "windows": windows]

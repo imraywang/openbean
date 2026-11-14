@@ -4,6 +4,7 @@ import AppKit
 import OpenBeanKit
 import OpenBeanLibrary
 import SwiftUI
+import UserNotifications
 
 @MainActor
 final class AppModel {
@@ -62,6 +63,8 @@ final class AppModel {
             guard let self else { return }
             Hotkey.shared.register(self.settings.hotkeyKey)
         }
+        // 心力模式同步结束的通知：点了打开心力模式页
+        if Notifier.enabled { UNUserNotificationCenter.current().delegate = NotificationOpener.shared }
         device.start()
         hud.start()
         glossaryBackfill.start()
@@ -166,6 +169,14 @@ struct OpenBeanApp: App {
         }
         .windowResizability(.contentSize)
         .defaultLaunchBehavior(model.settings.onboardingDone ? .suppressed : .presented)
+
+        // 心力模式介绍：已经用过 OpenBean 的人升级后第一次启动时出现；新装的人在首次使用向导之后出现（OnboardingView）；
+        // 心力模式页关着时也可以从那里打开
+        Window("Heart mode", id: "heart-intro") {
+            HeartIntroView(model: model)
+        }
+        .windowResizability(.contentSize)
+        .defaultLaunchBehavior(model.settings.onboardingDone && model.settings.heartIntroPending ? .presented : .suppressed)
 
         #if DEMO
         // 演示版：启动时开一个小窗口拿到 openWindow（菜单栏菜单没人点开就拿不到），也用来把菜单内容画成普通窗口

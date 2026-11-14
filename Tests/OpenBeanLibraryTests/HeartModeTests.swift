@@ -4,32 +4,55 @@
 import XCTest
 
 final class HeartModeTests: XCTestCase {
-    // MARK: 迁移
+    // MARK: 心力模式介绍（替代静默迁移）
 
-    func testMigrationTurnsHeartModeOnForDiaryUsers() {
-        XCTAssertEqual(HeartMigration.heartMode(stored: nil, legacyDailyDiary: true), true)
+    func testFreshInstallSeesIntroAfterOnboardingWithDefaults() {
+        XCTAssertEqual(HeartIntro.decide(storedHeartMode: nil, introSeen: false, onboardingDone: false, legacyDailyDiary: false),
+                       .show(.afterOnboarding, HeartIntro.Prefill(deleteFromRecorder: true, audioRetention: .sevenDays, hadDailyDiary: false)))
     }
 
-    func testMigrationWritesOffOnceForOthers() {
-        XCTAssertEqual(HeartMigration.heartMode(stored: nil, legacyDailyDiary: false), false)
+    func testExistingUserSeesIntroAtLaunch() {
+        XCTAssertEqual(HeartIntro.decide(storedHeartMode: nil, introSeen: false, onboardingDone: true, legacyDailyDiary: false),
+                       .show(.atLaunch, HeartIntro.Prefill()))
     }
 
-    func testMigrationNeverOverridesAChoice() {
-        XCTAssertNil(HeartMigration.heartMode(stored: false, legacyDailyDiary: true))
-        XCTAssertNil(HeartMigration.heartMode(stored: true, legacyDailyDiary: false))
-    }
-
-    func testMigrationOnUserDefaults() throws {
+    func testDiaryUserSeesIntroPrefilledButNothingTurnsOn() throws {
+        XCTAssertEqual(HeartIntro.decide(storedHeartMode: nil, introSeen: false, onboardingDone: true, legacyDailyDiary: true),
+                       .show(.atLaunch, HeartIntro.Prefill(deleteFromRecorder: true, audioRetention: .sevenDays, hadDailyDiary: true)))
         let name = "openbean-test-\(UUID().uuidString)"
         let d = try XCTUnwrap(UserDefaults(suiteName: name))
         defer { d.removePersistentDomain(forName: name) }
         d.set(true, forKey: ModeKeys.legacyDailyDiary)
-        XCTAssertEqual(HeartMigration.run(d), true)
+        d.set(true, forKey: "onboardingDone")
+        guard case .show(.atLaunch, let p) = HeartIntro.run(d) else { return XCTFail("应该看到介绍") }
+        XCTAssertTrue(p.hadDailyDiary)
+        XCTAssertNil(d.object(forKey: ModeKeys.heartMode), "介绍之前不写心力模式开关")
+        XCTAssertFalse(ModeDefaults(defaults: d).heartMode, "旧的日记开关不再自动打开心力模式")
+        XCTAssertFalse(d.bool(forKey: ModeKeys.heartIntroSeen))
+    }
+
+    func testPrefillKeepsStoredChoices() {
+        XCTAssertEqual(HeartIntro.decide(storedHeartMode: false, introSeen: false, onboardingDone: true, legacyDailyDiary: false,
+                                         storedDelete: false, storedRetention: .forever),
+                       .show(.atLaunch, HeartIntro.Prefill(deleteFromRecorder: false, audioRetention: .forever)))
+    }
+
+    func testAlreadyOnStaysOnAndIsNotAsked() throws {
+        XCTAssertEqual(HeartIntro.decide(storedHeartMode: true, introSeen: false, onboardingDone: true, legacyDailyDiary: true), .alreadyOn)
+        let name = "openbean-test-\(UUID().uuidString)"
+        let d = try XCTUnwrap(UserDefaults(suiteName: name))
+        defer { d.removePersistentDomain(forName: name) }
+        d.set(true, forKey: ModeKeys.heartMode)
+        XCTAssertEqual(HeartIntro.run(d), .alreadyOn)
         XCTAssertTrue(ModeDefaults(defaults: d).heartMode)
-        // 用户之后关掉：再启动不会被旧开关改回去
+        XCTAssertTrue(d.bool(forKey: ModeKeys.heartIntroSeen), "以后关掉再启动也不会自动弹介绍")
         d.set(false, forKey: ModeKeys.heartMode)
-        XCTAssertNil(HeartMigration.run(d))
-        XCTAssertFalse(ModeDefaults(defaults: d).heartMode)
+        XCTAssertEqual(HeartIntro.run(d), .seen)
+    }
+
+    func testSeenIntroIsNotShownAgain() {
+        XCTAssertEqual(HeartIntro.decide(storedHeartMode: false, introSeen: true, onboardingDone: true, legacyDailyDiary: true), .seen)
+        XCTAssertEqual(HeartIntro.decide(storedHeartMode: nil, introSeen: true, onboardingDone: false, legacyDailyDiary: false), .seen)
     }
 
     func testDefaultsReadFromEmptyPreferences() throws {
@@ -48,7 +71,7 @@ final class HeartModeTests: XCTestCase {
 
     func testNormalModeKeepsExistingSettings() {
         let m = ModeDefaults(heartMode: false, autoSyncSetting: false, notesSetting: true, heartRecordingNotes: false)
-        XCTAssertEqual(m.landing, .library)
+        XCTAssertEqual(m.landing, .today, "关着时也落在心力模式页")
         XCTAssertFalse(m.autoSync)
         XCTAssertFalse(m.autoSyncLocked)
         XCTAssertFalse(m.writesDiary)

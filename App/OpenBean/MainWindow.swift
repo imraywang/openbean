@@ -52,7 +52,7 @@ final class Navigator {
     /// 刚从别处跳过来的录音：那一行亮一下，提示「你在这」
     var flash: UInt32?
 
-    /// 回到首页：心力模式开着落在心力模式页（今天），关着落在录音库（ModeDefaults.landing）
+    /// 回到首页：两种模式都落在心力模式页（开着是今天，关着是介绍心力模式的空状态；ModeDefaults.landing）
     func goHome(_ mode: ModeDefaults) {
         section = mode.landing == .today ? .heart : .library
         showingSettings.remove(.heart)
@@ -199,7 +199,7 @@ struct NavSidebar: View {
                 if s == .library {
                     DisclosureGroup(isExpanded: $libraryExpanded) {
                         ForEach(LibraryStore.Filter.actionable) { f in
-                            Label(f.label, systemImage: f.icon)
+                            Label(f.label(heart: heart), systemImage: f.icon)
                                 .badge(library.count(f))
                                 .tag(SidebarTag.filter(f))
                         }
@@ -440,7 +440,7 @@ struct LibraryPage: View {
         #if DEMO || DEBUG
         .onChange(of: DemoState.shared.query, initial: true) { _, q in query = q }
         #endif
-        .navigationTitle(library.filter.label)
+        .navigationTitle(library.filter.label(heart: library.settings.mode.callsDeviceHeartBean))
         .onAppear {
             // 第一次进来默认选最近一条
             if library.selection == nil { library.selection = library.visible.first?.id }
