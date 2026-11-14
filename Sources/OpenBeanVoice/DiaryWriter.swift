@@ -25,8 +25,12 @@ public struct DiaryWriter: Sendable {
         public var summary: ConversationSummary?
         /// 这段转写有多少字
         public var chars: Int
+        /// 用户在这段里做的重点标记：每个标记处的原话（标记那句和前后各一句）
+        public var marks: [String]
 
-        public init(ref: ConversationRef, wallStart: Date, wallEnd: Date, kind: String?, summary: ConversationSummary?, chars: Int) {
+        public init(ref: ConversationRef, wallStart: Date, wallEnd: Date, kind: String?, summary: ConversationSummary?, chars: Int,
+                    marks: [String] = []) {
+            self.marks = marks
             self.ref = ref
             self.wallStart = wallStart
             self.wallEnd = wallEnd
@@ -76,6 +80,8 @@ public struct DiaryWriter: Sendable {
     when no name is given; never a pronoun or a role (speaker, manager, 发言人, 店长).
     - Put each item in only one list: an action someone will do is a to-do; otherwise it is a decision. Never list the \
     same thing in both.
+    - A conversation with "Marked by the user" has moments the user marked as important on the recorder. Mention \
+    what was said there in the overview.
     Only use what is in the summaries. Never add an item that is not in them, and never leave refs empty.
     """
 
@@ -168,6 +174,8 @@ public struct DiaryWriter: Sendable {
         var t = "[\(label) \(f.string(from: i.wallStart))–\(f.string(from: i.wallEnd))] \(s.title)\nSummary: \(s.summary)"
         if !s.decisions.isEmpty { t += "\nDecisions:\n" + s.decisions.map { "- \($0)" }.joined(separator: "\n") }
         if !s.todos.isEmpty { t += "\nTo-dos:\n" + s.todos.map { "- \($0)" }.joined(separator: "\n") }
+        // 用户在这里做了重点标记：把标记处的原话一起给模型
+        if !i.marks.isEmpty { t += "\nMarked by the user as important:\n" + i.marks.map { "- \"\($0)\"" }.joined(separator: "\n") }
         return t
     }
 

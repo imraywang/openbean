@@ -91,7 +91,9 @@ public final class LibraryTools: @unchecked Sendable {
                   "limit": ["type": "integer", "minimum": 1, "maximum": 100, "default": 20, "description": "Maximum number of recordings to return (default 20)."]]),
             tool("get_recording", "Get a recording",
                  "Get one recording: start time, duration, title, its LLM-written summary with key points and action items (if it has one), "
-                 + "the path of the Markdown note OpenBean saved for it (if any), the size of its transcript and a link that opens it in OpenBean. "
+                 + "the path of the Markdown note OpenBean saved for it (if any), the size of its transcript, "
+                 + "the moments the user marked as important on the recorder (seconds from the start; read around them with get_transcript) "
+                 + "and a link that opens it in OpenBean. "
                  + "Does not include the transcript itself; use get_transcript for that.",
                  ["id": id], required: ["id"]),
             tool("get_transcript", "Read a transcript",
@@ -204,6 +206,32 @@ public final class LibraryTools: @unchecked Sendable {
         } else {
             lines.append("No summary.")
             o["summary"] = .null
+        }
+        // 重点标记：用户在录音豆上双击标出的时刻（先敲后说：要说的话一般在标记后一两秒）
+        if let marks = library.marks(r.id) {
+            let convs = library.conversations(r.id)
+            let spans = transcript.value?.map { (start: $0.start, end: $0.end) } ?? []
+            func conversation(_ m: Double) -> Conversation? {
+                guard let i = MarkPlacement.line(for: m, spans: spans) else { return nil }
+                return convs.first { $0.lines.contains(i) }
+            }
+            lines.append("")
+            if marks.isEmpty {
+                lines.append("Marks: none.")
+            } else {
+                lines.append("Marks (moments the user marked as important on the recorder; what they said usually follows within a second or two):")
+                lines += marks.map { m in
+                    "- \(clock(m)) (\(localDateTime(r.start.addingTimeInterval(m))))" + (conversation(m).map { ", conversation \($0.index)" } ?? "")
+                }
+            }
+            o["marks"] = .array(marks.map { m in
+                var mo: [String: JSON] = ["seconds": .double(m), "time": .string(iso(r.start.addingTimeInterval(m)))]
+                mo["conversation"] = conversation(m).map { .int($0.index) } ?? .null
+                return .object(mo)
+            })
+        } else {
+            // 没有 marks.json：加这个功能之前下载的，不知道有没有标记
+            o["marks"] = .null
         }
         lines.append("")
         let note = library.notePath(r.id)

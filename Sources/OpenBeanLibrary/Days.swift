@@ -68,10 +68,13 @@ public struct DayFile: Codable, Sendable, Hashable {
     public var createdAt: Date
     /// 这次生成用了几次大模型、多少秒，丢掉了几条出处对不上的结论
     public var stats: DayStats?
+    /// 当天的重点标记，按时刻排（代码从段和转写摘出来，不经大模型；内容太少、不写概述的日子也有）
+    public var marks: [DiaryMark]
 
     public init(version: Int = DayFile.currentVersion, date: String, timeZone: String, dayStartHour: Int, signature: String,
                 status: Status, conversations: [DayConversation], diary: Diary?, model: String?, createdAt: Date,
-                stats: DayStats? = nil) {
+                stats: DayStats? = nil, marks: [DiaryMark] = []) {
+        self.marks = marks
         self.version = version
         self.date = date
         self.timeZone = timeZone
@@ -86,7 +89,7 @@ public struct DayFile: Codable, Sendable, Hashable {
     }
 
     enum Keys: String, CodingKey {
-        case version, date, timeZone, dayStartHour, signature, status, conversations, diary, model, createdAt, stats
+        case version, date, timeZone, dayStartHour, signature, status, conversations, diary, model, createdAt, stats, marks
     }
 
     public init(from decoder: Decoder) throws {
@@ -102,6 +105,7 @@ public struct DayFile: Codable, Sendable, Hashable {
         model = try? c.decodeIfPresent(String.self, forKey: .model)
         createdAt = ISODate.decode(c, .createdAt) ?? .distantPast
         stats = try? c.decodeIfPresent(DayStats.self, forKey: .stats)
+        marks = ((try? c.decodeIfPresent([Lenient<DiaryMark>].self, forKey: .marks)) ?? []).compactMap(\.value)
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -117,6 +121,7 @@ public struct DayFile: Codable, Sendable, Hashable {
         try c.encode(model, forKey: .model)
         try c.encode(ISODate.string(createdAt), forKey: .createdAt)
         try c.encodeIfPresent(stats, forKey: .stats)
+        if !marks.isEmpty { try c.encode(marks, forKey: .marks) }
     }
 
     // MARK: 文件
@@ -216,20 +221,17 @@ public struct Diary: Codable, Sendable, Hashable {
     /// 提到的人：名字照转写写，不合并不同写法；refs 是出现在哪几段
     public var people: [DiaryName]
     public var things: [DiaryName]
-    /// 重点标记（录音豆的标记还读不出来，先空着）
-    public var marked: [DiaryMark]
 
     public init(overview: String? = nil, decisions: [DiaryItem] = [], todos: [DiaryItem] = [], people: [DiaryName] = [],
-                things: [DiaryName] = [], marked: [DiaryMark] = []) {
+                things: [DiaryName] = []) {
         self.overview = overview
         self.decisions = decisions
         self.todos = todos
         self.people = people
         self.things = things
-        self.marked = marked
     }
 
-    enum Keys: String, CodingKey { case overview, decisions, todos, people, things, marked }
+    enum Keys: String, CodingKey { case overview, decisions, todos, people, things }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: Keys.self)
@@ -239,7 +241,6 @@ public struct Diary: Codable, Sendable, Hashable {
         todos = list(.todos)
         people = list(.people)
         things = list(.things)
-        marked = list(.marked)
     }
 }
 
@@ -284,13 +285,60 @@ public struct DiaryName: Codable, Sendable, Hashable {
     }
 }
 
+/// 一个重点标记：在哪段对话、什么时刻，和标记那句前后的原话（转写，不经大模型）
 public struct DiaryMark: Codable, Sendable, Hashable {
     public var ref: ConversationRef
     /// 秒，相对录音开头
     public var at: Double
-    public init(ref: ConversationRef, at: Double) {
+    /// 墙上时间（录音开始时刻 + at）
+    public var wall: Date
+    /// 墙上时间只是近似（录音中途暂停过）
+    public var wallApprox: Bool
+    /// 标记那句和前后各一句
+    public var quote: [String]
+
+    public init(ref: ConversationRef, at: Double, wall: Date, wallApprox: Bool = false, quote: [String] = []) {
         self.ref = ref
         self.at = at
+        self.wall = wall
+        self.wallApprox = wallApprox
+        self.quote = quote
+    }
+
+    enum Keys: String, CodingKey { case ref, at, wall, wallApprox, quote }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: Keys.self)
+        ref = try c.decode(ConversationRef.self, forKey: .ref)
+        at = (try? c.decodeIfPresent(Double.self, forKey: .at)) ?? 0
+        wall = ISODate.decode(c, .wall) ?? .distantPast
+        wallApprox = (try? c.decodeIfPresent(Bool.self, forKey: .wallApprox)) ?? false
+        quote = ((try? c.decodeIfPresent([Lenient<String>].self, forKey: .quote)) ?? []).compactMap(\.value)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: Keys.self)
+        try c.encode(ref, forKey: .ref)
+        try c.encode(at, forKey: .at)
+        try c.encode(ISODate.string(wall), forKey: .wall)
+        try c.encode(wallApprox, forKey: .wallApprox)
+        try c.encode(quote, forKey: .quote)
+    }
+
+    /// 一条录音里这些段的标记，按时刻排。`spans` 和 `texts` 是这条录音的转写（每句的起止、文字），
+    /// 用来找标记落在哪句、摘前后各一句；对不上（转写变了还没重算段）时只有时刻
+    public static func collect(recording: UInt32, recordingStart: Date, conversations: [Conversation],
+                               spans: [(start: Double, end: Double)], texts: [String]) -> [DiaryMark] {
+        conversations.flatMap { c in
+            c.marks.map { m in
+                var quote: [String] = []
+                if spans.count == texts.count, let i = MarkPlacement.line(for: m, spans: spans), c.lines.contains(i) {
+                    quote = MarkPlacement.quote(texts, line: i, within: c.lines)
+                }
+                return DiaryMark(ref: ConversationRef(recording: recording, index: c.index), at: m,
+                                 wall: recordingStart.addingTimeInterval(m), wallApprox: c.wallApprox, quote: quote)
+            }
+        }.sorted { $0.wall < $1.wall }
     }
 }
 

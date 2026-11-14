@@ -274,13 +274,15 @@ struct RecordingDetail: View {
         let segs = library.transcript(recording.id)
         let sections = TranscriptSections(segs, conversations: library.conversations.conversations(recording.id))
         let paras = sections.paragraphs
+        // 重点标记归到句子上（先敲后说：落在两句之间的归后一句）
+        let marks = MarkPlacement.byLine(library.marks(recording.id), spans: segs.map { ($0.start, $0.end) })
         let current = player.playing ? segs.firstIndex { player.time >= $0.start && player.time < $0.end + 0.3 } : nil
         return ScrollViewReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
                     header
                     SummaryCard(recording: recording, notes: library.notes)
-                    transcript(segs, sections: sections, current: current)
+                    transcript(segs, sections: sections, marks: marks, current: current)
                 }
                 .frame(maxWidth: 680, alignment: .leading)
                 .padding(.horizontal, 32).padding(.top, 20)
@@ -292,10 +294,12 @@ struct RecordingDetail: View {
                 withAnimation { proxy.scrollTo(p, anchor: .center) }
             }
         }
-        // 点一句从那里播放：每句是一个 openbean-seek://<下标> 链接
+        // 点一句从那里播放：每句是一个 openbean-seek://<下标> 链接；标记记号是 openbean-mark://<百分之一秒>，从标记处播放
         .environment(\.openURL, OpenURLAction { url in
             if url.scheme == "openbean-seek", let i = Int(url.host ?? ""), segs.indices.contains(i) {
                 player.play(from: segs[i].start)
+            } else if url.scheme == "openbean-mark", let c = Int(url.host ?? "") {
+                player.play(from: Double(c) / 100)
             }
             return .handled
         })
@@ -405,7 +409,8 @@ struct RecordingDetail: View {
         }
     }
 
-    @ViewBuilder private func transcript(_ segs: [TranscriptSegment], sections: TranscriptSections, current: Int?) -> some View {
+    @ViewBuilder private func transcript(_ segs: [TranscriptSegment], sections: TranscriptSections, marks: [Int: [Double]],
+                                         current: Int?) -> some View {
         let paras = sections.paragraphs
         if segs.isEmpty {
             VStack(alignment: .leading, spacing: 10) {
@@ -430,7 +435,8 @@ struct RecordingDetail: View {
                                 ConversationHeading(conversation: c).padding(.top, p == 0 ? 0 : 12)
                             }
                             TranscriptParagraph(segments: Array(segs[r]), first: r.lowerBound,
-                                                current: current.flatMap { r.contains($0) ? $0 : nil })
+                                                current: current.flatMap { r.contains($0) ? $0 : nil },
+                                                marks: marks.filter { r.contains($0.key) })
                                 .equatable()
                         }
                         .id(p)
@@ -514,9 +520,11 @@ struct TranscriptParagraph: View, Equatable {
     /// segments[0] 在整份转写里的下标
     let first: Int
     let current: Int?
+    /// 重点标记：整份转写里的句子下标 → 落在这句的标记（秒）。这句前面放一个 ⚑，点了从标记处播放
+    var marks: [Int: [Double]] = [:]
 
     static func == (a: Self, b: Self) -> Bool {
-        a.first == b.first && a.current == b.current && a.segments == b.segments
+        a.first == b.first && a.current == b.current && a.segments == b.segments && a.marks == b.marks
     }
 
     var body: some View {
@@ -533,13 +541,20 @@ struct TranscriptParagraph: View, Equatable {
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .help("Click a sentence to play from there")
+        .help(marks.isEmpty ? Text("Click a sentence to play from there")
+              : Text("Click a sentence to play from there. ⚑ is a moment you marked on the recorder; click it to play from the mark."))
     }
 
     private var attributed: AttributedString {
         var out = AttributedString()
         for (k, seg) in segments.enumerated() {
             if k > 0 { out += AttributedString(TranscriptParagraphs.joiner(after: segments[k - 1].text, before: seg.text)) }
+            for m in marks[first + k] ?? [] {
+                var flag = AttributedString("⚑\u{2009}")
+                flag.link = URL(string: "openbean-mark://\(Int((m * 100).rounded()))")
+                flag.foregroundColor = .orange
+                out += flag
+            }
             // 显示用 text（过了词表的），不用 raw
             var piece = AttributedString(seg.text)
             piece.link = URL(string: "openbean-seek://\(first + k)")

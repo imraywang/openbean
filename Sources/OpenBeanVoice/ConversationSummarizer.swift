@@ -54,6 +54,8 @@ public struct ConversationSummarizer: Sendable {
     [] when there are none.
     - things: at most 5 named projects, products, companies or places that are said in this transcript, written exactly \
     as in the transcript.
+    - A line that ends with \(markNote) is where the user marked the moment as important on the recorder (usually \
+    just before saying it). Make sure the summary or a key point covers what was said there.
     Leave a list empty rather than guessing. Never invent people, numbers, dates, decisions or to-dos. Describe what was \
     recorded ("they agreed…", "someone suggested…"); do not write as "I" or "you".
     """
@@ -99,9 +101,19 @@ public struct ConversationSummarizer: Sendable {
     Only use what is in the part summaries.
     """
 
-    public func summarize(_ lines: [TimedLine]) async throws -> Result {
+    /// 送给模型的转写里，用户做了重点标记的那句后面加这一句（「用户在这里做了重点标记」）
+    public static let markNote = "[MARKED: the user marked this as important]"
+
+    /// 把标记写进送给模型的那份转写：`marked` 里的句子（下标）后面加 `markNote`
+    public static func annotate(_ lines: [TimedLine], marked: Set<Int>) -> [TimedLine] {
+        guard !marked.isEmpty else { return lines }
+        return lines.enumerated().map { i, l in marked.contains(i) ? TimedLine(start: l.start, text: l.text + " " + markNote) : l }
+    }
+
+    /// `marked`：用户在录音豆上做了重点标记的句子（`lines` 的下标，见 MarkPlacement）
+    public func summarize(_ lines: [TimedLine], marked: Set<Int> = []) async throws -> Result {
         let text = lines.map(\.text).joined()
-        let chunks = Summarizer.chunk(lines, budget: base.budget)
+        let chunks = Summarizer.chunk(Self.annotate(lines, marked: marked), budget: base.budget)
         guard !chunks.isEmpty, Summarizer.estimateTokens(text) >= Summarizer.minTokens else {
             return Result(summary: nil, kind: "fragment", calls: 0, droppedNames: 0)
         }

@@ -68,8 +68,12 @@ final class DiaryService {
         let summarizer = ConversationSummarizer(await notes.summarizer(service))
         let t0 = Date()
         var calls = 0, dropped = 0
+        let spans = segs.map { (start: $0.start, end: $0.end) }
         for c in todo where c.to <= segs.count {
-            let res = try await summarizer.summarize(segs[c.lines].map { TimedLine(start: $0.start, text: $0.text) })
+            // 用户在这段里做了重点标记的句子：送给模型的转写里注明（下标相对这段）
+            let marked = Set(c.marks.compactMap { MarkPlacement.line(for: $0, spans: spans) }
+                .filter { c.lines.contains($0) }.map { $0 - c.from })
+            let res = try await summarizer.summarize(segs[c.lines].map { TimedLine(start: $0.start, text: $0.text) }, marked: marked)
             calls += res.calls
             dropped += res.droppedNames
             library.conversations.setSummary(id, index: c.index, hash: c.hash, kind: res.kind, summary: res.summary,
@@ -172,7 +176,7 @@ final class DiaryService {
         included = gather(boundary.interval(of: day0))
         let sig = DayFile.signature(included.map { r, c in
             let s = (try? JSONEncoder().encode(c.summary)).map { String(decoding: $0, as: UTF8.self) } ?? ""
-            return "\(r.id)#\(c.index)|\(c.hash)|\(c.kind ?? "")|\(s)"
+            return "\(r.id)#\(c.index)|\(c.hash)|\(c.kind ?? "")|\(s)|marks=\(c.marks)"
         } + ["diary-v1", "start=\(settings.dayStartHour)", "tz=\(TimeZone.current.identifier)"])
         if !force, let old = DayFile.read(url), old.version == DayFile.currentVersion, old.signature == sig {
             if notes.notesFolder != nil, noteRecord(key) == nil { writeNote(old) }
@@ -185,10 +189,18 @@ final class DiaryService {
         working.insert(key)
         defer { working.remove(key) }
         let t0 = Date()
+        // 当天的重点标记：每个标记的时刻、所在的段和前后的原话（代码摘，不经大模型）
+        let marks = Dictionary(grouping: included, by: { $0.0.id }).flatMap { id, items -> [DiaryMark] in
+            let t = library.transcript(id)
+            return DiaryMark.collect(recording: id, recordingStart: items[0].0.start, conversations: items.map(\.1),
+                                     spans: t.map { ($0.start, $0.end) }, texts: t.map(\.text))
+        }.sorted { $0.wall < $1.wall }
         let inputs = included.map { r, c in
             DiaryWriter.Input(ref: ConversationRef(recording: r.id, index: c.index), wallStart: c.wallStart, wallEnd: c.wallEnd,
                               kind: c.kind, summary: c.summary,
-                              chars: library.transcript(r.id)[c.lines.clamped(to: 0..<library.transcript(r.id).count)].reduce(0) { $0 + $1.text.count })
+                              chars: library.transcript(r.id)[c.lines.clamped(to: 0..<library.transcript(r.id).count)].reduce(0) { $0 + $1.text.count },
+                              marks: marks.filter { $0.ref.recording == r.id && $0.ref.index == c.index }.map { $0.quote.joined(separator: " ") }
+                                  .filter { !$0.isEmpty })
         }
         let sample = String(included.flatMap { r, c in
             let t = library.transcript(r.id)
@@ -210,7 +222,7 @@ final class DiaryService {
                                               title: c.summary?.title, summary: c.summary?.summary)
                           },
                           diary: out.diary, model: settings.polishModel, createdAt: Date(),
-                          stats: DayStats(calls: out.calls, seconds: secs, dropped: out.dropped))
+                          stats: DayStats(calls: out.calls, seconds: secs, dropped: out.dropped), marks: marks)
         do {
             try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
             try day.encoded().write(to: url, options: .atomic)
@@ -254,7 +266,7 @@ final class DiaryService {
                          todos: String(localized: "To-dos"), peopleAndThings: String(localized: "People and things mentioned"),
                          people: String(localized: "People"), things: String(localized: "Things"),
                          conversations: String(localized: "Conversations"), transcript: String(localized: "Transcript"),
-                         media: String(localized: "media"))
+                         media: String(localized: "media"), marks: String(localized: "Marked moments"))
     }
 
     /// 写（或重写）某天的日记笔记。规则同逐条笔记：没被改过就原地覆盖；用户改过就不动它，另写一份

@@ -174,13 +174,17 @@ IV = file_nonce[0..12) ‖ big-endian u32(sequence × 10)
 (160 bytes is exactly 10 AES blocks.) In all CTR operations here the whole 16-byte counter increments as one
 big-endian integer.
 
-⚠️ **Not verified:** what the `flags` byte means, and whether `1A/12` really has the same layout as `1A/08`. The
-`1A/12` id is known only from the vendor app's dispatch code (the community notes call it "file slice (mark/variant)");
-no capture of one has been published. Pressing the recorder's button during a recording sets a mark (the yellow light
-flashes once), and the mark may show up as a `1A/12` frame, as a non-zero `flags` byte, or not at all in the file
-transfer. OpenBean currently treats both frame ids as audio and ignores `flags`. `openbean pull --marks` (and
-`live --marks`) print every `1A/12` frame with its raw bytes and position, every unit with non-zero `flags`, and a
-summary line, to answer this on hardware.
+**Flags** ✅ (firmware 04.82, `openbean pull --marks`): bit values, which can combine.
+
+| Value | Meaning |
+|---|---|
+| `01` | Mark: the user double-tapped the top of the recorder during this 20 ms slice. The mark's time is sequence × 0.02 s |
+| `02` | First slice of the file |
+| `04` | Last slice of the file |
+
+Marks are **not** sent as `1A/12` frames. In a test with three marks, the flagged slices were at 33.22, 68.02 and
+102.88 s, about one second before the speech they were meant for (people tap, then talk). OpenBean stores the marks of a
+recording in `marks.json` next to its audio. Whether `1A/12` exists at all, and its layout, is still unknown.
 
 ## 9. Audio format ✅
 

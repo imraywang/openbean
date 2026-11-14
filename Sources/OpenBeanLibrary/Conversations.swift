@@ -69,19 +69,22 @@ public struct ConversationFile: Codable, Sendable, Hashable {
         return end.timeIntervalSince(start) - duration > 5
     }
 
-    /// 切段并生成一份新文件。`previous` 里范围和文字都没变的段，留下它的种类、标记和摘要
+    /// 切段并生成一份新文件。`previous` 里范围和文字都没变的段，留下它的种类和摘要。
+    /// `marks` 是这条录音的重点标记（marks.json，秒）：先归句再归段（见 `MarkPlacement`），写进每段的 `marks`
     public static func build(_ lines: [Line], recordingStart: Date, wallApprox: Bool,
-                             params: Segmenter.Params = .standard, previous: ConversationFile? = nil) -> ConversationFile {
+                             params: Segmenter.Params = .standard, previous: ConversationFile? = nil,
+                             marks: [Double] = []) -> ConversationFile {
+        let markLines = MarkPlacement.byLine(marks, spans: lines.map { ($0.start, $0.end) })
         let pieces = Segmenter.split(lines.map { Segmenter.Line(start: $0.start, end: $0.end) }, params: params)
         let old = Dictionary((previous?.segments ?? []).map { ("\($0.from)-\($0.to)-\($0.hash)", $0) }, uniquingKeysWith: { a, _ in a })
         let segs = pieces.enumerated().map { k, p -> Conversation in
             let hash = fingerprint(Array(lines[p.lines]))
             var c = Conversation(index: k, from: p.lines.lowerBound, to: p.lines.upperBound, start: p.start, end: p.end,
                                  wallStart: recordingStart.addingTimeInterval(p.start), wallEnd: recordingStart.addingTimeInterval(p.end),
-                                 wallApprox: wallApprox, cut: p.cut, candidates: p.candidates, hash: hash)
+                                 wallApprox: wallApprox, cut: p.cut, candidates: p.candidates, hash: hash,
+                                 marks: p.lines.flatMap { markLines[$0] ?? [] }.sorted())
             if let o = old["\(c.from)-\(c.to)-\(hash)"] {
                 c.kind = o.kind
-                c.marks = o.marks
                 c.summary = o.summary
                 c.summaryModel = o.summaryModel
                 c.summarizedAt = o.summarizedAt
@@ -145,7 +148,7 @@ public struct Conversation: Codable, Sendable, Hashable, Identifiable {
     public var candidates: [Int]
     /// 这段句子（时间和文字）的指纹：转写改了只有变了的段需要重新摘要
     public var hash: String
-    /// 落在这段里的重点标记（秒，相对录音开头）。录音豆的标记还读不出来，先空着
+    /// 落在这段里的重点标记（秒，相对录音开头），从 marks.json 归过来的（见 `MarkPlacement`）
     public var marks: [Double]
     /// conversation / monologue / media / fragment：由段摘要那一步给，没摘要时没有
     public var kind: String?

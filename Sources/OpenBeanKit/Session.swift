@@ -164,7 +164,7 @@ public final class D3200Session {
                 if st.resumeMismatch { return }
                 for s in slices {
                     guard let plain = try? d.decrypt(seq: s.seq, data: s.data) else { continue }
-                    if spool.put(seq: s.seq, frame: plain) { st.newFrames += 1 }
+                    if spool.put(seq: s.seq, frame: plain, flags: s.flags) { st.newFrames += 1 }
                 }
                 return
             }

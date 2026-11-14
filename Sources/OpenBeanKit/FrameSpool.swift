@@ -8,6 +8,9 @@ import Foundation
 /// 下不完时文件留着：下一次打开（`keepExisting: true`）会扫一遍已有的记录接着用，
 /// 已经有的 seq 不再写（先到的为准）。下一次从 `received.contiguousCount(from: 0)` 接着要
 /// （offset = 片数 × 166，见 `ResumePlan`、`Downloader.runResuming`）。
+/// 重点标记（单元 flags 带 `SliceFlags.mark` 的 seq）另记在旁边的 `<url>.marks`（每个 seq 一条 u32 LE）：
+/// 收到就追加，重复的不记；续传拼接、从头重下都不会丢或重复。收过的片再收到一次时标记照样补记
+/// （加这个功能之前留下的 download.part 没有标记文件，从头重下的那部分能补回来）。
 /// 不加锁：同一时间只给一个下载用（收包在传输队列上写，进度在同一队列的 `sync` 里读，收尾在下载结束之后）。
 public final class FrameSpool: @unchecked Sendable {
     public static let recordSize = 4 + OggOpus.frameSize
@@ -16,6 +19,9 @@ public final class FrameSpool: @unchecked Sendable {
     /// 记录在文件里是不是按 seq 连续递增（是的话收尾时顺序读就行，不用排序）
     public private(set) var inOrder = true
     public private(set) var writeError: Error?
+    /// 带重点标记的 seq
+    public private(set) var markSeqs = Set<UInt32>()
+    public var marksURL: URL { url.appendingPathExtension("marks") }
     private var lastSeq: UInt32?
     private var handle: FileHandle?
     private var buffer: [UInt8] = []
@@ -29,8 +35,10 @@ public final class FrameSpool: @unchecked Sendable {
         try fm.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         if keepExisting, fm.fileExists(atPath: url.path) {
             try scanExisting()
+            readMarks()
         } else {
             fm.createFile(atPath: url.path, contents: nil)
+            try? fm.removeItem(at: marksURL)
         }
         let h = try FileHandle(forWritingTo: url)
         try h.seekToEnd()
@@ -72,12 +80,35 @@ public final class FrameSpool: @unchecked Sendable {
         tocCounts[Int(toc)] += 1
     }
 
+    private func readMarks() {
+        guard let d = try? Data(contentsOf: marksURL) else { return }
+        let b = [UInt8](d)
+        var i = 0
+        while i + 4 <= b.count { markSeqs.insert(readU32(b, i)); i += 4 }
+    }
+
+    /// 记一个标记（已经有了就不记）。写盘失败只丢这个标记，不影响音频
+    private func noteMark(_ seq: UInt32) {
+        guard markSeqs.insert(seq).inserted else { return }
+        let fm = FileManager.default
+        if !fm.fileExists(atPath: marksURL.path) { fm.createFile(atPath: marksURL.path, contents: nil) }
+        guard let h = try? FileHandle(forWritingTo: marksURL) else { return }
+        defer { try? h.close() }
+        _ = try? h.seekToEnd()
+        try? h.write(contentsOf: u32le(seq))
+    }
+
+    /// 带重点标记的片，按 seq 排好
+    public var marks: [UInt32] { markSeqs.sorted() }
+
     /// 一共收到了多少片（包括之前几次留下的）
     public var count: Int { received.count }
 
-    /// 存一片（160 字节，已解密）。已经有这个 seq 或写盘出过错时返回 false
+    /// 存一片（160 字节，已解密）。已经有这个 seq 或写盘出过错时返回 false。
+    /// `flags` 带重点标记时记下这个 seq（片已经有了也记）
     @discardableResult
-    public func put(seq: UInt32, frame: [UInt8]) -> Bool {
+    public func put(seq: UInt32, frame: [UInt8], flags: UInt8 = 0) -> Bool {
+        if flags & SliceFlags.mark != 0, frame.count == OggOpus.frameSize { noteMark(seq) }
         guard writeError == nil, frame.count == OggOpus.frameSize, !received.contains(seq) else { return false }
         noteRecord(seq: seq, toc: frame[0])
         buffer += u32le(seq)
@@ -196,5 +227,6 @@ public final class FrameSpool: @unchecked Sendable {
     public func remove() {
         close()
         try? FileManager.default.removeItem(at: url)
+        try? FileManager.default.removeItem(at: marksURL)
     }
 }

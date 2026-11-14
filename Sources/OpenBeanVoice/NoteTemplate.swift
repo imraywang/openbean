@@ -63,9 +63,12 @@ public enum NoteTemplate {
         public var timeZone: TimeZone
         /// 按停顿切出的对话段；少于两段时 {{segments}} 就是 {{transcript}}
         public var sections: [Section]
+        /// 重点标记：句子下标（lines）→ 落在这句的标记（秒）。转写里这句的时间戳后面标出 ⚑ 和标记时刻
+        public var marks: [Int: [Double]]
 
         public init(title: String, start: Date, duration: Double, recordingID: UInt32, summary: RecordingSummary?,
-                    lines: [TimedLine], timeZone: TimeZone = .current, sections: [Section] = []) {
+                    lines: [TimedLine], timeZone: TimeZone = .current, sections: [Section] = [], marks: [Int: [Double]] = [:]) {
+            self.marks = marks
             self.title = title
             self.start = start
             self.duration = duration
@@ -77,7 +80,11 @@ public enum NoteTemplate {
         }
 
         func transcript(_ r: Range<Int>) -> String {
-            lines[r].map { "[\(Summarizer.clock($0.start))] \($0.text)" }.joined(separator: "\n\n")
+            r.map { i in
+                let l = lines[i]
+                let flag = marks[i].map { m in " ⚑ " + m.map { "[\(Summarizer.clock($0))]" }.joined(separator: " ") } ?? ""
+                return "[\(Summarizer.clock(l.start))]\(flag) \(l.text)"
+            }.joined(separator: "\n\n")
         }
 
         /// 分节的转写：每段一个三级标题「HH:mm–HH:mm 小标题」（时间只是近似时前面加 ~），下面是这段的句子

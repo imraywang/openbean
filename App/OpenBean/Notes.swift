@@ -3,6 +3,7 @@
 import AppKit
 import Foundation
 import Observation
+import OpenBeanLibrary
 import OpenBeanVoice
 import SwiftUI
 
@@ -395,7 +396,8 @@ final class NoteService {
         }
         let values = NoteTemplate.Values(title: r.displayTitle, start: r.start, duration: r.duration, recordingID: id,
                                          summary: summary(id), lines: segs.map { TimedLine(start: $0.start, text: $0.text) },
-                                         sections: sections)
+                                         sections: sections,
+                                         marks: MarkPlacement.byLine(library.marks(id), spans: segs.map { ($0.start, $0.end) }))
         let text = NoteTemplate.render(AppPaths.readNoteTemplate(), values)
         do {
             try text.write(to: url, atomically: true, encoding: .utf8)

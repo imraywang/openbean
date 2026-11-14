@@ -20,10 +20,12 @@ public enum DiaryNote {
         public var conversations = "Conversations"
         public var transcript = "Transcript"
         public var media = "media"
+        public var marks = "Marked"
 
         public init() {}
         public init(overview: String, decisions: String, todos: String, peopleAndThings: String, people: String,
-                    things: String, conversations: String, transcript: String, media: String) {
+                    things: String, conversations: String, transcript: String, media: String, marks: String = "Marked") {
+            self.marks = marks
             self.overview = overview
             self.decisions = decisions
             self.todos = todos
@@ -80,8 +82,23 @@ public enum DiaryNote {
 
         """
         let L = v.labels
+        if let o = v.day.diary?.overview, !o.isEmpty { s += "\n## \(L.overview)\n\n\(o)\n" }
+        // 标记：用户在录音豆上双击标出的时刻。每条：时刻、所在的那段对话（链接）、标记那句和前后各一句的原话
+        if !v.day.marks.isEmpty {
+            s += "\n## \(L.marks)\n\n" + v.day.marks.map { m in
+                var line = "- **\((m.wallApprox ? "~" : "") + time(m.wall))**"
+                if let c = byRef[m.ref] {
+                    var name = "\(clock(c))–\(time(c.wallEnd))"
+                    if let t = c.title, !t.isEmpty { name += " " + t }
+                    line += " · [\(name)](\(v.link(m.ref)))"
+                } else {
+                    line += " · [\(L.transcript)](\(v.link(m.ref)))"
+                }
+                if !m.quote.isEmpty { line += "\n  > " + m.quote.joined(separator: " ") }
+                return line
+            }.joined(separator: "\n") + "\n"
+        }
         if let d = v.day.diary {
-            if let o = d.overview, !o.isEmpty { s += "\n## \(L.overview)\n\n\(o)\n" }
             if !d.decisions.isEmpty {
                 s += "\n## \(L.decisions)\n\n" + d.decisions.map { "- \($0.text) (\(refLinks($0.refs)))" }.joined(separator: "\n") + "\n"
             }

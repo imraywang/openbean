@@ -46,7 +46,7 @@ final class ConversationStore {
         let previous = cache[id] ?? ConversationFile.read(Self.url(id))
         let f = ConversationFile.build(lines, recordingStart: r.start,
                                        wallApprox: ConversationFile.likelyPaused(start: r.start, end: r.end, duration: r.duration),
-                                       previous: previous)
+                                       previous: previous, marks: library.marks(id))
         store(f, id)
         Log.write("切段 \(id)：\(f.segments.count) 段")
     }
@@ -144,7 +144,9 @@ final class ConversationStore {
         let lines = segs.map { ConversationFile.Line(start: $0.start, end: $0.end, text: $0.text) }
         // 内容没变、只是文件时间旧了（比如转写被原样重写）：原样再写一遍，下次启动就不用再读转写
         if let old, old.isCurrent(transcriptHash: ConversationFile.fingerprint(lines)) { return old }
-        return ConversationFile.build(lines, recordingStart: start, wallApprox: wallApprox, previous: old)
+        let marks = RecordingMarks.read(AppPaths.library.appendingPathComponent(String(id))
+            .appendingPathComponent(RecordingMarks.fileName))?.marks ?? []
+        return ConversationFile.build(lines, recordingStart: start, wallApprox: wallApprox, previous: old, marks: marks)
     }
 }
 

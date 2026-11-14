@@ -60,6 +60,23 @@ final class ConversationToolTests: XCTestCase {
         XCTAssertEqual(recs13[0]["conversations"]?.array?.compactMap { $0["index"]?.number }, [2])
     }
 
+    func testGetRecordingListsMarks() throws {
+        // 没有 marks.json：marks 是 null
+        let before = try call("get_recording", ["id": .int(Int(longID))])
+        XCTAssertEqual(before.structured?["marks"], JSON.null)
+        try fx.write("marks.json", #"{"version":1,"marks":[65,5399]}"#, id: longID)
+        let r = try call("get_recording", ["id": .int(Int(longID))])
+        XCTAssertFalse(r.isError, r.text)
+        let marks = try XCTUnwrap(r.structured?["marks"]?.array)
+        XCTAssertEqual(marks.compactMap { $0["seconds"]?.number }, [65, 5399])
+        // 5399 秒在两段之间：先敲后说，归第二段
+        XCTAssertEqual(marks.compactMap { $0["conversation"]?.number }, [0, 1])
+        XCTAssertTrue(r.text.contains("Marks (moments the user marked"), r.text)
+        XCTAssertTrue(r.text.contains("- 1:05 (2026-11-12 23:01), conversation 0"), r.text)
+        try fx.write("marks.json", #"{"version":1,"marks":[]}"#, id: longID)
+        XCTAssertEqual(try call("get_recording", ["id": .int(Int(longID))]).structured?["marks"]?.array?.count, 0)
+    }
+
     func testGetTranscriptByConversation() throws {
         let r = try call("get_transcript", ["id": .int(Int(longID)), "conversation": 1])
         XCTAssertFalse(r.isError, r.text)

@@ -64,6 +64,7 @@ final class LibraryStore {
     }
     private(set) var transcribing: [UInt32: Double] = [:]
     private var transcripts: [UInt32: [TranscriptSegment]] = [:]
+    @ObservationIgnored private var markCache: [UInt32: [Double]] = [:]
     /// 录音库的筛选（侧栏「录音」下面的二级项）：全部，和三种「要处理的」
     enum Filter: String, CaseIterable, Identifiable {
         case all, onRecorder, untranscribed, todos
@@ -114,6 +115,15 @@ final class LibraryStore {
     }
     func audioURL(_ id: UInt32) -> URL { folder(id).appendingPathComponent("audio.ogg") }
     func transcriptURL(_ id: UInt32) -> URL { folder(id).appendingPathComponent("transcript.json") }
+    func marksURL(_ id: UInt32) -> URL { folder(id).appendingPathComponent(RecordingMarks.fileName) }
+
+    /// 重点标记（秒，相对录音开头）：下载时从音频分片的 flags 取出来的（marks.json）；没有就是空
+    func marks(_ id: UInt32) -> [Double] {
+        if let m = markCache[id] { return m }
+        let m = RecordingMarks.read(marksURL(id))?.marks ?? []
+        markCache[id] = m
+        return m
+    }
 
     init(device: DeviceController, settings: Settings) {
         self.device = device
@@ -267,6 +277,7 @@ final class LibraryStore {
     func deleteLocal(_ id: UInt32) {
         try? FileManager.default.removeItem(at: folder(id))
         transcripts[id] = nil
+        markCache[id] = nil
         conversations.forget(id)
         notes.forget(id)
         if let i = recordings.firstIndex(where: { $0.id == id }) {
@@ -418,6 +429,11 @@ final class LibraryStore {
                 Log.write("保存 \(id) 失败（写 audio.ogg 出错），临时文件留着")
                 return false
             }
+            // 重点标记（单元 flags 里的 01）和音频一起存：续传拼接过的也只在 spool 的标记文件里各记一次
+            let marks = RecordingMarks(marks: spool.marks.map { SliceFlags.seconds(seq: $0, firstSeq: first) })
+            do { try marks.encoded().write(to: marksURL(id), options: .atomic) } catch { Log.write("写标记失败 \(id)：\(error)") }
+            markCache[id] = marks.marks
+            if !marks.marks.isEmpty { Log.write("\(id) 有 \(marks.marks.count) 个重点标记：\(marks.marks.map { String(format: "%.2f", $0) }.joined(separator: "、")) 秒") }
             spool.remove()
             update(id) { $0.downloaded = true }
             Log.write("已下载 \(id)（\(result.receivedBytes / 1024) KB，\(Int(result.seconds)) 秒，\(via)）"

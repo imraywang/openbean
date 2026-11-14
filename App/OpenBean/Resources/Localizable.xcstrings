@@ -692,6 +692,16 @@
         }
       }
     },
+    "Click a sentence to play from there. ⚑ is a moment you marked on the recorder; click it to play from the mark.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "点一句从那里开始播放。⚑ 是你在录音豆上做的重点标记，点它从标记处播放。"
+          }
+        }
+      }
+    },
     "Click in the box, press the recorder's button, wait for “Listening”, then speak. Press the button again to finish. The keyboard shortcut %@ does the same.": {
       "localizations": {
         "zh-Hans": {
@@ -1508,6 +1518,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "正在寻找录音豆…"
+          }
+        }
+      }
+    },
+    "Marked moments": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "标记"
           }
         }
       }

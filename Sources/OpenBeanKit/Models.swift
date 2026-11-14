@@ -133,8 +133,7 @@ public struct FileHead {
 }
 
 /// 1A/08、1A/12 切片：从第 9 字节起，每单元 `seq u32 | flags u8 | 160 字节数据 | 1 字节填充`。
-/// `flags` 的含义没人测过（社区笔记只写了字段名）；重点标记可能在这里，也可能在 1A/12 这个包类型上。
-/// 1A/12 的布局也只是按 1A/08 推的，没有抓包样本。
+/// `flags` 真机实测（固件 04.82，`pull --marks`）见 `SliceFlags`。1A/12 的布局只是按 1A/08 推的，没有抓包样本。
 public struct Slice {
     public let seq: UInt32
     public let flags: UInt8
@@ -143,6 +142,26 @@ public struct Slice {
         self.seq = seq
         self.flags = flags
         self.data = data
+    }
+
+    /// 用户在这一片（20 ms）双击了录音豆顶部：重点标记
+    public var isMark: Bool { flags & SliceFlags.mark != 0 }
+}
+
+/// 切片单元里的 flags（按位）。重点标记不在 1A/12 包里，而在 1A/08 每个单元的这个字节上
+public enum SliceFlags {
+    /// 重点标记：标记时间 = seq × 20 ms
+    public static let mark: UInt8 = 0x01
+    /// 文件的第一片
+    public static let first: UInt8 = 0x02
+    /// 文件的最后一片
+    public static let last: UInt8 = 0x04
+    /// 每片的时长（秒）
+    public static let sliceSeconds = 0.02
+
+    /// 第 seq 片的时刻（秒，相对 firstSeq 那片），取到 0.01 秒
+    public static func seconds(seq: UInt32, firstSeq: UInt32 = 0) -> Double {
+        (Double(Int64(seq) - Int64(firstSeq)) * sliceSeconds * 100).rounded() / 100
     }
 }
 

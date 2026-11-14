@@ -91,6 +91,11 @@ public struct RecordingLibrary: Sendable {
         load(file(id, "summary.json"), Parse.summary)
     }
 
+    /// 重点标记（秒，相对录音开头）。没有 marks.json（加这个功能之前下载的）或读不了时为 nil
+    public func marks(_ id: UInt32) -> [Double]? {
+        RecordingMarks.read(file(id, RecordingMarks.fileName))?.marks
+    }
+
     /// 知识库里那份 Markdown 笔记的路径（note.json 记的；文件本身可能已被用户移走）
     public func notePath(_ id: UInt32) -> String? {
         load(file(id, "note.json")) { json -> String? in
