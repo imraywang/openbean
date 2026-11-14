@@ -71,9 +71,12 @@ final class DiaryService {
         let spans = segs.map { (start: $0.start, end: $0.end) }
         for c in todo where c.to <= segs.count {
             // 用户在这段里做了重点标记的句子：送给模型的转写里注明（下标相对这段）
-            let marked = Set(c.marks.compactMap { MarkPlacement.line(for: $0, spans: spans) }
-                .filter { c.lines.contains($0) }.map { $0 - c.from })
-            let res = try await summarizer.summarize(segs[c.lines].map { TimedLine(start: $0.start, text: $0.text) }, marked: marked)
+            // 录音豆在录时用语音输入说的句子（Conversation.voiceTyping）不送给模型
+            let spoken = c.spokenLines
+            guard !spoken.isEmpty else { continue }
+            let markedLines = Set(c.marks.compactMap { MarkPlacement.line(for: $0, spans: spans) })
+            let marked = Set(spoken.enumerated().filter { markedLines.contains($0.element) }.map(\.offset))
+            let res = try await summarizer.summarize(spoken.map { TimedLine(start: segs[$0].start, text: segs[$0].text) }, marked: marked)
             calls += res.calls
             dropped += res.droppedNames
             library.conversations.setSummary(id, index: c.index, hash: c.hash, kind: res.kind, summary: res.summary,

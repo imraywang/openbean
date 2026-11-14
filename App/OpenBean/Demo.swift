@@ -742,6 +742,7 @@ final class DemoController {
         case "wrapping":
             m.dictation.demoSet(phase: m.dictation.phase)
             h.demoShow(.finishing)
+        case "reconnecting": h.demoShow(.reconnecting)
         case "typed": h.demoShow(.done(count: 86, clipboard: false))
         case "copied": h.demoShow(.done(count: 86, clipboard: true))
         case "nothing": h.demoShow(.done(count: 0, clipboard: false))

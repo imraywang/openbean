@@ -44,11 +44,19 @@ final class ConversationStore {
         guard let library, let r = library.recordings.first(where: { $0.id == id }), !r.isDictation, r.transcribed else { return }
         let lines = library.transcript(id).map { ConversationFile.Line(start: $0.start, end: $0.end, text: $0.text) }
         let previous = cache[id] ?? ConversationFile.read(Self.url(id))
+        let skip = Self.voiceTypingLines(id: id, source: r.source ?? .normal, lines: lines)
         let f = ConversationFile.build(lines, recordingStart: r.start,
                                        wallApprox: ConversationFile.likelyPaused(start: r.start, end: r.end, duration: r.duration),
-                                       previous: previous, marks: library.marks(id))
+                                       previous: previous, marks: library.marks(id), voiceTyping: skip)
         store(f, id)
-        Log.write("切段 \(id)：\(f.segments.count) 段")
+        Log.write("切段 \(id)：\(f.segments.count) 段" + (skip.isEmpty ? "" : "，跳过语音输入 \(skip.count) 句"))
+    }
+
+    /// 心力模式录音里落在语音输入时间段（Library/voice-typing.json）里的句子。录音开始时刻 = 文件号（设备时钟的 Unix 秒）
+    nonisolated static func voiceTypingLines(id: UInt32, source: RecordingSource, lines: [ConversationFile.Line]) -> Set<Int> {
+        guard source == .heart else { return [] }
+        return VoiceTypingLog.read(VoiceTypingLog.url(library: AppPaths.library))
+            .voiceTypingLines(lines.map { ($0.start, $0.end) }, recordingStart: Date(timeIntervalSince1970: TimeInterval(id)))
     }
 
     /// 写回一段的段摘要。等大模型的时候转写可能变了：段号和这段的指纹都还对得上才写，返回写没写
@@ -112,10 +120,10 @@ final class ConversationStore {
             // 正在转写的这条，转写完会自己算
             if library.transcribing[r.id] != nil { continue }
             let gen = generation[r.id, default: 0]
-            let id = r.id, start = r.start
+            let id = r.id, start = r.start, source = r.source ?? .normal
             let approx = ConversationFile.likelyPaused(start: r.start, end: r.end, duration: r.duration)
             let result = await Task.detached(priority: .utility) {
-                Self.rebuildIfStale(id: id, start: start, wallApprox: approx)
+                Self.rebuildIfStale(id: id, start: start, wallApprox: approx, source: source)
             }.value
             // 等的时候这条被重算或删掉了：以那次为准
             guard let f = result, generation[id, default: 0] == gen,
@@ -129,24 +137,28 @@ final class ConversationStore {
 
     /// 过时了就返回要写的一份（不写盘），没过时返回 nil。
     /// 先只看文件：segments.json 比 transcript.json 新、规则和参数也一样，就不读转写
-    nonisolated static func rebuildIfStale(id: UInt32, start: Date, wallApprox: Bool) -> ConversationFile? {
+    /// 心力模式录音还要看语音输入时间段（voice-typing.json）比 segments.json 新没有
+    nonisolated static func rebuildIfStale(id: UInt32, start: Date, wallApprox: Bool, source: RecordingSource) -> ConversationFile? {
         let fm = FileManager.default
         let tURL = AppPaths.library.appendingPathComponent(String(id)).appendingPathComponent("transcript.json")
         let sURL = url(id)
         func mtime(_ u: URL) -> Date? { (try? fm.attributesOfItem(atPath: u.path))?[.modificationDate] as? Date }
         guard let tTime = mtime(tURL) else { return nil }
+        let vTime = source == .heart ? mtime(VoiceTypingLog.url(library: AppPaths.library)) : nil
         let old = ConversationFile.read(sURL)
-        if let old, let sTime = mtime(sURL), sTime >= tTime, old.version == ConversationFile.currentVersion,
-           old.segmenter == Segmenter.version, old.params == .standard {
+        if let old, let sTime = mtime(sURL), sTime >= tTime, sTime >= (vTime ?? .distantPast),
+           old.version == ConversationFile.currentVersion, old.segmenter == Segmenter.version, old.params == .standard {
             return nil
         }
         guard let d = try? Data(contentsOf: tURL), let segs = try? JSONDecoder().decode([TranscriptSegment].self, from: d) else { return nil }
         let lines = segs.map { ConversationFile.Line(start: $0.start, end: $0.end, text: $0.text) }
+        let skip = voiceTypingLines(id: id, source: source, lines: lines)
         // 内容没变、只是文件时间旧了（比如转写被原样重写）：原样再写一遍，下次启动就不用再读转写
-        if let old, old.isCurrent(transcriptHash: ConversationFile.fingerprint(lines)) { return old }
+        if let old, old.isCurrent(transcriptHash: ConversationFile.fingerprint(lines), voiceTyping: skip) { return old }
         let marks = RecordingMarks.read(AppPaths.library.appendingPathComponent(String(id))
             .appendingPathComponent(RecordingMarks.fileName))?.marks ?? []
-        return ConversationFile.build(lines, recordingStart: start, wallApprox: wallApprox, previous: old, marks: marks)
+        return ConversationFile.build(lines, recordingStart: start, wallApprox: wallApprox, previous: old, marks: marks,
+                                      voiceTyping: skip)
     }
 }
 

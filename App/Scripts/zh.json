@@ -496,5 +496,8 @@
 "Transcripts, summaries and the diary are kept. Applies to recordings synced in Heart mode.": "转写、摘要和日记都会保留。只对心力模式下同步的录音生效。",
 "Wear your Heart bean all day. When it goes back in its case, OpenBean syncs the day, splits it into conversations and writes today's diary and to-dos.": "戴着心力豆过一天。放回充电盒后，OpenBean 自动同步、把这一天切成一段段对话，写好今天的日记和待办。",
 "With 4:00 AM, a conversation at 2 AM still counts as the day before.": "设为凌晨 4 点时，凌晨两点的谈话仍算前一天。",
-"♡ Heart mode": "♡ 心力模式"
+"♡ Heart mode": "♡ 心力模式",
+"Couldn't check whether the recorder is recording. Try again in a moment.": "读不到录音豆是否在录音，请稍后再试。",
+"Couldn't reconnect to the recorder. Try again in a moment.": "没能重新连上录音豆，请稍后再试。",
+"Reconnecting to the recorder…": "正在重新连接录音豆…"
 }

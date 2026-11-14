@@ -6,7 +6,8 @@ import OpenBeanKit
 /// 自动同步（只走蓝牙，从不自动开 Wi‑Fi：那会让 Mac 断网）。
 ///
 /// 触发：读到设备文件列表、发现有没下载的录音（连上时和每次刷新列表后）；录音豆放回充电盒（01/04 录音豆在充电）。
-/// 不触发：正在语音输入或同步、录音豆正在录音（包括只录音）。
+/// 不触发：正在语音输入或同步、录音豆正在录音（包括只录音）。旁听结束后故意断开重连的几秒不算断开，也不触发；
+/// 这期间的触发等重连完再判断。
 /// 防抖：触发后等 3 秒再开始，期间的重复触发合并成一次；同一时间只跑一次。
 /// 失败后退避（SyncPolicy.retryDelay）：连接断开 / Mac 睡眠这类中断，第一次重连就试；
 /// 下不完或出错，短文件 1、2、4…分钟、长文件 5、10、20…分钟后再试，最多 30 分钟；成功一次就清零。
@@ -68,6 +69,12 @@ final class AutoSync {
     // MARK: 执行
 
     private func run(_ reason: String, refresh: Bool) async {
+        // 旁听语音输入结束后故意断开重连（几秒）：不是设备事件，等它连回来再看（例如这期间录音豆放回了充电盒）
+        if device.relinking {
+            Log.write("自动同步（\(reason)）：旁听后正在重连，5 秒后再看")
+            schedule(reason, refresh: refresh, after: 5)
+            return
+        }
         // 触发了却没跑，写一行原因：排查时分得清是没触发、忙、还是没东西可下
         if let busy = Self.busyReason(autoSync: settings.mode.autoSync, running: running, syncRunning: library.syncRunning,
                                       ready: device.isReady, activity: device.activity) {

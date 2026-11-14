@@ -992,6 +992,16 @@
         }
       }
     },
+    "Couldn't check whether the recorder is recording. Try again in a moment.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "读不到录音豆是否在录音，请稍后再试。"
+          }
+        }
+      }
+    },
     "Couldn't connect to the recorder": {
       "localizations": {
         "zh-Hans": {
@@ -1008,6 +1018,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "没能从录音豆删除"
+          }
+        }
+      }
+    },
+    "Couldn't reconnect to the recorder. Try again in a moment.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没能重新连上录音豆，请稍后再试。"
           }
         }
       }
@@ -1058,16 +1078,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "定了的事"
-          }
-        }
-      }
-    },
-    "Delete": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "删除"
           }
         }
       }
@@ -2552,6 +2562,16 @@
         }
       }
     },
+    "Reconnecting to the recorder…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在重新连接录音豆…"
+          }
+        }
+      }
+    },
     "Reconnecting to your usual network…": {
       "localizations": {
         "zh-Hans": {
@@ -3512,42 +3532,12 @@
         }
       }
     },
-    "The recorder is already recording. Press its button to stop, then try again.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "录音豆正在录音。先按录音豆上的按键停止，再开始语音输入。"
-          }
-        }
-      }
-    },
-    "The recorder is recording. Stop it first.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "录音豆正在录音，请先停下。"
-          }
-        }
-      }
-    },
     "The recorder isn't connected": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "录音豆没连上"
-          }
-        }
-      }
-    },
-    "The recorder stopped answering.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "录音豆没有回应。"
           }
         }
       }
@@ -3738,16 +3728,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "「今天」按天归整录音。"
-          }
-        }
-      }
-    },
-    "Today groups recordings by day. With 4:00 AM, a conversation at 2 AM still counts as the day before.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "「今天」按天整理录音。设成凌晨 4 点时，凌晨两点的谈话算前一天。"
           }
         }
       }

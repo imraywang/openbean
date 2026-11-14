@@ -21,19 +21,23 @@ public struct ConversationFile: Codable, Sendable, Hashable {
     public var transcriptHash: String
     public var params: Segmenter.Params
     public var segments: [Conversation]
+    /// 切段时当作语音输入跳过的句子下标（升序；见 VoiceTypingLog）。没有时文件里不写
+    public var voiceTyping: [Int]
 
     public init(version: Int = ConversationFile.currentVersion, segmenter: Int = Segmenter.version, transcriptHash: String,
-                params: Segmenter.Params, segments: [Conversation]) {
+                params: Segmenter.Params, segments: [Conversation], voiceTyping: [Int] = []) {
         self.version = version
         self.segmenter = segmenter
         self.transcriptHash = transcriptHash
         self.params = params
         self.segments = segments
+        self.voiceTyping = voiceTyping
     }
 
-    /// 和这份转写、这套参数还对得上（对不上就该重算）
-    public func isCurrent(transcriptHash h: String, params p: Segmenter.Params = .standard) -> Bool {
+    /// 和这份转写、这套参数、这组语音输入句子还对得上（对不上就该重算）
+    public func isCurrent(transcriptHash h: String, params p: Segmenter.Params = .standard, voiceTyping v: Set<Int> = []) -> Bool {
         version == Self.currentVersion && segmenter == Segmenter.version && transcriptHash == h && params == p
+            && Set(voiceTyping) == v
     }
 
     // MARK: 算
@@ -70,19 +74,27 @@ public struct ConversationFile: Codable, Sendable, Hashable {
     }
 
     /// 切段并生成一份新文件。`previous` 里范围和文字都没变的段，留下它的种类和摘要。
-    /// `marks` 是这条录音的重点标记（marks.json，秒）：先归句再归段（见 `MarkPlacement`），写进每段的 `marks`
+    /// `marks` 是这条录音的重点标记（marks.json，秒）：先归句再归段（见 `MarkPlacement`），写进每段的 `marks`。
+    /// `voiceTyping` 是要跳过的句子（录音豆在录时用语音输入说的话，见 VoiceTypingLog）：只用其余的句子切段、
+    /// 算段的起止和指纹；为了让各段仍然首尾相接、盖住整份转写，跳过的句子归进它前面的那段（在开头的归第一段），
+    /// 记在那段的 `voiceTyping` 里。全是跳过的句子时没有段
     public static func build(_ lines: [Line], recordingStart: Date, wallApprox: Bool,
                              params: Segmenter.Params = .standard, previous: ConversationFile? = nil,
-                             marks: [Double] = []) -> ConversationFile {
+                             marks: [Double] = [], voiceTyping: Set<Int> = []) -> ConversationFile {
         let markLines = MarkPlacement.byLine(marks, spans: lines.map { ($0.start, $0.end) })
-        let pieces = Segmenter.split(lines.map { Segmenter.Line(start: $0.start, end: $0.end) }, params: params)
+        let kept = lines.indices.filter { !voiceTyping.contains($0) }
+        let pieces = Segmenter.split(kept.map { Segmenter.Line(start: lines[$0].start, end: lines[$0].end) }, params: params)
         let old = Dictionary((previous?.segments ?? []).map { ("\($0.from)-\($0.to)-\($0.hash)", $0) }, uniquingKeysWith: { a, _ in a })
         let segs = pieces.enumerated().map { k, p -> Conversation in
-            let hash = fingerprint(Array(lines[p.lines]))
-            var c = Conversation(index: k, from: p.lines.lowerBound, to: p.lines.upperBound, start: p.start, end: p.end,
+            let from = k == 0 ? 0 : kept[p.lines.lowerBound]
+            let to = k == pieces.count - 1 ? lines.count : kept[pieces[k + 1].lines.lowerBound]
+            let range = from..<to
+            let skipped = range.filter { voiceTyping.contains($0) }
+            let hash = fingerprint(range.filter { !voiceTyping.contains($0) }.map { lines[$0] })
+            var c = Conversation(index: k, from: from, to: to, start: p.start, end: p.end,
                                  wallStart: recordingStart.addingTimeInterval(p.start), wallEnd: recordingStart.addingTimeInterval(p.end),
-                                 wallApprox: wallApprox, cut: p.cut, candidates: p.candidates, hash: hash,
-                                 marks: p.lines.flatMap { markLines[$0] ?? [] }.sorted())
+                                 wallApprox: wallApprox, cut: p.cut, candidates: p.candidates.map { kept[$0] }, hash: hash,
+                                 marks: range.flatMap { markLines[$0] ?? [] }.sorted(), voiceTyping: skipped)
             if let o = old["\(c.from)-\(c.to)-\(hash)"] {
                 c.kind = o.kind
                 c.summary = o.summary
@@ -91,7 +103,8 @@ public struct ConversationFile: Codable, Sendable, Hashable {
             }
             return c
         }
-        return ConversationFile(transcriptHash: fingerprint(lines), params: params, segments: segs)
+        return ConversationFile(transcriptHash: fingerprint(lines), params: params, segments: segs,
+                                voiceTyping: voiceTyping.filter { lines.indices.contains($0) }.sorted())
     }
 
     // MARK: 读写
@@ -107,7 +120,7 @@ public struct ConversationFile: Codable, Sendable, Hashable {
         return try e.encode(self)
     }
 
-    enum Keys: String, CodingKey { case version, segmenter, transcriptHash, params, segments }
+    enum Keys: String, CodingKey { case version, segmenter, transcriptHash, params, segments, voiceTyping }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: Keys.self)
@@ -116,6 +129,7 @@ public struct ConversationFile: Codable, Sendable, Hashable {
         transcriptHash = (try? c.decodeIfPresent(String.self, forKey: .transcriptHash)) ?? ""
         params = (try? c.decodeIfPresent(Segmenter.Params.self, forKey: .params)) ?? .standard
         segments = ((try? c.decodeIfPresent([Lenient<Conversation>].self, forKey: .segments)) ?? []).compactMap(\.value)
+        voiceTyping = (try? c.decodeIfPresent([Int].self, forKey: .voiceTyping)) ?? []
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -125,6 +139,7 @@ public struct ConversationFile: Codable, Sendable, Hashable {
         try c.encode(transcriptHash, forKey: .transcriptHash)
         try c.encode(params, forKey: .params)
         try c.encode(segments, forKey: .segments)
+        if !voiceTyping.isEmpty { try c.encode(voiceTyping, forKey: .voiceTyping) }
     }
 }
 
@@ -150,6 +165,8 @@ public struct Conversation: Codable, Sendable, Hashable, Identifiable {
     public var hash: String
     /// 落在这段里的重点标记（秒，相对录音开头），从 marks.json 归过来的（见 `MarkPlacement`）
     public var marks: [Double]
+    /// 这段范围里当作语音输入的句子下标（不算进段的起止、指纹和段摘要；全文照常显示）
+    public var voiceTyping: [Int]
     /// conversation / monologue / media / fragment：由段摘要那一步给，没摘要时没有
     public var kind: String?
     public var summary: ConversationSummary?
@@ -159,10 +176,16 @@ public struct Conversation: Codable, Sendable, Hashable, Identifiable {
     public var id: Int { index }
     public var lines: Range<Int> { from..<max(from, to) }
     public var duration: Double { max(end - start, 0) }
+    /// 段里不是语音输入的句子下标（段摘要、日记只用这些）
+    public var spokenLines: [Int] {
+        guard !voiceTyping.isEmpty else { return Array(lines) }
+        let skip = Set(voiceTyping)
+        return lines.filter { !skip.contains($0) }
+    }
 
     public init(index: Int, from: Int, to: Int, start: Double, end: Double, wallStart: Date, wallEnd: Date,
                 wallApprox: Bool = false, cut: Segmenter.Cut = .recordingStart, candidates: [Int] = [], hash: String = "",
-                marks: [Double] = [], kind: String? = nil, summary: ConversationSummary? = nil,
+                marks: [Double] = [], voiceTyping: [Int] = [], kind: String? = nil, summary: ConversationSummary? = nil,
                 summaryModel: String? = nil, summarizedAt: Date? = nil) {
         self.index = index
         self.from = from
@@ -176,6 +199,7 @@ public struct Conversation: Codable, Sendable, Hashable, Identifiable {
         self.candidates = candidates
         self.hash = hash
         self.marks = marks
+        self.voiceTyping = voiceTyping
         self.kind = kind
         self.summary = summary
         self.summaryModel = summaryModel
@@ -183,7 +207,7 @@ public struct Conversation: Codable, Sendable, Hashable, Identifiable {
     }
 
     enum Keys: String, CodingKey {
-        case index, from, to, start, end, wallStart, wallEnd, wallApprox, cut, candidates, hash, marks, kind, summary,
+        case index, from, to, start, end, wallStart, wallEnd, wallApprox, cut, candidates, hash, marks, voiceTyping, kind, summary,
              summaryModel, summarizedAt
     }
 
@@ -205,6 +229,7 @@ public struct Conversation: Codable, Sendable, Hashable, Identifiable {
         candidates = (try? c.decodeIfPresent([Int].self, forKey: .candidates)) ?? []
         hash = (try? c.decodeIfPresent(String.self, forKey: .hash)) ?? ""
         marks = (try? c.decodeIfPresent([Double].self, forKey: .marks)) ?? []
+        voiceTyping = (try? c.decodeIfPresent([Int].self, forKey: .voiceTyping)) ?? []
         kind = try? c.decodeIfPresent(String.self, forKey: .kind)
         summary = try? c.decodeIfPresent(ConversationSummary.self, forKey: .summary)
         summaryModel = try? c.decodeIfPresent(String.self, forKey: .summaryModel)
@@ -225,6 +250,7 @@ public struct Conversation: Codable, Sendable, Hashable, Identifiable {
         try c.encode(candidates, forKey: .candidates)
         try c.encode(hash, forKey: .hash)
         try c.encode(marks, forKey: .marks)
+        if !voiceTyping.isEmpty { try c.encode(voiceTyping, forKey: .voiceTyping) }
         // 没有的就写 null：一眼能看出「还没摘要」
         try c.encode(kind, forKey: .kind)
         try c.encode(summary, forKey: .summary)
