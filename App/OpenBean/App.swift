@@ -297,19 +297,12 @@ struct MenuContent: View {
         Button("Sync recordings") { Task { await model.library.syncAll() } }
             .disabled(!d.isReady || d.activity != .idle)
         Divider()
-        Toggle("Type into the active app", isOn: Binding(get: { s.typeIntoApp }, set: {
-            s.typeIntoApp = $0
-            if $0, !Typist.trusted { Typist.requestTrust() }
-        }))
-        Toggle("Clean up with an LLM", isOn: Binding(get: { s.polishEnabled }, set: { s.polishEnabled = $0 }))
-        Divider()
+        // 菜单只留马上要用的：打字 / 润色的开关在「语音输入」页，检查更新在「设置」页
         Button("Open OpenBean") { model.nav.goHome(s.mode); open("main") }
             .keyboardShortcut("o")
         Button("Settings…") { model.nav.open(.general(.top)); open("main") }
             .keyboardShortcut(",")
         if !s.onboardingDone { Button("Set up…") { open("onboarding") } }
-        Button("Check for Updates…") { model.updater.check() }
-            .disabled(!model.updater.canCheck)
         Divider()
         Button("Quit OpenBean") { NSApp.terminate(nil) }
             .keyboardShortcut("q")
