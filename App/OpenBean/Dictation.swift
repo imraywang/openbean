@@ -5,9 +5,13 @@ import AVFoundation
 import Foundation
 import Observation
 import OpenBeanKit
+import OpenBeanLibrary
 import OpenBeanVoice
 
 /// 一次听写：录音豆开始录音 → 实时流 → Apple 灰字 + SenseVoice 每句定稿 → 可选润色 → 打字。
+///
+/// 录音豆已经在录（心力模式整天录、只录音、App 连上之前按键录的会议）时改为「旁听」：只发实时请求（1A/07 realtime=1），
+/// 不发开始 / 暂停 / 结束 / 删除；结束后断开重连蓝牙，让录音豆停止外发（见 PROTOCOL §11、RelinkPolicy）。
 @MainActor @Observable
 final class Dictation {
     enum Phase: Equatable { case idle, starting, listening, finishing }
@@ -29,6 +33,10 @@ final class Dictation {
     private(set) var deliveredByClipboard = false
     /// 没开始语音输入时给用户看的提示（悬浮条闲着也要显示）；每次 +1，文字在 lastError
     private(set) var notice = 0
+    /// 上一次旁听结束后正在重连，这次请求在等连接（悬浮条显示「正在重连」）
+    private(set) var waitingForLink = false
+    /// 这次语音输入是旁听正在进行的录音（不是 App 开始的录音）
+    private(set) var listeningIn = false
 
     private let device: DeviceController
     private let settings: Settings
@@ -143,6 +151,10 @@ final class Dictation {
     private var appStart: (at: Date, recordingBefore: Bool?)?
     /// App 发开始命令之后收到的新文件通知（1A/06）里的文件号
     private var notifiedNew: Set<UInt32> = []
+    /// 旁听：发实时请求的时刻（语音输入时间段的开始）
+    private var listenStart: Date?
+    /// 等重连时又按了一下：不等了
+    private var cancelWait = false
 
     // MARK: 启动
 
@@ -258,6 +270,10 @@ final class Dictation {
         Log.write("设备事件：\(e)")
         switch e {
         case let .recordingStarted(fileId):
+            if listeningIn {
+                Log.write("旁听中收到新录音通知 file=\(fileId)，不理会")
+                return
+            }
             // 只录音：按键设成「只录音」，或者设备页手动开始录音。
             // App 自己发的开始（快捷键、菜单）不算，即使按键设成了「只录音」
             if ignoreNextStart || (!settings.buttonDictates && appStart == nil) {
@@ -285,12 +301,14 @@ final class Dictation {
             }
             Task { await begin(fileId: fileId) }
         case .recordingStopped:
-            if let r = recordOnly, phase == .idle {
+            if let r = recordOnly, phase == .idle || listeningIn {
                 recordOnly = nil
                 let secs = Int(Date().timeIntervalSince(r.since).rounded())
                 Log.write("battery event=record seconds=\(secs) recorder=\(DeviceController.field(device.battery)) file=\(r.fileId)")
-                return
+                if phase == .idle { return }
             }
+            // 旁听时录音豆的录音停了（用户按了按键、放回盒子）：旁听也结束
+            if listeningIn { Log.write("旁听中录音豆停止录音，结束旁听") }
             Task { await end() }
         default:
             break
@@ -337,6 +355,34 @@ final class Dictation {
 
     /// 菜单里的开始/停止：让设备开始或暂停录音，后续由设备事件驱动
     func toggle() async {
+        // 上一次旁听结束后正在重连：等连接回来再开始（悬浮条显示「正在重连」）；等的时候再按一下就不等了
+        if phase == .idle, waitingForLink {
+            cancelWait = true
+            return
+        }
+        if phase == .idle, device.relinking {
+            Log.write("语音输入等旁听后的重连")
+            waitingForLink = true
+            cancelWait = false
+            device.dictationWaiting = true
+            let t0 = Date()
+            while device.relinking, !cancelWait, Date().timeIntervalSince(t0) < RelinkPolicy.waitForLink {
+                try? await Task.sleep(nanoseconds: 100_000_000)
+            }
+            device.dictationWaiting = false
+            waitingForLink = false
+            if cancelWait {
+                Log.write("等重连时取消了语音输入")
+                return
+            }
+            if device.relinking || device.session == nil {
+                Log.write(String(format: "语音输入没开始：等了 %.1f 秒还没重连上", Date().timeIntervalSince(t0)))
+                lastError = String(localized: "Couldn't reconnect to the recorder. Try again in a moment.")
+                notice += 1
+                return
+            }
+            Log.write(String(format: "重连好了（等了 %.1f 秒），开始语音输入", Date().timeIntervalSince(t0)))
+        }
         guard let s = device.session else { Log.write("语音输入没开始：录音豆没连上"); return }
         let starting = phase == .idle
         // 开始没成功（没进入听写）就不留「App 发过开始命令」的记录，免得之后按键开始的听写被当成 App 开始的；
@@ -361,17 +407,27 @@ final class Dictation {
                 // 上一次语音输入的设备文件还在删：等它删完再开始（最多 5 秒），免得录音豆续写那个文件、然后被删掉
                 for _ in 0..<50 where cleanupRunning() { try? await Task.sleep(nanoseconds: 100_000_000) }
                 if cleanupRunning() { Log.write("语音输入没开始：还在删上一次的设备文件"); return }
-                // 录音豆正在录一段不是这次语音输入的录音（只录音、设备页开始的、或 App 连上之前按键录的会议）：
-                // 不开始，也不发开始 / 暂停 / 结束——结束语音输入时的暂停 + 结束会把那段录音截断。请用户先按键停止
+                // 录音豆正在录一段不是这次语音输入的录音（心力模式、只录音、设备页开始的、或 App 连上之前按键录的会议）：
+                // 旁听那段录音，不发开始 / 暂停 / 结束 / 删除。读不到状态、App 又记着只录音在录：不开始
                 let info = try? await s.deviceInfo()
                 trace?.mark("查状态")
-                if case let .refuse(why) = DictationStartPolicy.afterCheck(recordOnlyRunning: recordOnly != nil,
-                                                                           recorderRecording: info?.recording) {
-                    Log.write("语音输入没开始：录音豆正在录音（\(why == .recordOnlyRunning ? "只录音" : "不是 App 开始的录音")，"
-                              + "录音状态=\(DeviceController.field(info?.recording))），先按录音豆按键停止")
-                    lastError = String(localized: "The recorder is already recording. Press its button to stop, then try again.")
+                switch DictationStartPolicy.afterCheck(recordOnlyRunning: recordOnly != nil, recorderRecording: info?.recording) {
+                case let .refuse(why):
+                    Log.write("语音输入没开始：\(why == .recordOnlyRunning ? "只录音在录" : "录音豆在录")，"
+                              + "录音状态=\(DeviceController.field(info?.recording))（读不到状态时不旁听）")
+                    lastError = String(localized: "Couldn't check whether the recorder is recording. Try again in a moment.")
                     notice += 1
                     return
+                case .listenIn:
+                    Log.write("录音豆正在录音：旁听这段录音（不开始、不暂停、不结束）")
+                    trace?.path = "旁听"
+                    appStart = nil
+                    notifiedNew = []
+                    guessedFile = false
+                    await begin(fileId: device.newestFileId ?? 0, listenIn: true)
+                    return
+                default:
+                    break
                 }
                 if recordOnly != nil {
                     // 记着在只录音、设备却说没在录：错过了停止事件，这条记录作废
@@ -425,6 +481,9 @@ final class Dictation {
                     trace?.path = "文件列表"
                     await begin(fileId: id)
                 }
+            } else if listeningIn {
+                // 旁听：绝不发暂停 / 结束，直接收尾（停止接收、断开重连）
+                await end()
             } else {
                 pausedByApp = true
                 do { try await s.pauseRecording() } catch { pausedByApp = false; throw error }
@@ -437,7 +496,9 @@ final class Dictation {
 
     // MARK: 开始
 
-    private func begin(fileId: UInt32) async {
+    /// - listenIn: 旁听正在进行的录音。`fileId` 只是放进实时请求的号（设备不看它，见 PROTOCOL §11；0 = 先读文件列表取最新的）。
+    ///   不通知录音库这是语音输入文件、不改 currentFile、不清只录音的记录
+    private func begin(fileId: UInt32, listenIn: Bool = false) async {
         guard phase == .idle, let session = device.session, let decoder else {
             Log.write("没有开始听写：phase=\(phase) 已连接=\(device.session != nil) 解码器=\(decoder != nil)")
             return
@@ -457,22 +518,48 @@ final class Dictation {
         svQueue.async { r?.reset() }
         gotAudio = false
         pausedByApp = false
-        Log.write("开始听写 file=\(fileId)")
         startedAt = Date()
-        currentFile = fileId
-        recordOnly = nil   // 听写开始就不再是「只录音」，免得下次停止时多记一条时长
-        onStarted(fileId)
-        await device.beginDictation()
-        trace?.mark("占连接")
+        listeningIn = listenIn
+        var fileId = fileId
+        if listenIn {
+            await device.beginDictation()
+            trace?.mark("占连接")
+            if fileId == 0 {
+                fileId = (try? await session.listFiles().first?.id) ?? 0
+                trace?.mark("文件列表")
+            }
+            Log.write("开始旁听（实时请求里的文件号 \(fileId)）")
+        } else {
+            Log.write("开始听写 file=\(fileId)")
+            currentFile = fileId
+            recordOnly = nil   // 听写开始就不再是「只录音」，免得下次停止时多记一条时长
+            onStarted(fileId)
+            await device.beginDictation()
+            trace?.mark("占连接")
+        }
 
         // 先开流，识别器准备好之前的音频先攒着
+        if listenIn { listenStart = Date() }
         guard openStream(fileId: fileId) else {
-            phase = .idle; device.endDictation()
+            phase = .idle
             Task { @MainActor in await prep.value.transcriber?.finish() }
             finishTrace(ok: false)
+            if listenIn {
+                // 请求可能已经发出去了：照样断开重连，免得录音豆一直外发
+                listeningIn = false
+                listenStart = nil
+                Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    await self.device.relinkToStopStream()
+                    self.onFinished(nil)
+                }
+            } else {
+                device.endDictation()
+            }
             return
         }
         trace?.mark("开流")
+        if listenIn { watchListenAudio(session: session, requested: fileId) }
 
         let p = await prep.value
         trace?.marks.append("准备（" + p.steps.joined(separator: "，") + "）")
@@ -502,6 +589,19 @@ final class Dictation {
         // 在后台队列上播：NSSound.play() 会在调用线程上等音频输出起来，放主线程上会挡住几百毫秒
         if settings.readySound { ReadySound.play(); trace?.mark("提示音") }
         finishTrace(ok: true)
+    }
+
+    /// 旁听保险：请求里的文件号是猜的（最新的已知文件，可能已经删了）。1.5 秒还没有音频，就按文件列表里最新的一条再请求一次
+    private func watchListenAudio(session: D3200Session, requested: UInt32) {
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            guard let self, self.listeningIn, self.phase == .starting || self.phase == .listening, !self.gotAudio,
+                  let newest = try? await session.listFiles().first?.id,
+                  self.listeningIn, !self.gotAudio, self.device.session === session else { return }
+            Log.write("旁听 1.5 秒没有音频，按文件列表里最新的 \(newest) 再请求一次（之前是 \(requested)）")
+            self.stream?.stop()
+            self.openStream(fileId: newest)
+        }
     }
 
     private func feed(_ pcm: AVAudioPCMBuffer) {
@@ -611,9 +711,30 @@ final class Dictation {
         guard phase == .starting || phase == .listening else { return }
         phase = .finishing
         // 设备停止后还会有零星几帧在路上
+        // 旁听时同理：声音进录音豆到 Mac 收到约 0.3–0.5 秒，多收这一小段免得截掉最后一个字，然后就不再喂给识别
         try? await Task.sleep(nanoseconds: 400_000_000)
-        stream?.stop()
+        let got = stream?.stop()
         stream = nil
+        // 旁听：记下语音输入时间段（日记、切段跳过这段时间里的句子），马上断开重连让录音豆停止外发；
+        // 重连和下面的识别收尾同时进行（识别不用连接）
+        var relink: Task<Bool, Never>?
+        let listened = listeningIn
+        if listened {
+            let end = Date()
+            if let got {
+                Log.write("旁听收到 \(got.slices) 片，seq \(got.firstSeq.map(String.init) ?? "-")…\(got.lastSeq.map(String.init) ?? "-")，"
+                          + "缺 \(got.missingSeqs) 片，文件头：" + got.heads.map { "file=\($0.fileId) size=\(String(format: "%08X", $0.size))" }.joined(separator: "；"))
+            }
+            if let start = listenStart {
+                do {
+                    try VoiceTypingLog.append(.init(start: start, end: end), to: VoiceTypingLog.url(library: AppPaths.library))
+                } catch {
+                    Log.write("记语音输入时间段失败：\(error)")
+                }
+            }
+            listenStart = nil
+            relink = Task { @MainActor [device] in await device.relinkToStopStream() }
+        }
         await transcriber?.finish()
         transcriber = nil
         let r = recognizer
@@ -646,9 +767,26 @@ final class Dictation {
         Log.write("结束听写：\(finalText)")
         if let t = startedAt {
             let secs = Int(Date().timeIntervalSince(t).rounded())
-            Log.write("battery event=dictation seconds=\(secs) recorder=\(DeviceController.field(device.battery)) file=\(currentFile)")
+            Log.write("battery event=dictation seconds=\(secs) recorder=\(DeviceController.field(device.battery)) "
+                      + (listened ? "mode=listen-in" : "file=\(currentFile)"))
         }
         startedAt = nil
+        if listened {
+            // 旁听：不暂停、不结束、不删除；只交付文字，等重连完再让暂停的同步继续
+            listeningIn = false
+            appStart = nil
+            notifiedNew = []
+            pausedByApp = false
+            if !finalText.isEmpty, settings.keepHistory {
+                let since = listeningSince ?? Date()
+                onEntry(DictationEntry(date: since, duration: Date().timeIntervalSince(since), text: finalText,
+                                       app: targetApp, viaClipboard: deliveredByClipboard))
+            }
+            phase = .idle
+            _ = await relink?.value
+            onFinished(nil)
+            return
+        }
         let evidence = currentFile == 0 ? nil : DictationDeletePolicy.Evidence(
             fileId: currentFile, startedByApp: appStart != nil, recordingBeforeStart: appStart?.recordingBefore,
             notifiedNew: notifiedNew, startedAt: appStart?.at ?? Date())

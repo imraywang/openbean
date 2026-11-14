@@ -546,5 +546,8 @@
 "Voice typing settings": "语音输入设置",
 "Voice typing settings…": "语音输入设置…",
 "Wear it all day, put it back in its case, and it's sorted into today's record automatically. Recording and voice typing work as usual.": "戴一天，放回盒子，自动整理成今天的记录。录音、语音输入照常可用。",
-"Deleting from the device": "从设备删除"
+"Deleting from the device": "从设备删除",
+"Couldn't check whether the recorder is recording. Try again in a moment.": "读不到录音豆是否在录音，请稍后再试。",
+"Couldn't reconnect to the recorder. Try again in a moment.": "没能重新连上录音豆，请稍后再试。",
+"Reconnecting to the recorder…": "正在重新连接录音豆…"
 }

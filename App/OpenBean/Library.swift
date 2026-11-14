@@ -307,6 +307,7 @@ final class LibraryStore {
         sync = .listing
         do {
             let files = try await s.listFiles()
+            if let newest = files.first?.id { device.newestFileId = max(device.newestFileId ?? 0, newest) }
             merge(files)
             sync = .idle
             onListRefreshed()

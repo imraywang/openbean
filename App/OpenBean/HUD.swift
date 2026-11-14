@@ -10,6 +10,8 @@ import SwiftUI
 final class HUDController {
     enum Mode: Equatable {
         case hidden, starting, listening, finishing
+        /// 上一次旁听结束后正在重连录音豆，这次语音输入等连接回来
+        case reconnecting
         case done(count: Int, clipboard: Bool)
         case error(String)
     }
@@ -51,6 +53,7 @@ final class HUDController {
             _ = dictation.phase
             _ = dictation.lastError
             _ = dictation.notice
+            _ = dictation.waitingForLink
         } onChange: { [weak self] in
             Task { @MainActor in
                 self?.update()
@@ -72,6 +75,10 @@ final class HUDController {
                 return
             }
         }
+        if dictation.waitingForLink, dictation.phase == .idle {
+            show(.reconnecting)
+            return
+        }
         switch dictation.phase {
         case .starting: show(.starting)
         case .listening: show(.listening)
@@ -79,6 +86,9 @@ final class HUDController {
         case .idle:
             if let e = dictation.lastError, before != .hidden {
                 show(.error(e)); hide(after: 3)
+            } else if before == .reconnecting {
+                // 等重连结束（取消了、或连上了马上就会变成「准备中」：show 会取消这次隐藏）
+                hide(after: 1)
             } else if before == .finishing || before == .listening {
                 show(.done(count: dictation.deliveredByClipboard ? dictation.finalText.count : dictation.typedCount,
                            clipboard: dictation.deliveredByClipboard))
@@ -168,12 +178,14 @@ struct HUDView: View {
         .animation(.spring(response: 0.3, dampingFraction: 0.85), value: state.mode)
     }
 
-    private var showsStop: Bool { state.mode == .listening || state.mode == .starting }
+    private var showsStop: Bool { state.mode == .listening || state.mode == .starting || state.mode == .reconnecting }
 
     @ViewBuilder private var leading: some View {
         switch state.mode {
         case .starting:
             BreathingDots()
+        case .reconnecting:
+            ProgressView().controlSize(.small).tint(.white)
         case .listening:
             MicPulse(level: dictation.level)
         case .finishing:
@@ -192,6 +204,8 @@ struct HUDView: View {
         switch state.mode {
         case .starting:
             label("Getting ready…", secondary: true)
+        case .reconnecting:
+            label("Reconnecting to the recorder…", secondary: true)
         case .listening:
             // 说话时不显示文字：只用声波表示「正在收音」
             Waveform(level: dictation.level, bars: 15)

@@ -436,10 +436,13 @@ Known gaps:
   the recorder itself takes about a second to open a new file when it has been idle. What you say in that time is lost.
 - Voice typing started with the recorder's button (not the shortcut) leaves its file on the recorder; clear those
   with *Delete voice-typing files from recorder…* in the library.
-- While the recorder is recording something voice typing did not start (record only, *Start recording*, or a
-  recording made with the button before the Mac connected), the shortcut does not start voice typing: the bar says
-  the recorder is recording. Stop that recording with the recorder's button first. OpenBean never pauses or stops a
-  recording it did not start for voice typing.
+- While the recorder is recording something voice typing did not start (Heart mode, record only, *Start recording*,
+  or a recording made with the button before the Mac connected), voice typing listens in on that recording instead of
+  starting a new one: OpenBean only asks for the live audio and never pauses, stops or deletes the recording. The
+  recorder keeps sending live audio until Bluetooth disconnects, so when you stop, OpenBean disconnects and reconnects
+  (about 3 s; the bar shows *Reconnecting to the recorder…* if you start voice typing again meanwhile). What you said
+  stays in the recording's transcript, but for Heart mode recordings it is left out of conversations, conversation
+  summaries and the daily diary (the times are kept in `Library/voice-typing.json`).
 - Bluetooth downloads cannot resume yet: a download that is interrupted (the recorder leaves, the Mac sleeps, voice
   typing takes the connection) asks for the file from the start next time. What already arrived is kept in a
   temporary file and is not received twice, but the time is spent again. Bluetooth moves about 40 KB/s, so a full
@@ -533,8 +536,10 @@ bin/build-app && open ".build/OpenBean Dev.app"
 语音输入结束后，App 会从录音豆删掉这次语音输入新建的文件（设置 → 语音输入 →「从录音豆删除语音输入的音频」，默认打开）。
 结束时 App 先暂停、再发「结束录音」让录音豆把文件收尾（这样下次会新建文件，不再续写），然后删掉它。只删 App 自己发开始命令、
 能证明是新建的文件，删了不能恢复；不满足条件就留在录音豆上，打出的文字不受影响。设备页的「停止录音」同样是暂停再结束。
-录音豆正在录一段不是语音输入开始的录音（只录音、设备页开始的、或 Mac 连上之前按键录的会议）时，快捷键不会开始语音输入，
-悬浮条提示录音豆正在录音；请先按录音豆按键停止。App 不会暂停或结束不是它为语音输入开始的录音。
+录音豆正在录一段不是语音输入开始的录音（心力模式、只录音、设备页开始的、或 Mac 连上之前按键录的会议）时，语音输入改为「旁听」
+这段录音：只请求实时音频，不开始新录音，也不会暂停、结束或删除这段录音。录音豆在蓝牙断开之前会一直外发实时音频，所以结束时
+App 会断开再重连（约 3 秒；这期间再开始语音输入，悬浮条显示「正在重新连接录音豆…」，连上后自动开始）。旁听时说的话仍在那条录音的
+转写里；心力模式的录音切对话段、写段摘要和每日日记时会跳过这些句子（时间段记在 `Library/voice-typing.json`）。
 
 语音输入记录只保存在这台 Mac 上（`~/Library/Application Support/openbean/dictation.json`），用于「语音输入」页和概览统计；
 可在设置里关闭（「在本机保存语音输入记录」），或在「语音输入」页清空。

@@ -26,6 +26,13 @@ final class DeviceController {
     private(set) var problem: ConnectionProblem?
     /// 听写要用连接时置位，正在进行的同步看到后尽快让出
     private(set) var syncShouldYield = false
+    /// 旁听语音输入结束后故意断开、正在重连（让录音豆停止外发实时流，见 RelinkPolicy）。
+    /// 这期间界面照旧显示已连接、连接仍算「语音输入占着」（activity == .dictating），同步、刷新列表都不会插进来；
+    /// 新的语音输入请求等重连完成（Dictation.waitingForLink）
+    private(set) var relinking = false
+    /// 故意断开时登记：这个时刻之前收到的一次断开回调是我们自己断的，不当成掉线
+    @ObservationIgnored private var intentionalDropUntil: Date?
+    @ObservationIgnored private var intentionalDropSeen = false
     #if DEMO || DEBUG
     /// 演示版、预览从不连接：用到才建（建 Link 就会初始化 CoreBluetooth、弹蓝牙权限）
     @ObservationIgnored lazy var link = Link()
@@ -46,9 +53,10 @@ final class DeviceController {
     private let lastDeviceFile = AppPaths.support.appendingPathComponent("last-device.txt")
 
     #if DEMO || DEBUG
-    var isReady: Bool { state == .ready && (session != nil || Flavor.isFake) }
+    var isReady: Bool { state == .ready && (session != nil || Flavor.isFake || relinking) }
     #else
-    var isReady: Bool { state == .ready && session != nil }
+    /// 故意重连的几秒里也算可用：快捷键、菜单照常能按，语音输入会等连接回来
+    var isReady: Bool { state == .ready && (session != nil || relinking) }
     #endif
 
     func start() {
@@ -71,6 +79,19 @@ final class DeviceController {
     }
 
     private func lostConnection() {
+        if let until = intentionalDropUntil, Date() < until {
+            // 旁听结束后我们自己断的：不算掉线，重连由 relinkToStopStream 自己做
+            intentionalDropUntil = nil
+            intentionalDropSeen = true
+            Log.write("连接已断开（故意的，旁听结束后让录音豆停止外发）")
+            return
+        }
+        if relinking {
+            // 故意重连的过程中又断了：由 relinkToStopStream 的重试接着处理
+            Log.write("旁听后重连时连接断开")
+            session = nil
+            return
+        }
         Log.write("连接断开，准备重连")
         if session != nil { Log.write("battery event=disconnect recorder=\(Self.field(battery))") }
         session = nil
@@ -102,13 +123,14 @@ final class DeviceController {
         }
     }
 
-    private func connectOnce() async throws {
-        state = .searching
+    /// `quiet`：故意重连时不改 state（界面不闪「正在搜索」）、不调用 onConnected（重连完再调用）
+    private func connectOnce(quiet: Bool = false) async throws {
+        if !quiet { state = .searching }
         var target = (try? String(contentsOf: lastDeviceFile, encoding: .utf8))
             .flatMap { UUID(uuidString: $0.trimmingCharacters(in: .whitespacesAndNewlines)) }
             .flatMap { link.retrieve($0) }
         if let p = target {
-            state = .connecting
+            if !quiet { state = .connecting }
             Log.write("按上次的设备直连")
             do { try await link.connect(p, timeout: 8) } catch {
                 Log.write("直连失败：\(error)，改为扫描")
@@ -119,7 +141,7 @@ final class DeviceController {
             guard let d = await link.scan(seconds: 6).first(where: \.serviceMatch) else {
                 throw LinkError.missing(String(localized: "recorder. Take it out of the case or press the case button to wake it."))
             }
-            state = .connecting
+            if !quiet { state = .connecting }
             try await link.connect(d.peripheral)
             if !d.name.isEmpty { deviceName = d.name }
             try? d.peripheral.identifier.uuidString.write(to: lastDeviceFile, atomically: true, encoding: .utf8)
@@ -131,7 +153,8 @@ final class DeviceController {
             loggedLevels = (i.micBattery, i.caseBattery)
             loggedCharging = (i.micCharging, i.caseCharging)
             Log.write("battery event=connect recorder=\(Self.field(i.micBattery)) case=\(Self.field(i.caseBattery)) "
-                      + "charging=\(Self.field(i.micCharging)) caseCharging=\(Self.field(i.caseCharging))")
+                      + "charging=\(Self.field(i.micCharging)) caseCharging=\(Self.field(i.caseCharging))"
+                      + (quiet ? " intentional=1" : ""))
         }
         try await s.handshake()
         try? await s.syncTime()
@@ -141,11 +164,93 @@ final class DeviceController {
         session = s
         state = .ready
         startPolling()
-        onConnected()
+        if !quiet { onConnected() }
     }
+
+    // MARK: 旁听之后断开重连
+
+    /// 旁听结束：断开蓝牙让录音豆停止外发实时流，马上重连（不发任何录音命令）。重试几次（每次直连，失败就扫描），
+    /// 都不行就交给常规重连循环。全程 activity 保持 .dictating，结束时放回 .idle。
+    /// 重连时 connectOnce 会重新读设备信息（还在不在录、电量）、握手、校时。返回重连成功没有
+    @discardableResult
+    func relinkToStopStream() async -> Bool {
+        guard RelinkPolicy.shouldRelink(requestedStream: true, connected: session != nil && link.isConnected) else {
+            Log.write("旁听结束：连接已经断了，不用再断开")
+            endDictation()
+            return false
+        }
+        let t0 = Date()
+        relinking = true
+        activity = .dictating
+        defer { relinking = false }
+        poller?.cancel()
+        loop?.cancel()
+        Log.write("battery event=disconnect intentional=1 reason=listen-in recorder=\(Self.field(battery))")
+        intentionalDropSeen = false
+        intentionalDropUntil = Date().addingTimeInterval(RelinkPolicy.disconnectWait + 7)
+        session = nil
+        link.disconnect()
+        // 等断开回调（在 lostConnection 里被认成故意的）；等不到也往下走
+        while !intentionalDropSeen, Date().timeIntervalSince(t0) < RelinkPolicy.disconnectWait {
+            try? await Task.sleep(nanoseconds: 50_000_000)
+        }
+        if !intentionalDropSeen { Log.write("故意断开后 \(Int(RelinkPolicy.disconnectWait)) 秒没等到断开回调，照样重连") }
+        var failures = 0
+        while true {
+            do {
+                try await link.waitPoweredOn()
+                try await connectOnce(quiet: true)
+                Log.write(String(format: "旁听后重连成功，用了 %.1f 秒（第 %d 次）；录音中=%@ 电量=%@",
+                                 Date().timeIntervalSince(t0), failures + 1, Self.field(info?.recording), Self.field(battery)))
+                break
+            } catch {
+                failures += 1
+                switch RelinkPolicy.next(afterFailures: failures) {
+                case let .retry(after):
+                    Log.write("旁听后重连失败（第 \(failures) 次）：\(error)，\(after) 秒后再试")
+                    try? await Task.sleep(nanoseconds: UInt64(after * 1_000_000_000))
+                case .handOver:
+                    Log.write("旁听后重连失败 \(failures) 次：\(error)，交给常规重连")
+                    intentionalDropUntil = nil
+                    session = nil
+                    state = .searching
+                    activity = .idle
+                    syncShouldYield = false
+                    relinking = false
+                    loop = Task { await connectLoop() }
+                    return false
+                }
+            }
+        }
+        intentionalDropUntil = nil
+        activity = .idle
+        syncShouldYield = false
+        relinking = false
+        // 常规连上时做的事（刷新设备文件列表 → 自动同步自己判断要不要下载；录音豆还在录就不下）。
+        // 有语音输入在等连接时先不刷：让它先用连接
+        if !dictationWaiting { onConnected() }
+        return true
+    }
+
+    /// 有语音输入请求在等重连（Dictation 设置）
+    @ObservationIgnored var dictationWaiting = false
+
+    /// 等故意重连结束；返回连接能不能用。没在重连时立刻返回
+    func waitForLink(timeout: Double = RelinkPolicy.waitForLink) async -> Bool {
+        let t0 = Date()
+        while relinking, Date().timeIntervalSince(t0) < timeout {
+            try? await Task.sleep(nanoseconds: 100_000_000)
+        }
+        return !relinking && session != nil && state == .ready
+    }
+
+    /// 设备上最新的录音文件号：录音开始事件（1A/06）和读到的文件列表都会更新。旁听时放进实时请求（设备不看它，见 PROTOCOL §11）
+    var newestFileId: UInt32?
 
     private func handle(_ e: DeviceEvent) {
         switch e {
+        case let .recordingStarted(id):
+            newestFileId = max(newestFileId ?? 0, id)
         case let .battery(r, c):
             battery = r
             noteLevels(recorder: r, chargingCase: c)

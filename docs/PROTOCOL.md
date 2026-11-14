@@ -293,6 +293,13 @@ keeps streaming the live audio); turning the notification subscription off for 3
 reconnects took 2.9–3.5 s from disconnect to the first `01/01` reply. A realtime request after the reconnect works again
 (handshake to first slice: 3.2 s).
 
+**How the app uses this** (not yet verified in the app on hardware). When voice typing starts and `01/01` reports the
+recorder is recording, the app sends only `1A/07` with `realtime = 1` (file id: the newest id it knows from `1A/06` or
+the last `1B/0E` list; if no audio arrives within 1.5 s it lists the files and asks again with the newest id). It never
+sends `18/82` or `1A/10` in this mode. When voice typing ends it keeps receiving for 0.4 s, stops decoding, then
+disconnects and reconnects (direct connect with an 8 s timeout, falling back to a 6 s scan; up to three attempts 0.5 s
+and 2 s apart, then the normal reconnect loop), and reads `01/01` again during the reconnect.
+
 Measured end-to-end latency (sound in the room → decrypted audio on the host) is **0.3–0.5 s**. The live stream starts at
 the current position, so the first ~0.7 s after the start command is only available by downloading the file later.
 
