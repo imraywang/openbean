@@ -83,7 +83,7 @@ final class LibraryStore {
         /// heart：心力模式开着时把设备叫「心力豆」
         func label(heart: Bool) -> LocalizedStringKey {
             switch self {
-            case .all: return "Library"
+            case .all: return "Recordings"
             case .onRecorder: return DeviceWord.pick(heart, "On Heart bean", "On recorder")
             case .untranscribed: return "Not transcribed"
             case .todos: return "Has to-dos"

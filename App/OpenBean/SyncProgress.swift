@@ -135,7 +135,15 @@ enum SyncRunText {
         if d > 0 { parts.append(String(localized: "Deleted \(d) recordings from the Heart bean.")) }
         if k > 0 { parts.append(String(localized: "\(k) stayed on the Heart bean because they couldn't be checked against the copy on this Mac.")) }
         if d > 0 { parts.append(retention(r.options.audioRetention)) }
-        return parts.isEmpty ? nil : parts.joined(separator: " ")
+        return parts.isEmpty ? nil : joinSentences(parts)
+    }
+
+    /// 几句话接成一行：以全角标点结尾的句子后面不加空格
+    static func joinSentences(_ parts: [String]) -> String {
+        parts.enumerated().reduce(into: "") { out, x in
+            if x.offset > 0, let last = out.last, !"。！？；".contains(last) { out += " " }
+            out += x.element
+        }
     }
 
     static func retention(_ r: AudioRetention) -> String {
@@ -176,7 +184,7 @@ enum SyncRunText {
         default: break
         }
         if let c = cleanUpSummary(r) { parts.append(c) }
-        return parts.joined(separator: " ")
+        return joinSentences(parts)
     }
 }
 

@@ -21,7 +21,7 @@ enum MainSection: String, CaseIterable, Identifiable, Hashable {
     func title(heart: Bool) -> LocalizedStringKey {
         switch self {
         case .heart: return "Heart mode"
-        case .library: return "Library"
+        case .library: return "Recordings"
         case .dictation: return "Voice typing"
         case .recorder: return DeviceWord.title(heart: heart)
         case .settings: return "Settings"

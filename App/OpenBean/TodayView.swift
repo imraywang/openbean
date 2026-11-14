@@ -106,7 +106,8 @@ struct TodayView: View {
             .padding(.horizontal, 32).padding(.vertical, 24)
             .frame(maxWidth: .infinity)
         }
-        .navigationTitle(title(day: day, today: today))
+        // 页面大标题已经写了是哪一天；工具栏标题写模块名，不再重复「今天」
+        .navigationTitle("Heart mode")
         .toolbar { toolbar(day: day, today: today) }
         // 这天各条录音的摘要和待办状态在后台读进缓存（不在主线程上逐条读盘）
         .task(id: digest.recordings.map(\.id)) {
@@ -399,16 +400,8 @@ struct TodayDeviceLine: View {
                 Text("\(device.deviceName) battery is low (\(b)%). Put it back in its case to charge.")
             } action: { Button("Heart bean details", action: openRecorder) }
         } else {
-            // 没事：很淡的一行
-            Button(action: openRecorder) {
-                HStack(spacing: 6) {
-                    Circle().fill(Color.green).frame(width: 6, height: 6)
-                    Text(device.battery.map { "\(device.deviceName) · \($0)%" } ?? device.deviceName)
-                }
-                .font(.callout).foregroundStyle(.secondary)
-            }
-            .buttonStyle(.plain)
-            .help("Show Heart bean details")
+            // 没事：不显示（连接状态和电量在侧栏左下角）
+            EmptyView()
         }
     }
 }

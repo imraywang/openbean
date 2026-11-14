@@ -284,7 +284,7 @@
 "Recorder details": "录音豆详情",
 "Recorder not connected.": "录音豆未连接。",
 "Recording": "录音",
-"Recordings": "录音文件",
+"Recordings": "录音",
 "Recordings are split into conversations at long pauses either way; this only adds the summaries. With a notes folder, one Markdown file per day goes into the subfolder.": "不管开不开，录音都会在长停顿处切成一段段对话；这个开关只是多写摘要。设置了笔记文件夹时，每天一篇 Markdown 写在这个子文件夹里。",
 "Recordings created by voice typing": "语音输入产生的录音",
 "Recordings from the recorder show up here by day after you sync them.": "录音豆上录的音同步之后，会按天出现在这里。",
