@@ -27,10 +27,13 @@ public final class LibraryTools: @unchecked Sendable {
     let calendar: Calendar
     /// 一天从几点开始（和 App 的「今天」、每日日记同一个规则：默认凌晨 4 点，凌晨两点的录音算前一天）
     let boundary: DayBoundary
+    /// App 设置「允许 Agent 读取心力模式录音的原文」：每次调用时问一次（用户在 App 里改了不用重启 agent）
+    let heartTranscriptsAllowed: () -> Bool
 
     public init(location: LibraryLocation, timeZone: TimeZone = .current, dayStartHour: Int = 4,
-                now: @escaping () -> Date = Date.init) {
+                now: @escaping () -> Date = Date.init, heartTranscriptsAllowed: @escaping () -> Bool = { false }) {
         self.location = location
+        self.heartTranscriptsAllowed = heartTranscriptsAllowed
         library = RecordingLibrary(folder: location.folder)
         self.timeZone = timeZone
         self.now = now
@@ -93,6 +96,7 @@ public final class LibraryTools: @unchecked Sendable {
                  "Get one recording: start time, duration, title, its LLM-written summary with key points and action items (if it has one), "
                  + "the path of the Markdown note OpenBean saved for it (if any), the size of its transcript, "
                  + "the moments the user marked as important on the recorder (seconds from the start; read around them with get_transcript) "
+                 + "its conversations (long pauses split a recording) with their summaries when it has them, "
                  + "and a link that opens it in OpenBean. "
                  + "Does not include the transcript itself; use get_transcript for that.",
                  ["id": id], required: ["id"]),
@@ -101,7 +105,9 @@ public final class LibraryTools: @unchecked Sendable {
                  + "Long transcripts are cut at max_chars; the result then says which start_seconds to pass to read on. "
                  + "Use start_seconds / end_seconds to read only part of a recording, e.g. around a timestamp from search_recordings, "
                  + "or conversation to read one conversation of a long recording (day_overview lists them). "
-                 + "The text is automatic speech recognition and can contain mis-heard words, especially names.",
+                 + "The text is automatic speech recognition and can contain mis-heard words, especially names. "
+                 + "Recordings made in OpenBean's Heart mode (all-day recording) only share their transcript if the user allows it in OpenBean's settings; "
+                 + "otherwise this returns their conversation summaries instead, and day_overview has the day's diary.",
                  ["id": id,
                   "start_seconds": ["type": "number", "minimum": 0, "description": "Read from this many seconds into the recording (default 0)."],
                   "end_seconds": ["type": "number", "minimum": 0, "description": "Stop at this many seconds into the recording (default: the end)."],
@@ -114,7 +120,8 @@ public final class LibraryTools: @unchecked Sendable {
                  "Find where something was said: searches titles, summaries, key points, action items and transcripts for a keyword. "
                  + "Matching is a case-insensitive substring, without word splitting (works for Chinese); use a short, distinctive keyword "
                  + "and try synonyms or other spellings if nothing is found, since transcripts can mis-hear words. "
-                 + "Returns matching recordings, newest first, with up to 5 snippets each and the timestamp of each transcript match.",
+                 + "Returns matching recordings, newest first, with up to 5 snippets each and the timestamp of each transcript match. "
+                 + "For Heart mode recordings whose transcripts the user keeps private, conversation summaries are searched instead of the words.",
                  ["query": ["type": "string", "minLength": 1, "description": "Text to look for."],
                   "from": ["type": "string", "description": .string("First day to search. " + dateHelp)],
                   "to": ["type": "string", "description": .string("Last day to search. " + dateHelp)],
@@ -138,7 +145,7 @@ public final class LibraryTools: @unchecked Sendable {
         let query = try optionalString(a, "query")
         let limit = try int(a, "limit", default: 20, in: 1...100)
         var all = try library.recordings(in: range?.interval)
-        if let query { all = all.filter { library.contains($0, query: query) } }
+        if let query { all = all.filter { library.contains($0, query: query, transcript: transcriptVisible($0)) } }
         let shown = Array(all.prefix(limit))
 
         var lines: [String] = []
@@ -180,7 +187,12 @@ public final class LibraryTools: @unchecked Sendable {
         var lines = ["Recording \(r.id): \(title(r, s) ?? "(untitled)")",
                      "Start: \(localDateTime(r.start)) (\(iso(r.start))) · Duration \(clock(r.duration))"]
         var o = brief(r, s).object!
+        let visible = transcriptVisible(r)
+        o["transcript_private"] = .bool(!visible)
         switch transcript {
+        case .ok where !visible:
+            lines.append("Transcript: private. \(Self.privateNote)")
+            o["transcript"] = .null
         case let .ok(segs):
             let chars = segs.reduce(0) { $0 + $1.text.count }
             lines.append("Transcript: \(segs.count) sentences, \(chars) characters. Read it with get_transcript.")
@@ -233,6 +245,14 @@ public final class LibraryTools: @unchecked Sendable {
             // 没有 marks.json：加这个功能之前下载的，不知道有没有标记
             o["marks"] = .null
         }
+        // 对话段和段摘要（心力模式录音的原文不给看时，这是能读到的内容）
+        let convs = library.conversations(r.id)
+        if convs.count > 1 || convs.contains(where: { $0.summary != nil }) {
+            lines.append("")
+            lines.append(visible ? "Conversations (read one with get_transcript and its conversation number):" : "Conversations:")
+            lines += convs.map(conversationLine)
+            o["conversations"] = .array(convs.map { conversationJSON(r, $0) })
+        }
         lines.append("")
         let note = library.notePath(r.id)
         if let note { lines.append("Note file: \(note)") }
@@ -246,6 +266,7 @@ public final class LibraryTools: @unchecked Sendable {
 
     func getTranscript(_ a: [String: JSON]) throws -> ToolResult {
         let r = try recording(a)
+        if !transcriptVisible(r) { return privateTranscript(r) }
         var from = try number(a, "start_seconds") ?? 0
         var to = try number(a, "end_seconds")
         var conv: Conversation?
@@ -305,7 +326,7 @@ public final class LibraryTools: @unchecked Sendable {
         guard let query = try optionalString(a, "query") else { throw ToolError("query is required: the text to look for.") }
         let range = try dateRange(a)
         let limit = try int(a, "limit", default: 10, in: 1...50)
-        let (hits, total) = try library.search(query, in: range?.interval, limit: limit)
+        let (hits, total) = try library.search(query, in: range?.interval, limit: limit, transcriptVisible: transcriptVisible)
         let scope = range.map { " " + $0.label } ?? ""
         var lines: [String] = []
         if hits.isEmpty {
@@ -323,7 +344,10 @@ public final class LibraryTools: @unchecked Sendable {
             lines.append("• id \(r.id) — \(localDateTime(r.start)) — \(title(r, s) ?? "(untitled)") (\(h.total) match\(h.total == 1 ? "" : "es"))")
             var ms: [JSON] = []
             for m in h.matches {
-                if let t = m.time {
+                if let c = m.conversation {
+                    lines.append("  conversation \(c) summary: \(m.snippet)")
+                    ms.append(["field": .string(m.field.rawValue), "conversation": .int(c), "snippet": .string(m.snippet)])
+                } else if let t = m.time {
                     lines.append("  \(timestamp(t)) \(m.snippet)")
                     ms.append(["field": .string(m.field.rawValue), "time_seconds": .double(t), "timestamp": .string(timestamp(t)),
                                "at": .string(iso(r.start.addingTimeInterval(t))), "snippet": .string(m.snippet)])
@@ -381,15 +405,9 @@ public final class LibraryTools: @unchecked Sendable {
             lines.append("\(time(r.start)) · \(clock(r.duration)) · \(title(r, s) ?? "(untitled)") (id \(r.id))")
             var o = brief(r, s).object!
             if let convs = dayConvs[r.id] {
-                lines.append("Conversations (read one with get_transcript id \(r.id) and its conversation number):")
-                for c in convs {
-                    var line = "- conversation \(c.index): \(wall(c))"
-                    if let cs = c.summary {
-                        if !cs.title.isEmpty { line += " · \(cs.title)" }
-                        if !cs.summary.isEmpty { line += " — \(cs.summary)" }
-                    } else if c.kind == "fragment" { line += " · a few words" }
-                    lines.append(line)
-                }
+                lines.append(transcriptVisible(r) ? "Conversations (read one with get_transcript id \(r.id) and its conversation number):"
+                                                  : "Conversations (Heart mode recording; the words are private):")
+                lines += convs.map(conversationLine)
                 o["conversations"] = .array(convs.map { conversationJSON(r, $0) })
             }
             if let s {
@@ -514,10 +532,58 @@ public final class LibraryTools: @unchecked Sendable {
     /// 一行要点：摘要的开头，没有就用转写的开头
     func gist(_ r: LibraryRecording, _ s: LibrarySummary?) -> String? {
         if let t = s?.summary, !t.isEmpty { return oneLine(t, 160) }
+        guard transcriptVisible(r) else {
+            // 原文不给看：用第一段的段摘要
+            return library.conversations(r.id).lazy.compactMap { $0.summary?.summary }.first { !$0.isEmpty }.map { oneLine($0, 160) }
+        }
         guard let segs = library.transcript(r.id).value, !segs.isEmpty else { return nil }
         var text = ""
         for seg in segs { text += (text.isEmpty ? "" : " ") + seg.text; if text.count >= 120 { break } }
         return oneLine(text, 120)
+    }
+
+    // MARK: 心力模式录音的原文
+
+    static let privateNote = "This recording was made in OpenBean's Heart mode, and the user keeps the words of Heart mode recordings private from agents "
+        + "(they can allow it in OpenBean → Settings → Heart mode). Its conversation summaries and the day's diary (day_overview) are available."
+
+    /// 这条录音的转写原文能不能给（HeartPrivacy）
+    func transcriptVisible(_ r: LibraryRecording) -> Bool {
+        HeartPrivacy.transcriptVisible(source: r.source, agentMayReadHeartTranscripts: heartTranscriptsAllowed())
+    }
+
+    func conversationLine(_ c: Conversation) -> String {
+        var line = "- conversation \(c.index): \(wall(c))"
+        if let cs = c.summary {
+            if !cs.title.isEmpty { line += " · \(cs.title)" }
+            if !cs.summary.isEmpty { line += " — \(cs.summary)" }
+        } else if c.kind == "fragment" { line += " · a few words" }
+        return line
+    }
+
+    /// get_transcript 遇到不给原文的录音：不算出错，说明原因，给出段摘要和那天的 day_overview
+    func privateTranscript(_ r: LibraryRecording) -> ToolResult {
+        let s = library.summary(r.id).value
+        let convs = library.conversations(r.id)
+        let day = dayString(boundary.day(of: r.start))
+        var lines = ["Transcript of recording \(r.id) (\(title(r, s) ?? "untitled"), started \(localDateTime(r.start))) is private.",
+                     Self.privateNote]
+        let summarized = convs.filter { $0.summary != nil }
+        if summarized.isEmpty {
+            lines.append("It has no conversation summaries yet\(s == nil ? "" : "; get_recording has its summary").")
+        } else {
+            lines.append("")
+            lines.append("Conversation summaries:")
+            lines += convs.map(conversationLine)
+        }
+        lines.append("")
+        lines.append("The day's diary: day_overview with date \(day).")
+        var o: [String: JSON] = ["id": .int(Int(r.id)), "title": .from(title(r, s)), "start": .string(iso(r.start)),
+                                 "transcript_private": .bool(true), "segments": .array([]),
+                                 "conversations": .array(convs.map { conversationJSON(r, $0) }),
+                                 "day": .string(day)]
+        o.merge(contextJSON) { a, _ in a }
+        return ToolResult(text: lines.joined(separator: "\n"), structured: .object(o), isError: false)
     }
 
     func oneLine(_ s: String, _ n: Int) -> String {

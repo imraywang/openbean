@@ -53,27 +53,42 @@ func appVersion() -> String {
 
 let location = LibraryLocation.resolve(path: path, dev: dev, environment: ProcessInfo.processInfo.environment,
                                        executable: Bundle.main.executableURL)
-/// 一天从几点开始：和 App 设置里的一样（App 存在自己的偏好设置里：正式版 dev.openbean.app，开发版 dev.openbean.app.dev）。
-/// 环境变量 OPENBEAN_DAY_START_HOUR 优先；读不到就用 4
-func dayStartHour() -> Int {
-    let env = ProcessInfo.processInfo.environment
-    if let v = env["OPENBEAN_DAY_START_HOUR"].flatMap(Int.init), (0...23).contains(v) { return v }
+/// App 的偏好设置（App 存在自己的域里：正式版 dev.openbean.app，开发版 dev.openbean.app.dev；
+/// --library 指定的库用所在 .app 的域，不在 .app 里就没有）
+let appDefaults: UserDefaults? = {
     let domain: String?
     switch location.flavor {
     case .release: domain = "dev.openbean.app"
     case .dev: domain = "dev.openbean.app.dev"
     case .custom: domain = Bundle.main.executableURL.flatMap(LibraryLocation.enclosingBundleIdentifier)
     }
-    if let domain, let d = UserDefaults(suiteName: domain), d.object(forKey: "dayStartHour") != nil {
+    return domain.flatMap { UserDefaults(suiteName: $0) }
+}()
+
+/// 一天从几点开始：和 App 设置里的一样。环境变量 OPENBEAN_DAY_START_HOUR 优先；读不到就用 4
+func dayStartHour() -> Int {
+    let env = ProcessInfo.processInfo.environment
+    if let v = env["OPENBEAN_DAY_START_HOUR"].flatMap(Int.init), (0...23).contains(v) { return v }
+    if let d = appDefaults, d.object(forKey: "dayStartHour") != nil {
         let v = d.integer(forKey: "dayStartHour")
         if (0...23).contains(v) { return v }
     }
     return 4
 }
 
-let tools = LibraryTools(location: location, dayStartHour: dayStartHour())
+/// 「允许 Agent 读取心力模式录音的原文」（App 设置 → 心力模式，默认关）。每次调用时读一次，App 里改了马上生效。
+/// 环境变量 OPENBEAN_HEART_TRANSCRIPTS=1/0 优先；读不到 App 的设置就按默认（不给）
+func heartTranscriptsAllowed() -> Bool {
+    if let v = ProcessInfo.processInfo.environment["OPENBEAN_HEART_TRANSCRIPTS"] { return v == "1" || v.lowercased() == "true" }
+    guard let d = appDefaults else { return ModeDefaults.heartAgentTranscriptsDefault }
+    d.synchronize() // 另一个进程（App）写的值：先和偏好设置服务同步一下
+    return ModeDefaults(defaults: d).heartAgentTranscripts
+}
+
+let tools = LibraryTools(location: location, dayStartHour: dayStartHour(), heartTranscriptsAllowed: heartTranscriptsAllowed)
 let server = MCPServer(tools: tools, version: appVersion())
-log("\(appVersion()), library \(location.folder.path) (\(location.flavor.rawValue)), day starts at \(dayStartHour()):00"
+log("\(appVersion()), library \(location.folder.path) (\(location.flavor.rawValue)), day starts at \(dayStartHour()):00, "
+    + "Heart mode transcripts \(heartTranscriptsAllowed() ? "shared" : "private")"
     + (RecordingLibrary(folder: location.folder).exists ? "" : " — not found yet"))
 
 // 客户端提前关了管道时，写 stdout 不要被 SIGPIPE 直接杀掉，按出错退出

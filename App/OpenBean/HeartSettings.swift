@@ -84,6 +84,10 @@ struct HeartSettings: View {
                         Text("Keep audio on this Mac")
                         Text("Transcripts, summaries and the diary are kept. Applies to recordings synced in Heart mode.")
                     }
+                    .onChange(of: settings.heartAudioRetention) { _, r in
+                        Log.write("心力模式：本机音频保留改为 \(r.rawValue)")
+                        notes.library?.applyAudioRetention()
+                    }
                     Toggle(isOn: $settings.heartAgentTranscripts) {
                         Text("Let agents (MCP) read the transcripts of Heart mode recordings")
                         Text("Off: agents get the diary and conversation summaries, not the words.")

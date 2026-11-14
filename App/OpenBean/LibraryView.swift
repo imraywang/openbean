@@ -200,11 +200,12 @@ struct RecordingMenu: View {
         }
         if recording.downloaded {
             Button(recording.transcribed ? "Transcribe again" : "Transcribe") { Task { await library.transcribe(recording.id) } }
+                .disabled(recording.audioRemoved)
             if library.notes.canSummarize(recording) {
                 Button(library.notes.summary(recording.id) != nil ? "Summarise again" : "Summarise") { library.notes.summarize(recording.id) }
                     .disabled(library.notes.summarizing[recording.id] != nil)
             }
-            Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([library.audioURL(recording.id)]) }
+            Button("Show in Finder") { library.showInFinder(recording) }
             Divider()
             Button("Delete local copy", role: .destructive) { library.deleteLocal(recording.id) }
         }
@@ -304,7 +305,16 @@ struct RecordingDetail: View {
             return .handled
         })
         .overlay(alignment: .bottom) {
-            PlayerStrip(player: player, peaks: library.peaks(recording.id))
+            Group {
+                if recording.audioRemoved {
+                    // 心力模式按设置删了本机音频：文字照常，播放条换成一句说明
+                    Label("Audio deleted as set in Heart mode. The transcript is kept.", systemImage: "waveform.slash")
+                        .font(.callout).foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, minHeight: 28)
+                } else {
+                    PlayerStrip(player: player, peaks: library.peaks(recording.id))
+                }
+            }
                 .padding(.leading, 8).padding(.trailing, 18).padding(.vertical, 8)
                 // 玻璃染上窗口底色：转写文字从下面滚过时，波形和时间也看得清（系统设置里把玻璃调到最透时也一样）
                 .glassEffect(.regular.tint(Color(nsColor: .windowBackgroundColor).opacity(0.92)), in: .capsule)
@@ -379,7 +389,7 @@ struct RecordingDetail: View {
                 }
                 if let p = library.transcribing[recording.id] {
                     ProgressView(value: p) { Text("Transcribing…") }.frame(width: 140)
-                } else {
+                } else if !recording.audioRemoved {
                     Button { Task { await library.transcribe(recording.id) } } label: {
                         Label(recording.transcribed ? "Transcribe again" : "Transcribe", systemImage: "text.bubble")
                     }
@@ -397,10 +407,10 @@ struct RecordingDetail: View {
                     }.disabled(!recording.transcribed)
                     Divider()
                     Button("Export transcript as Markdown…") { library.exportMarkdown(recording.id) }.disabled(!recording.transcribed)
-                    Button("Export audio (Ogg Opus)…") { library.exportAudio(recording.id) }
+                    Button("Export audio (Ogg Opus)…") { library.exportAudio(recording.id) }.disabled(recording.audioRemoved)
                     Button("Save note to folder") { saveNote = true }.disabled(!library.notes.canSummarize(recording))
                     Divider()
-                    Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([library.audioURL(recording.id)]) }
+                    Button("Show in Finder") { library.showInFinder(recording) }
                 } label: {
                     Label("Share", systemImage: "square.and.arrow.up")
                 }

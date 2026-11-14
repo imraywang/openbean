@@ -21,6 +21,15 @@ struct Recording: Codable, Identifiable, Hashable {
     var transcribed = false
     /// 由语音输入产生的片段
     var isDictation = false
+    /// 在哪种模式下同步进来的（index.json 的 source；旧录音没有 = 普通）
+    var source: RecordingSource?
+    /// 同步（下载完成）的时刻：心力模式的音频保留期从这里算；旧录音没有，按开始时间算
+    var syncedAt: Date?
+    /// 本机音频按心力模式的保留设置删掉的时刻（转写、摘要还在）
+    var audioDeletedAt: Date?
+
+    var recordingSource: RecordingSource { source ?? .normal }
+    var audioRemoved: Bool { audioDeletedAt != nil }
 
     var duration: TimeInterval { Double(durationMs) / 1000 }
     var displayTitle: String {
@@ -339,7 +348,11 @@ final class LibraryStore {
         guard case .idle = device.activity, !syncRunning else { return }
         syncRunning = true
         lastFailure = nil
-        defer { syncRunning = false; syncSecondsLeft = nil; currentSecondsLeft = nil }
+        defer {
+            syncRunning = false; syncSecondsLeft = nil; currentSecondsLeft = nil
+            // 连接空出来了：转写已经完成的心力模式录音可以从设备删了
+            Task { await self.afterSyncHousekeeping() }
+        }
         await refreshDeviceList()
         let pending = pendingDownloads(ids: ids)
         guard !pending.isEmpty else { sync = .idle; return }
@@ -435,7 +448,15 @@ final class LibraryStore {
             markCache[id] = marks.marks
             if !marks.marks.isEmpty { Log.write("\(id) 有 \(marks.marks.count) 个重点标记：\(marks.marks.map { String(format: "%.2f", $0) }.joined(separator: "、")) 秒") }
             spool.remove()
-            update(id) { $0.downloaded = true }
+            let source = settings.mode.sourceForSync
+            update(id) {
+                $0.downloaded = true
+                $0.source = source
+                $0.syncedAt = Date()
+                $0.audioDeletedAt = nil
+            }
+            // 心力模式同步后自动从设备删除：只认这次同步下载、校验完整（没有补静音）的
+            if source == .heart { syncedThisRun[id] = (result.check.verdict == .complete && written.filled == 0) }
             Log.write("已下载 \(id)（\(result.receivedBytes / 1024) KB，\(Int(result.seconds)) 秒，\(via)）"
                       + (written.filled > 0 ? "，缺 \(written.filled) 片已补静音" : ""))
             if settings.autoTranscribe { Task { await transcribe(id) } }
@@ -590,6 +611,91 @@ final class LibraryStore {
         }
     }
 
+    // MARK: 心力模式：同步后从设备删除、本机音频保留期
+
+    /// 这次运行里同步下载的心力模式录音 → 下载校验完整（没有补静音）。只在内存里：App 重启后就不再自动删这些
+    @ObservationIgnored private var syncedThisRun: [UInt32: Bool] = [:]
+    @ObservationIgnored private var housekeeping = false
+    @ObservationIgnored private var housekeepingAgain = false
+
+    /// 同步结束、转写完成后：先从设备删掉符合条件的心力模式录音，再按保留期删本机音频（设备端删除要用本机音频核对，所以先删设备）。
+    /// 正在做时又被叫到（例如删除期间又一条转写完了）：做完再来一遍
+    func afterSyncHousekeeping() async {
+        guard !housekeeping else { housekeepingAgain = true; return }
+        housekeeping = true
+        defer { housekeeping = false }
+        repeat {
+            housekeepingAgain = false
+            await cleanUpRecorder()
+            applyAudioRetention()
+        } while housekeepingAgain
+    }
+
+    /// 同步并转写完成的心力模式录音，从设备上删掉。每条先过 RecorderCleanupPolicy，再走 deleteOneFromRecorder 里的
+    /// DeletePolicy（本机音频完整解码、时长核对、设备没在录音、连接空闲）。任何一项不过就不删，写日志
+    private func cleanUpRecorder() async {
+        let mode = settings.mode
+        for (id, complete) in syncedThisRun.sorted(by: { $0.key < $1.key }) {
+            guard let r = recordings.first(where: { $0.id == id }) else { syncedThisRun[id] = nil; continue }
+            guard r.onDevice else { syncedThisRun[id] = nil; continue }
+            if let refusal = RecorderCleanupPolicy.check(mode: mode, source: r.recordingSource, downloadedThisSync: true,
+                                                         downloadComplete: complete,
+                                                         transcriptExists: r.transcribed && FileManager.default.fileExists(atPath: transcriptURL(id).path)) {
+                switch refusal {
+                case .notTranscribed:
+                    continue // 转写完了会再叫一次
+                default:
+                    Log.write("心力模式：\(id) 不从设备删除：\(refusal)")
+                    syncedThisRun[id] = nil
+                    continue
+                }
+            }
+            // 连接忙（同步、语音输入、别的删除）：留着，下次同步结束或转写完再试
+            guard recorderIdle else { Log.write("心力模式：\(id) 暂不从设备删除：连接正忙，稍后再试"); return }
+            do {
+                try await deleteOneFromRecorder(id)
+                Log.write("心力模式：同步并转写完成，已从设备删除 \(id)")
+                syncedThisRun[id] = nil
+            } catch DeleteError.refused(.busy) {
+                Log.write("心力模式：\(id) 暂不从设备删除：连接正忙，稍后再试")
+                return
+            } catch {
+                Log.write("心力模式：\(id) 不从设备删除：\(error)")
+                syncedThisRun[id] = nil
+            }
+        }
+    }
+
+    /// 按设置删心力模式录音的本机音频（只删 audio.ogg 和它的波形缓存；转写、摘要、对话段、日记都留着）
+    func applyAudioRetention(now: Date = Date()) {
+        let mode = settings.mode
+        let fm = FileManager.default
+        for r in recordings where r.downloaded && !r.isDictation && r.recordingSource == .heart && !r.audioRemoved {
+            let audio = audioURL(r.id)
+            let lines: Int? = r.transcribed && fm.fileExists(atPath: transcriptURL(r.id).path) ? transcript(r.id).count : nil
+            // 设备上还有、又会自动删：先等设备端删完（要用本机音频核对）
+            let awaiting = mode.deletesFromRecorderAfterSync && r.onDevice && syncedThisRun[r.id] != nil
+            if let keep = AudioRetentionPolicy.check(source: r.recordingSource, retention: mode.audioRetention,
+                                                     audioExists: fm.fileExists(atPath: audio.path), transcriptLines: lines,
+                                                     syncedAt: r.syncedAt ?? r.start, now: now, awaitingRecorderDelete: awaiting) {
+                if case .noAudio = keep { continue }
+                if case .tooRecent = keep { continue }
+                if case .keepForever = keep { continue }
+                Log.write("心力模式：\(r.id) 的本机音频先留着：\(keep)")
+                continue
+            }
+            do {
+                try fm.removeItem(at: audio)
+                try? fm.removeItem(at: folder(r.id).appendingPathComponent("peaks.json"))
+                peaksCache[r.id] = nil
+                update(r.id) { $0.audioDeletedAt = now }
+                Log.write("心力模式：按设置（\(mode.audioRetention.rawValue)）删了 \(r.id) 的本机音频，转写留着")
+            } catch {
+                Log.write("心力模式：删 \(r.id) 的本机音频失败：\(error)")
+            }
+        }
+    }
+
     // MARK: 删除语音输入用过的设备文件
 
     /// 语音输入结束后删掉这次用的设备文件。只删 App 为语音输入新建的文件（规则见 DictationDeletePolicy），
@@ -688,6 +794,7 @@ final class LibraryStore {
                 _ = await finishDownload(result, spool: spool, id: id, via: "Wi‑Fi")
             }
             sync = .idle
+            Task { await self.afterSyncHousekeeping() }
         } catch {
             sync = .failed("\(error)")
         }
@@ -720,6 +827,7 @@ final class LibraryStore {
             // 先切段再写笔记：笔记按段分节
             conversations.refresh(id)
             notes.afterTranscription(id)
+            Task { await afterSyncHousekeeping() }
         case let .failure(e):
             Log.write("转写失败 \(id)：\(e)")
         }
@@ -748,6 +856,12 @@ final class LibraryStore {
         panel.nameFieldStringValue = r.displayTitle.replacingOccurrences(of: "/", with: "-") + ".md"
         guard panel.runModal() == .OK, let url = panel.url else { return }
         try? markdown(id).write(to: url, atomically: true, encoding: .utf8)
+    }
+
+    /// 在访达里显示：有音频选中音频，音频按设置删了就选中录音文件夹
+    func showInFinder(_ r: Recording) {
+        let audio = audioURL(r.id)
+        NSWorkspace.shared.activateFileViewerSelecting([FileManager.default.fileExists(atPath: audio.path) ? audio : folder(r.id)])
     }
 
     func exportAudio(_ id: UInt32) {
