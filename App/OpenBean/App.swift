@@ -155,6 +155,7 @@ struct OpenBeanApp: App {
             MenuContent(model: model)
         } label: {
             MenuIcon(device: model.device, dictation: model.dictation)
+                .background(OpenWindowBinder(model: model))
         }
         .menuBarExtraStyle(.menu)
 
@@ -207,6 +208,25 @@ final class Delegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.accessory)
         started = true
         MainActor.assumeIsolated { AppModel.shared.start() }
+        installStatusItemClick()
+    }
+
+    /// 菜单栏图标：左键直接打开主窗口，右键（或按住 Control 点）才出菜单。
+    /// MenuBarExtra 只会「点了出菜单」，所以在事件到它之前截下左键；右键本来就会弹出状态栏项的菜单，不用管。
+    /// 主窗口还打不开（openMain 没登记）时不截，照旧出菜单。
+    private func installStatusItemClick() {
+        NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { event in
+            guard let w = event.window, w.className.contains("StatusBarWindow"),
+                  !event.modifierFlags.contains(.control) else { return event }
+            return MainActor.assumeIsolated {
+                let m = AppModel.shared
+                guard let open = m.openMain else { return event }
+                Log.write("菜单栏图标：左键，打开主窗口")
+                m.nav.goHome(m.settings.mode)
+                open()
+                return nil
+            }
+        }
     }
 
     /// openbean:// 链接：dictate/toggle|start|stop、sync、open

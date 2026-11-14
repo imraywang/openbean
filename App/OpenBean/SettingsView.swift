@@ -339,6 +339,13 @@ private struct AboutSection: View {
                 Button("Open log") { NSWorkspace.shared.open(AppPaths.log) }
                     .buttonStyle(.link)
             }
+            // 菜单栏图标左键直接打开主窗口，菜单要右键才出来：这里也放一个退出，不知道右键的人也能退出
+            LabeledContent {
+                Button("Quit OpenBean") { NSApp.terminate(nil) }
+            } label: {
+                Text("OpenBean keeps running in the menu bar after you close this window. Right-click its icon for the menu.")
+                    .font(.callout).foregroundStyle(.secondary)
+            }
         }
     }
 }

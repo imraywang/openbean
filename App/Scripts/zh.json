@@ -271,6 +271,7 @@
 "Previous day (⌘←)": "前一天（⌘←）",
 "Previous day with recordings: %@": "上一个有录音的日子：%@",
 "Quit OpenBean": "退出 OpenBean",
+"OpenBean keeps running in the menu bar after you close this window. Right-click its icon for the menu.": "关掉这个窗口后 OpenBean 仍在菜单栏运行。右键点菜单栏图标可以打开菜单。",
 "Reading the list of recordings…": "正在读取录音列表…",
 "Reading the recorder…": "正在读取录音豆…",
 "Recent recordings": "最近录音",
