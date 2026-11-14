@@ -132,6 +132,46 @@
         }
       }
     },
+    "%lld deleted": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已删 %lld 条"
+          }
+        }
+      }
+    },
+    "%lld deleted from the Heart bean": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "从心力豆删了 %lld 条"
+          }
+        }
+      }
+    },
+    "%lld downloaded": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已下载 %lld 条"
+          }
+        }
+      }
+    },
+    "%lld failed": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 条没成功"
+          }
+        }
+      }
+    },
     "%lld h": {
       "localizations": {
         "zh-Hans": {
@@ -148,6 +188,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "%1$lld 小时 %2$lld 分钟"
+          }
+        }
+      }
+    },
+    "%lld kept": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "留下 %lld 条"
+          }
+        }
+      }
+    },
+    "%lld left, tries again later": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "还剩 %lld 条，稍后再试"
           }
         }
       }
@@ -232,12 +292,42 @@
         }
       }
     },
+    "%lld recordings": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 条录音"
+          }
+        }
+      }
+    },
     "%lld recordings from this day aren't transcribed yet": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "这天有 %lld 条录音还没转写"
+          }
+        }
+      }
+    },
+    "%lld recordings synced and transcribed.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "同步并转写了 %lld 条录音。"
+          }
+        }
+      }
+    },
+    "%lld recordings synced.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "同步了 %lld 条录音。"
           }
         }
       }
@@ -252,12 +342,32 @@
         }
       }
     },
+    "%lld stayed on the Heart bean because they couldn't be checked against the copy on this Mac.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 条留在了心力豆上：没能和本机的副本核对上。"
+          }
+        }
+      }
+    },
     "%lld to-dos": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "%lld 条待办"
+          }
+        }
+      }
+    },
+    "%lld transcribed": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已转写 %lld 条"
           }
         }
       }
@@ -298,6 +408,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "只有几句话"
+          }
+        }
+      }
+    },
+    "A notification when today's record is updated (macOS asks once)": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "今天的记录更新后发一条通知（macOS 会问一次权限）"
           }
         }
       }
@@ -348,6 +468,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "蓝牙约需 %@，用工具栏里的「同步」。"
+          }
+        }
+      }
+    },
+    "About 100× faster than Bluetooth. Your Mac joins the Heart bean's own Wi‑Fi and is offline for about a minute, then reconnects to your usual network.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "比蓝牙快约 100 倍。Mac 会连上心力豆自己的 Wi‑Fi，断网约一分钟，之后自动连回原来的网络。"
           }
         }
       }
@@ -408,6 +538,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "需要带 ⌘、⌥ 或 ⌃"
+          }
+        }
+      }
+    },
+    "After each sync": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每次同步之后"
           }
         }
       }
@@ -498,6 +638,36 @@
           "stringUnit": {
             "state": "translated",
             "value": "音频已按心力模式的设置删除，文字保留。"
+          }
+        }
+      }
+    },
+    "Audio on this Mac is kept for 7 days.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本机音频保留 7 天。"
+          }
+        }
+      }
+    },
+    "Audio on this Mac is kept.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本机音频一直保留。"
+          }
+        }
+      }
+    },
+    "Audio on this Mac is removed once it's transcribed.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本机音频转写完就删。"
           }
         }
       }
@@ -622,6 +792,16 @@
         }
       }
     },
+    "Check the LLM service": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "检查大模型服务"
+          }
+        }
+      }
+    },
     "Check the recorder for new recordings": {
       "localizations": {
         "zh-Hans": {
@@ -722,6 +902,16 @@
         }
       }
     },
+    "Clean up Heart bean": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清理心力豆"
+          }
+        }
+      }
+    },
     "Clean up each sentence with an LLM": {
       "localizations": {
         "zh-Hans": {
@@ -792,12 +982,32 @@
         }
       }
     },
+    "Clears synced recordings off the Heart bean so it has room for tomorrow.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "把同步好的录音从心力豆上删掉，给明天腾出空间。"
+          }
+        }
+      }
+    },
     "Click a sentence to play from there": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "点一句从那里开始播放"
+          }
+        }
+      }
+    },
+    "Click a sentence to play from there. ⚑ is a moment you marked on the Heart bean; click it to play from the mark.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "点一句从那里播放。⚑ 是你在心力豆上做的标记，点它从标记处播放。"
           }
         }
       }
@@ -1032,6 +1242,16 @@
         }
       }
     },
+    "Couldn't delete from the Heart bean": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没能从心力豆删除"
+          }
+        }
+      }
+    },
     "Couldn't delete from the recorder": {
       "localizations": {
         "zh-Hans": {
@@ -1132,6 +1352,26 @@
         }
       }
     },
+    "Delete from Heart bean": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "从心力豆删除"
+          }
+        }
+      }
+    },
+    "Delete from Heart bean…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "从心力豆删除…"
+          }
+        }
+      }
+    },
     "Delete from recorder": {
       "localizations": {
         "zh-Hans": {
@@ -1162,12 +1402,32 @@
         }
       }
     },
+    "Delete recordings from the Heart bean once they're synced and transcribed": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "同步并转写完成后，从心力豆删除录音"
+          }
+        }
+      }
+    },
     "Delete the recording from the Heart bean after it's synced and transcribed": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "同步并转写完成后，从心力豆删除这条录音"
+          }
+        }
+      }
+    },
+    "Delete this recording from the Heart bean?": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "从心力豆删除这条录音？"
           }
         }
       }
@@ -1212,6 +1472,16 @@
         }
       }
     },
+    "Deleted %lld recordings from the Heart bean.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已从心力豆删除 %lld 条录音。"
+          }
+        }
+      }
+    },
     "Deleted %lld, failed %lld.": {
       "localizations": {
         "zh-Hans": {
@@ -1232,12 +1502,32 @@
         }
       }
     },
+    "Deleted recordings can't be recovered. A recording is only deleted when the copy on this Mac is complete and checked against the Heart bean. The Heart mode page shows how many were deleted after each sync.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除后不能恢复。只有本机副本完整、并和心力豆核对过的录音才会删。每次同步后，心力模式页上会写明删了几条。"
+          }
+        }
+      }
+    },
     "Deleting from the device": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "从设备删除"
+          }
+        }
+      }
+    },
+    "Details": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "详情"
           }
         }
       }
@@ -1268,6 +1558,36 @@
           "stringUnit": {
             "state": "translated",
             "value": "日记文件夹、一天从几点开始、同步后做什么，都在「心力模式」里设置。"
+          }
+        }
+      }
+    },
+    "Diary not written": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "日记没写成"
+          }
+        }
+      }
+    },
+    "Diary skipped": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "日记跳过了"
+          }
+        }
+      }
+    },
+    "Diary updated": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "日记已更新"
           }
         }
       }
@@ -1512,6 +1832,16 @@
         }
       }
     },
+    "Failed": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "失败"
+          }
+        }
+      }
+    },
     "Firmware": {
       "localizations": {
         "zh-Hans": {
@@ -1742,6 +2072,36 @@
         }
       }
     },
+    "Here's what happens from now on. Recording and voice typing work as before.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开后会这样做。录音和语音输入照旧。"
+          }
+        }
+      }
+    },
+    "Hide": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "隐藏"
+          }
+        }
+      }
+    },
+    "Hide details": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "收起详情"
+          }
+        }
+      }
+    },
     "Hide list": {
       "localizations": {
         "zh-Hans": {
@@ -1788,6 +2148,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "一直保留"
+          }
+        }
+      }
+    },
+    "Keep Heart mode off. You can set it up later from the Heart mode page.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "先不开心力模式。以后可以在心力模式页上再设置。"
           }
         }
       }
@@ -1862,12 +2232,42 @@
         }
       }
     },
+    "LLM service not reachable": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "大模型服务连不上"
+          }
+        }
+      }
+    },
+    "LLM service settings…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "大模型服务设置…"
+          }
+        }
+      }
+    },
     "Large recordings can be fetched over the recorder's own Wi‑Fi: OpenBean offers it in the toolbar while a long sync is running.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "较大的录音可以走设备自带的 Wi‑Fi 下载：同步要很久时，工具栏里会提示。"
+          }
+        }
+      }
+    },
+    "Later": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "以后再说"
           }
         }
       }
@@ -1948,6 +2348,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "标记"
+          }
+        }
+      }
+    },
+    "Meet Heart mode": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "认识心力模式"
           }
         }
       }
@@ -2048,6 +2458,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "没有录音"
+          }
+        }
+      }
+    },
+    "No recordings are waiting on the Heart bean.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "心力豆上没有等着下载的录音。"
           }
         }
       }
@@ -2282,12 +2702,32 @@
         }
       }
     },
+    "Nothing new": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有新的"
+          }
+        }
+      }
+    },
     "OK": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "好"
+          }
+        }
+      }
+    },
+    "Off in settings": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "设置里关着"
           }
         }
       }
@@ -2312,12 +2752,32 @@
         }
       }
     },
+    "On Heart bean": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在心力豆上"
+          }
+        }
+      }
+    },
     "On recorder": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "在录音豆上"
+          }
+        }
+      }
+    },
+    "On your Heart bean": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在心力豆上"
           }
         }
       }
@@ -2562,6 +3022,16 @@
         }
       }
     },
+    "Paused for voice typing": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "让给语音输入，稍后继续"
+          }
+        }
+      }
+    },
     "Pauses and layout": {
       "localizations": {
         "zh-Hans": {
@@ -2648,6 +3118,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "按心力豆的按键说话，说过的内容会保存在这台 Mac 上。"
+          }
+        }
+      }
+    },
+    "Press the Heart bean's button to type with your voice": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按心力豆的按键，用语音打字"
           }
         }
       }
@@ -2748,6 +3228,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "退出 OpenBean"
+          }
+        }
+      }
+    },
+    "Ready to turn on Heart mode": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "准备打开心力模式"
           }
         }
       }
@@ -2868,6 +3358,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "心力豆上的录音会同步到这台 Mac，并在这里转成文字。"
+          }
+        }
+      }
+    },
+    "Recordings stay on the Heart bean": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "录音留在心力豆上"
           }
         }
       }
@@ -3152,6 +3652,16 @@
         }
       }
     },
+    "Set up Heart mode…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "设置心力模式…"
+          }
+        }
+      }
+    },
     "Set up…": {
       "localizations": {
         "zh-Hans": {
@@ -3282,6 +3792,16 @@
         }
       }
     },
+    "Skipped: LLM service not reachable": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "跳过：大模型服务连不上"
+          }
+        }
+      }
+    },
     "Source code and protocol notes": {
       "localizations": {
         "zh-Hans": {
@@ -3348,6 +3868,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "状态"
+          }
+        }
+      }
+    },
+    "Step %lld of %lld": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "第 %1$lld 步，共 %2$lld 步"
           }
         }
       }
@@ -3512,6 +4042,16 @@
         }
       }
     },
+    "Sync downloads recordings from your Heart bean.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "同步会把心力豆上的录音下载下来。"
+          }
+        }
+      }
+    },
     "Sync downloads recordings from your recorder.": {
       "localizations": {
         "zh-Hans": {
@@ -3562,6 +4102,16 @@
         }
       }
     },
+    "Sync progress": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "同步进度"
+          }
+        }
+      }
+    },
     "Sync recordings": {
       "localizations": {
         "zh-Hans": {
@@ -3588,6 +4138,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "同步第一条录音"
+          }
+        }
+      }
+    },
+    "Synced at %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 同步"
+          }
+        }
+      }
+    },
+    "Synced recordings are deleted from the Heart bean": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "同步好的录音从心力豆上删除"
           }
         }
       }
@@ -3668,6 +4238,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "心力豆放回充电盒时自动同步"
+          }
+        }
+      }
+    },
+    "Syncs over Bluetooth by itself when the Heart bean is back in its case.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "心力豆放回充电盒后，自动经蓝牙同步。"
           }
         }
       }
@@ -3772,6 +4352,26 @@
         }
       }
     },
+    "The LLM service isn't reachable, so the diary was skipped. It's written once the service is back.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "大模型服务连不上，这次没写日记。服务恢复后会补写。"
+          }
+        }
+      }
+    },
+    "The LLM service isn't reachable; the diary is written once it's back.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "大模型服务连不上，服务恢复后补写日记。"
+          }
+        }
+      }
+    },
     "The LLM service rejected the API key": {
       "localizations": {
         "zh-Hans": {
@@ -3802,6 +4402,16 @@
         }
       }
     },
+    "The connection dropped. Sync continues when the Heart bean reconnects.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接断了。心力豆重新连上后会接着同步。"
+          }
+        }
+      }
+    },
     "The connection dropped. Sync continues when the recorder reconnects.": {
       "localizations": {
         "zh-Hans": {
@@ -3822,12 +4432,32 @@
         }
       }
     },
+    "The diary and conversation summaries are written by the LLM service set up under Voice typing → Clean-up. Recordings are still synced and transcribed without it.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "日记和段摘要由「语音输入 → 润色」里设置的大模型服务来写。没有它，录音照样同步和转写。"
+          }
+        }
+      }
+    },
     "The diary and conversation summaries are written once it works again.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "日记和对话段摘要会在服务恢复后补上。"
+          }
+        }
+      }
+    },
+    "The diary couldn't be written; OpenBean tries again later.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "日记没写成，OpenBean 稍后会再试。"
           }
         }
       }
@@ -3918,6 +4548,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "这份笔记在 OpenBean 写入之后被改过。"
+          }
+        }
+      }
+    },
+    "This recording is still on your Heart bean.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这条录音还在心力豆上。"
           }
         }
       }
@@ -4032,6 +4672,26 @@
         }
       }
     },
+    "Today's diary is updated.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "今天的日记已更新。"
+          }
+        }
+      }
+    },
+    "Today's record is updated": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "今天的记录已更新"
+          }
+        }
+      }
+    },
     "Too little was said on this day for a diary; the conversations are listed below.": {
       "localizations": {
         "zh-Hans": {
@@ -4082,6 +4742,16 @@
         }
       }
     },
+    "Transcribes on this Mac and splits the day into conversations.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在这台 Mac 上转写，并把一天切成一段段对话。"
+          }
+        }
+      }
+    },
     "Transcribing %lld%%": {
       "localizations": {
         "zh-Hans": {
@@ -4128,6 +4798,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "生成摘要时转写文字会发送到 %@。"
+          }
+        }
+      }
+    },
+    "Transcripts, summaries and the diary are kept.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "转写、摘要和日记都会保留。"
           }
         }
       }
@@ -4322,6 +5002,26 @@
         }
       }
     },
+    "Waiting": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "等待中"
+          }
+        }
+      }
+    },
+    "Waiting until the Heart bean is free": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "等心力豆空出来"
+          }
+        }
+      }
+    },
     "Wear it all day, put it back in its case, and it's sorted into today's record automatically. Recording and voice typing work as usual.": {
       "localizations": {
         "zh-Hans": {
@@ -4338,6 +5038,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "戴着心力豆过一天。放回充电盒后，OpenBean 自动同步、把这一天切成一段段对话，写好今天的日记和待办。"
+          }
+        }
+      }
+    },
+    "Wear your recorder all day as a Heart bean. When it goes back in its case, OpenBean takes care of the rest.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "把录音豆当作心力豆整天戴着。放回充电盒后，剩下的交给 OpenBean。"
           }
         }
       }
@@ -4372,6 +5082,16 @@
         }
       }
     },
+    "Working…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "进行中…"
+          }
+        }
+      }
+    },
     "Wrapping up…": {
       "localizations": {
         "zh-Hans": {
@@ -4382,12 +5102,32 @@
         }
       }
     },
+    "Write diary": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "写日记"
+          }
+        }
+      }
+    },
     "Write the diary for this day": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "写这天的日记"
+          }
+        }
+      }
+    },
+    "Writes today's diary and to-dos with your LLM service.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "用你的大模型服务写当天的日记和待办。"
           }
         }
       }
@@ -4422,12 +5162,52 @@
         }
       }
     },
+    "You can change these later in Heart mode settings.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "以后可以在心力模式的设置里改。"
+          }
+        }
+      }
+    },
     "You can skip this; text then only appears in OpenBean.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "可以先跳过，文字就只显示在 OpenBean 里。"
+          }
+        }
+      }
+    },
+    "You can turn on Heart mode even if it isn't reachable yet; the diary is written once it is.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "服务暂时连不上也可以打开心力模式，连上后会补写日记。"
+          }
+        }
+      }
+    },
+    "You used the daily diary. It's part of Heart mode now and stays off until you turn Heart mode on.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你之前开着「每日日记」。日记现在是心力模式的一部分，打开心力模式之前不会再写。"
+          }
+        }
+      }
+    },
+    "Your Mac joins the Heart bean's own Wi‑Fi and is offline for a few minutes, then reconnects to your usual network. What Bluetooth has already received is kept.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mac 会连上心力豆自己的 Wi‑Fi，断网几分钟，之后连回原来的网络。蓝牙已经收到的部分会保留。"
           }
         }
       }

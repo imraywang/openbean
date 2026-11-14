@@ -66,7 +66,7 @@ Apple silicon and macOS 26 or later only.
 
 From 0.3.0 on OpenBean updates itself ([Sparkle](https://sparkle-project.org)): it checks once a day and asks before
 installing. *Check for Updates…* is in the menu bar menu; the switch for automatic checks is in
-Settings → Models → About. If you have 0.2.0, download the new version once by hand.
+Settings → OpenBean (at the bottom). If you have 0.2.0, download the new version once by hand.
 
 ### Build and run
 
@@ -128,34 +128,54 @@ survive rebuilds. It is for local development only.
 
 ### Use
 
-OpenBean lives in the menu bar. *Open OpenBean* (⌘O) shows the main window. The sidebar has four pages
-(⌘1–⌘4; ⌃⌘S hides the sidebar), and the recorder's status and sync progress sit at its bottom:
+OpenBean lives in the menu bar. *Open OpenBean* (⌘O) shows the main window, which always opens on the Heart mode
+page. The sidebar has four pages (⌘1–⌘4; ⌃⌘S hides the sidebar) and Settings at the bottom (⌘,); the recorder's
+status and sync progress sit at its bottom:
 
-- **Overview** — the recorder (battery, storage, recordings not yet synced), totals for this week / month / all
-  time (recordings, time recorded, characters typed by voice), the last 14 days and your recent recordings.
+- **Heart mode** — off until you set it up (see below). When on, it shows today: what the day's sync is doing, the
+  diary, to-dos and a timeline of the conversations; ⌘← / ⌘→ go to other days. The gear at the top right switches to
+  Heart mode's settings. When off, the page explains Heart mode and offers *Set up Heart mode…*.
 - **Library** — recording list and the selected recording side by side. *Sync* downloads new recordings over
   Bluetooth (shortest first; it pauses while you dictate and resumes afterwards). With *Sync new recordings
-  automatically* (Settings → Library, on by default) this happens by itself when the recorder connects or goes back
-  into its case — never while you are recording or dictating, and never over Wi‑Fi. Long recordings can use
-  *Download over Wi‑Fi*, ~100× faster but your Mac is offline for about a minute. Downloads are transcribed
-  automatically; click a sentence to play from there; search titles and transcripts; export Markdown or audio.
-  Clips created by voice typing are hidden by default. *Summarise* (optional, see below) puts a title, summary,
-  key points and action items above the transcript.
+  automatically* (on the Recorder page, on by default; always on in Heart mode) this happens by itself when the
+  recorder connects or goes back into its case — never while you are recording or dictating, and never over Wi‑Fi.
+  Long recordings can use *Download over Wi‑Fi*, ~100× faster but your Mac is offline for about a minute. Downloads
+  are transcribed automatically; click a sentence to play from there; search titles and transcripts; export Markdown
+  or audio. Clips created by voice typing are hidden by default. *Summarise* (optional, see below) puts a title,
+  summary, key points and action items above the transcript.
   To free space on the recorder, right-click a recording → *Delete from recorder…*. This only works once the
   recording is on your Mac and its audio checks out (it plays to the same length as on the recorder); the copy on
   your Mac is kept. Deletion cannot be undone. Under the *Dictation clips* filter, *Delete voice-typing files from
   recorder…* clears files left on the recorder by earlier voice typing; it shows how many there are and how long they
-  run in total, and asks first.
+  run in total, and asks first. In Heart mode the app calls the recorder your *Heart bean* everywhere.
 - **Voice typing** — everything you dictated, with time, target app and length. Copy or delete entries, or clear
-  the history.
+  the history. The gear at the top right holds the voice typing settings: what the recorder's button does (voice
+  typing or record only), keyboard shortcut (default ⌥ Space), how text is typed, pause thresholds, the clean-up
+  service (*Clean-up*) and the personal word list.
 - **Recorder** — battery, storage, firmware; *Start recording* records on the recorder without voice typing
-  (meetings, notes).
+  (meetings, notes). Its settings: automatic sync, and *Delete voice-typing audio from the recorder* (on by default),
+  which deletes the file the recorder made for each dictation once it ends — only a file the app started itself and
+  can show is new; it cannot be recovered.
 
-**Settings** (⌘,) is the last item in the sidebar, in four groups — Voice typing, Clean-up, Library, Models: what
-the recorder's button does (voice typing or record only), keyboard shortcut (default ⌥ Space), pause thresholds,
-the clean-up service, voice typing history, summaries and notes, models. *Delete voice-typing audio from the recorder*
-(Voice typing, on by default) deletes the file the recorder made for each dictation once it ends — only a file the app
-started itself and can show is new; it cannot be recovered.
+**Settings** (⌘,, the last item in the sidebar) keeps what is shared: transcribing after download, the library
+folder, when a day starts, summaries and notes (*Library*), agents / MCP, speech models, updates and the log.
+Older `openbean://settings/<name>` links still work and open the matching place.
+
+**Heart mode** (off by default): wear the recorder all day; when it goes back in its case OpenBean syncs the day,
+transcribes it, splits it into conversations, writes the day's diary and to-dos, and clears the synced recordings off
+the Heart bean. It is turned on only by finishing a short introduction — what it does, whether the LLM service for the
+diary is reachable (with a link to its settings), and two choices: *delete recordings from the Heart bean after they
+are synced and transcribed* (on by default) and *keep audio on this Mac* (7 days by default; transcripts are always
+kept). The introduction appears once on the first launch after updating (for new installs, after the setup
+assistant); *Later* keeps Heart mode off, and the Heart mode page offers it again. If you used the daily diary
+before, the introduction says so — the diary is part of Heart mode now and nothing turns on without your
+confirmation. While a sync runs, a strip at the top of the Heart mode page shows four steps — download, transcribe,
+write diary, clean up the Heart bean — each waiting, running (with counts like 2 of 3), done, skipped (for example
+when the LLM service isn't reachable, the diary is skipped and written once it's back) or failed. After clean-up it
+says how many recordings were deleted from the Heart bean and how long audio stays on this Mac; a recording is only
+deleted when the copy on the Mac is complete and checked against the device. When the whole run is done you get one
+notification (*Today's record is updated*; macOS asks for permission when you turn Heart mode on), and the strip
+folds into a one-line summary.
 
 **Summaries and notes** (Settings → Library, both off by default):
 
@@ -186,7 +206,7 @@ with several conversations shows one section per conversation in its transcript 
 conversation is listed on its own, on the day it started — so a recording left running past 4 AM shows up on both
 days. This needs no LLM and is always on. The split is kept next to the recording as `segments.json`.
 
-**Daily diary** (Settings → Library → *Write a diary for each day*, off by default): each conversation gets a short
+**Daily diary** (part of Heart mode): each conversation gets a short
 summary — a heading, two or three sentences, what was decided, to-dos, the people and things mentioned — and each
 day a diary built from them: an overview, decisions, to-dos and the people mentioned, every item pointing to the
 conversation it came from. Items whose source can't be found are dropped; so are names that don't appear in the
@@ -235,11 +255,11 @@ Run any OpenAI-compatible server, for example llama.cpp:
 llama-server -hf unsloth/Qwen3-30B-A3B-Instruct-2507-GGUF:Q4_K_M --port 8092 -c 4096 -ngl 99
 ```
 
-Then turn on *Clean up with an LLM* in the menu. The address and model name are in Settings → Clean-up (Ollama and
+Then turn on *Clean up with an LLM* in the menu. The address and model name are in Voice typing → settings → Clean-up (Ollama and
 LM Studio work too). Smaller models such as Qwen3-4B are faster to download but worse at fixing homophones.
 
 A cloud service works the same way: put its base URL (with or without `/v1`, e.g. `https://api.deepseek.com`), its
-model name (e.g. `deepseek-chat`) and an API key in Settings → Clean-up. The key is kept in your keychain. The text of
+model name (e.g. `deepseek-chat`) and an API key in Voice typing → settings → Clean-up. The key is kept in your keychain. The text of
 each sentence is then sent to that service; audio and speech recognition still stay on your Mac.
 
 The same service writes recording summaries when *Summarise recordings after transcription* is on (Settings →
@@ -280,10 +300,10 @@ match those characters exactly. Lines without `=` work as before, and only the l
 Pick aliases you never say on purpose: a bare `cloud` would turn every real "cloud" into "Claude".
 
 **Automation:** `openbean://dictate/toggle` (also `dictate/start`, `dictate/stop`), `openbean://sync` and
-`openbean://open` (or `openbean://open/<recording id>`), `openbean://summarize/<recording id>`, `openbean://notes/backfill`, `openbean://settings` (or `openbean://settings/<voice|polish|library|models>`) — for Shortcuts, Raycast or scripts (`open "openbean://dictate/toggle"`).
+`openbean://open` (or `openbean://open/<recording id>`), `openbean://summarize/<recording id>`, `openbean://notes/backfill`, `openbean://settings` (or `openbean://settings/<heart|voice|polish|recorder|library|agent|about>`) — for Shortcuts, Raycast or scripts (`open "openbean://dictate/toggle"`).
 
 **Voice typing history:** what you dictate is kept only on this Mac, in
-`~/Library/Application Support/openbean/dictation.json`, for the *Voice typing* page and the Overview totals.
+`~/Library/Application Support/openbean/dictation.json`, for the *Voice typing* page and the voice typing line on the Heart mode page.
 Turn it off in Settings (*Keep voice typing history on this Mac*) or clear it on the *Voice typing* page.
 
 **Logs:** Settings → *Open log*, or `~/Library/Application Support/openbean/openbean.log` — every finalised sentence,
@@ -495,7 +515,7 @@ openbean 是录音豆的开源本地驱动：通过蓝牙和 Wi‑Fi 连接设�
 **要求**：macOS 26 及以上，Apple 芯片。
 
 **下载**：在 [Releases](https://github.com/imraywang/openbean/releases/latest) 下载已签名、已公证的 `OpenBean-<版本>.dmg`，打开后拖进「应用程序」。
-0.3.0 起 App 会自动更新（Sparkle）：每天检查一次，装之前先问你；菜单栏菜单里有「检查更新…」，自动检查的开关在「设置 → 模型 → 关于」。装的是 0.2.0 的话，手动下载一次新版即可。
+0.3.0 起 App 会自动更新（Sparkle）：每天检查一次，装之前先问你；菜单栏菜单里有「检查更新…」，自动检查的开关在「设置」页最下面的 OpenBean 一组。装的是 0.2.0 的话，手动下载一次新版即可。
 
 **自己编译**：需要 Xcode 26+ 和 XcodeGen（`brew install xcodegen`）。
 
@@ -520,13 +540,25 @@ bin/build-app && open ".build/OpenBean Dev.app"
 首次启动有设置向导：连接录音豆、下载语音模型（约 240 MB）、授予权限。打字进其他 App 需要在「系统设置 → 隐私与安全性 → 辅助功能」
 （部分版本叫 Device Control and Data Access）里打开 OpenBean。
 
-主窗口（菜单栏 →「打开 OpenBean」）左侧是导航（⌘1–⌘4 切换，⌃⌘S 收起），底部显示录音豆状态和同步进度：
-**概览**（设备电量、存储、未同步条数，本周 / 本月 / 全部的录音与语音输入统计，最近 14 天，最近录音）、
+主窗口（菜单栏 →「打开 OpenBean」）总是先打开**心力模式**页。左侧是导航（⌘1–⌘4 切换，⌃⌘S 收起），底部显示录音豆状态和同步进度：
+**心力模式**（开着时显示今天：同步进度、日记、待办、对话时间线，⌘← / ⌘→ 翻天；右上角齿轮是心力模式的设置。关着时介绍心力模式，
+有「设置心力模式…」按钮）、
 **录音库**（列表 + 详情；蓝牙同步、长录音可走 Wi‑Fi 快速下载、自动转写、点句播放、搜索、导出 Markdown）、
-**语音输入**（每次说过的内容、时间、输入到哪个 App，可拷贝、删除、清空）、**录音豆**（电量、存储、固件、只录音不听写）。
-**设置**在侧栏最下面（⌘,），分语音输入、润色、录音库、模型四组：按键用途、快捷键默认 ⌥ Space、停顿阈值、润色服务、语音输入记录、模型。
+**语音输入**（每次说过的内容、时间、输入到哪个 App，可拷贝、删除、清空；右上角齿轮是语音输入的设置：按键用途、快捷键默认 ⌥ Space、
+打字方式、停顿阈值、润色服务、个人词表）、**录音豆**（电量、存储、固件、只录音不听写；自动同步、删除语音输入的音频）。
+**设置**在侧栏最下面（⌘,），只放通用的：下载后转写、录音库文件夹、一天从几点开始、摘要和笔记（「录音库」）、给 agent 用（MCP）、
+语音模型、更新和日志。老的 `openbean://settings/<名字>` 链接照样能用，会打开对应的位置。
 
-自动同步：设置 → 录音库 →「自动同步新录音」（默认打开）。录音豆连上、或放回充电盒时自动经蓝牙下载新录音；
+**心力模式**（默认关）：整天戴着录音豆，放回充电盒后 OpenBean 自动同步、转写、切成一段段对话、写当天的日记和待办，
+再把同步好的录音从心力豆上删掉。心力模式只有走完一段简短的介绍才会打开：它是什么 → 写日记用的大模型服务通不通（不通时有去设置的链接）→
+两项选择：「同步并转写完成后从心力豆删除」（默认开）和「本机音频保留多久」（默认 7 天，转写一直保留）→ 打开。
+介绍在更新后第一次启动时出现一次（新装的在设置向导之后）；点「以后再说」就保持关，心力模式页上还能再打开。
+以前开着「每日日记」的，介绍里会说明日记现在归心力模式，不经你确认不会自动打开。同步进行时，心力模式页顶上有一条四步进度：
+下载、转写、写日记、清理心力豆，每步显示等待、进行中（如 2/3）、完成、跳过（例如大模型服务连不上时日记跳过，服务恢复后补写）或失败；
+清理后写明从心力豆删了几条、本机音频留多久（只有本机副本完整、和设备核对过的录音才会删）。整次同步结束时发一条通知「今天的记录已更新」
+（打开心力模式时 macOS 会问一次通知权限），进度条收起成一行摘要。
+
+自动同步：录音豆页 →「自动同步新录音」（默认打开，心力模式下固定打开）。录音豆连上、或放回充电盒时自动经蓝牙下载新录音；
 正在录音或语音输入时不会开始，也从不自动走 Wi‑Fi。失败后会隔一段时间（1 分钟起、最多 30 分钟）再试。
 
 从录音豆删除：在录音库里右键一条录音 →「从录音豆删除…」，用来腾出录音豆的空间。只有已经下载到本机、且本机音频解码出来的时长
@@ -541,7 +573,7 @@ bin/build-app && open ".build/OpenBean Dev.app"
 App 会断开再重连（约 3 秒；这期间再开始语音输入，悬浮条显示「正在重新连接录音豆…」，连上后自动开始）。旁听时说的话仍在那条录音的
 转写里；心力模式的录音切对话段、写段摘要和每日日记时会跳过这些句子（时间段记在 `Library/voice-typing.json`）。
 
-语音输入记录只保存在这台 Mac 上（`~/Library/Application Support/openbean/dictation.json`），用于「语音输入」页和概览统计；
+语音输入记录只保存在这台 Mac 上（`~/Library/Application Support/openbean/dictation.json`），用于「语音输入」页和心力模式页上的语音输入一行；
 可在设置里关闭（「在本机保存语音输入记录」），或在「语音输入」页清空。
 
 **摘要和笔记**（设置 → 录音库，默认都关）：
@@ -563,7 +595,7 @@ App 会断开再重连（约 3 秒；这期间再开始语音输入，悬浮条�
 详情里的全文和笔记里的转写都按段分节；「今天」页每段单独一块、按段开始的那天归天，所以录过凌晨 4 点的录音两天都会出现。
 不用大模型、一直开着，结果存在录音旁边的 `segments.json`。
 
-**每日日记**（设置 → 录音库 →「每天写一篇日记」，默认关）：每段对话写一段段摘要（小标题、两三句话、定了的事、待办、提到的人和事），
+**每日日记**（心力模式的一部分）：每段对话写一段段摘要（小标题、两三句话、定了的事、待办、提到的人和事），
 每天再合成一篇日记：概述、定了的事、待办、提到的人，每一条都指回出自哪段对话。出处对不上的条目丢掉；转写里找不到的名字、
 代词和职位泛称（「我」「店长」「发言人」）也丢掉，待办的负责人只在说出了具体人名时才写。同一件事不会既算决定又算待办；
 条数有上限（每段最多 3 条决定、2 条待办，每天 5 条、6 条；只有几句话的段不出待办）。人名照转写写、不合并不同写法，

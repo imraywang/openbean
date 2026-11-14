@@ -28,7 +28,9 @@ struct WifiSuggestion: View {
             .confirmationDialog("Download over Wi‑Fi?", isPresented: $confirm) {
                 Button("Download over Wi‑Fi") { Task { await library.switchToWifi() } }
             } message: {
-                Text("Your Mac joins the recorder's own Wi‑Fi and is offline for a few minutes, then reconnects to your usual network. What Bluetooth has already received is kept.")
+                Text(DeviceWord.pick(library.settings.mode.callsDeviceHeartBean,
+                                     "Your Mac joins the Heart bean's own Wi‑Fi and is offline for a few minutes, then reconnects to your usual network. What Bluetooth has already received is kept.",
+                                     "Your Mac joins the recorder's own Wi‑Fi and is offline for a few minutes, then reconnects to your usual network. What Bluetooth has already received is kept."))
             }
         }
     }

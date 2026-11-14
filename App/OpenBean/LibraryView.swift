@@ -17,6 +17,8 @@ struct RecordingList: View {
     @State private var deleteError: String?
 
     private var items: [Recording] { library.visible.filter { library.matches($0, query: query) } }
+    /// 心力模式开着：设备叫「心力豆」
+    private var heart: Bool { library.settings.mode.callsDeviceHeartBean }
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -24,7 +26,7 @@ struct RecordingList: View {
                 ForEach(sections, id: \.title) { section in
                     Section(section.title) {
                         ForEach(section.items) { r in
-                            RecordingRow(recording: r, snippet: library.snippet(r.id), transcribing: library.transcribing[r.id])
+                            RecordingRow(recording: r, snippet: library.snippet(r.id), transcribing: library.transcribing[r.id], heart: heart)
                                 .tag(r.id)
                                 .id(r.id)
                                 // 从概览点进来的那条亮一下再退回选中色
@@ -41,16 +43,16 @@ struct RecordingList: View {
             .listStyle(.inset)
             .onAppear { if let id = selection { proxy.scrollTo(id, anchor: .center) } }
         }
-        .confirmationDialog("Delete this recording from the recorder?", isPresented: Binding(
-            get: { confirmDelete != nil }, set: { if !$0 { confirmDelete = nil } }
-        ), presenting: confirmDelete) { r in
-            Button("Delete from recorder", role: .destructive) {
+        .confirmationDialog(DeviceWord.pick(heart, "Delete this recording from the Heart bean?", "Delete this recording from the recorder?"),
+                            isPresented: Binding(get: { confirmDelete != nil }, set: { if !$0 { confirmDelete = nil } }),
+                            presenting: confirmDelete) { r in
+            Button(DeviceWord.pick(heart, "Delete from Heart bean", "Delete from recorder"), role: .destructive) {
                 Task { deleteError = await library.deleteFromRecorder([r.id]) }
             }
         } message: { _ in
             Text("This cannot be undone. The copy on this Mac is kept.")
         }
-        .alert("Couldn't delete from the recorder", isPresented: Binding(
+        .alert(DeviceWord.pick(heart, "Couldn't delete from the Heart bean", "Couldn't delete from the recorder"), isPresented: Binding(
             get: { deleteError != nil }, set: { if !$0 { deleteError = nil } }
         )) {
             Button("OK") { deleteError = nil }
@@ -101,8 +103,8 @@ struct RecordingList: View {
 
     private var emptyDetail: LocalizedStringKey {
         switch library.filter {
-        case .all: return "Sync downloads recordings from your recorder."
-        case .onRecorder: return "No recordings are waiting on the recorder."
+        case .all: return DeviceWord.pick(heart, "Sync downloads recordings from your Heart bean.", "Sync downloads recordings from your recorder.")
+        case .onRecorder: return DeviceWord.pick(heart, "No recordings are waiting on the Heart bean.", "No recordings are waiting on the recorder.")
         case .untranscribed: return "Every recording on this Mac has a transcript."
         case .todos: return "Summaries with action items show up here."
         }
@@ -148,6 +150,8 @@ struct RecordingRow: View {
     let recording: Recording
     let snippet: String?
     let transcribing: Double?
+    /// 心力模式开着：设备叫「心力豆」
+    var heart = false
 
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
@@ -173,7 +177,7 @@ struct RecordingRow: View {
     private var subtitle: String {
         if let snippet { return snippet }
         if transcribing != nil { return String(localized: "Transcribing…") }
-        if !recording.downloaded { return String(localized: "On your recorder") }
+        if !recording.downloaded { return heart ? String(localized: "On your Heart bean") : String(localized: "On your recorder") }
         if !recording.transcribed { return String(localized: "Not transcribed") }
         return String(localized: "No speech")
     }
@@ -182,7 +186,7 @@ struct RecordingRow: View {
         if let p = transcribing {
             ProgressView(value: p).progressViewStyle(.circular).controlSize(.mini)
         } else if !recording.downloaded {
-            Image(systemName: "arrow.down.circle").foregroundStyle(.secondary).help("On your recorder")
+            Image(systemName: "arrow.down.circle").foregroundStyle(.secondary).help(DeviceWord.pick(heart, "On your Heart bean", "On your recorder"))
         } else if recording.isDictation {
             Image(systemName: "keyboard").foregroundStyle(.secondary).help("Dictation clip")
         }
@@ -210,7 +214,8 @@ struct RecordingMenu: View {
             Button("Delete local copy", role: .destructive) { library.deleteLocal(recording.id) }
         }
         if let deleteFromRecorder, library.mayDeleteFromRecorder(recording) {
-            Button("Delete from recorder…", role: .destructive) { deleteFromRecorder() }
+            Button(DeviceWord.pick(library.settings.mode.callsDeviceHeartBean, "Delete from Heart bean…", "Delete from recorder…"),
+                   role: .destructive) { deleteFromRecorder() }
                 .disabled(!library.recorderIdle)
         }
     }
@@ -228,6 +233,8 @@ struct RecordingDetail: View {
     @State private var saveNote = false
     @State private var editingTitle = false
     @FocusState private var titleFocused: Bool
+    /// 心力模式开着：设备叫「心力豆」
+    private var heart: Bool { library.settings.mode.callsDeviceHeartBean }
 
     var body: some View {
         Group {
@@ -266,7 +273,9 @@ struct RecordingDetail: View {
         .confirmationDialog("Download over Wi‑Fi?", isPresented: $confirmWifi) {
             Button("Download over Wi‑Fi") { Task { await library.syncViaWifi(ids: [recording.id]) } }
         } message: {
-            Text("About 100× faster than Bluetooth. Your Mac joins the recorder's own Wi‑Fi and is offline for about a minute, then reconnects to your usual network.")
+            Text(DeviceWord.pick(heart,
+                                 "About 100× faster than Bluetooth. Your Mac joins the Heart bean's own Wi‑Fi and is offline for about a minute, then reconnects to your usual network.",
+                                 "About 100× faster than Bluetooth. Your Mac joins the recorder's own Wi‑Fi and is offline for about a minute, then reconnects to your usual network."))
         }
     }
 
@@ -363,7 +372,7 @@ struct RecordingDetail: View {
             : recording.start.formatted(.dateTime.weekday(.wide))
         var parts = [when, LibraryStore.clock(recording.duration)]
         if library.transcribing[recording.id] != nil { parts.append(String(localized: "Transcribing…")) }
-        else if !recording.downloaded { parts.append(String(localized: "On your recorder")) }
+        else if !recording.downloaded { parts.append(heart ? String(localized: "On your Heart bean") : String(localized: "On your recorder")) }
         else if !recording.transcribed { parts.append(String(localized: "Not transcribed")) }
         return parts.joined(separator: " · ")
     }
@@ -446,7 +455,7 @@ struct RecordingDetail: View {
                             }
                             TranscriptParagraph(segments: Array(segs[r]), first: r.lowerBound,
                                                 current: current.flatMap { r.contains($0) ? $0 : nil },
-                                                marks: marks.filter { r.contains($0.key) })
+                                                marks: marks.filter { r.contains($0.key) }, heart: heart)
                                 .equatable()
                         }
                         .id(p)
@@ -458,7 +467,8 @@ struct RecordingDetail: View {
 
     private var notDownloaded: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label("This recording is still on your recorder.", systemImage: "arrow.down.circle")
+            Label(DeviceWord.pick(heart, "This recording is still on your Heart bean.", "This recording is still on your recorder."),
+                  systemImage: "arrow.down.circle")
                 .font(.headline)
             HStack(spacing: 10) {
                 Button("Download over Bluetooth") { Task { await library.syncAll(ids: [recording.id]) } }
@@ -532,9 +542,11 @@ struct TranscriptParagraph: View, Equatable {
     let current: Int?
     /// 重点标记：整份转写里的句子下标 → 落在这句的标记（秒）。这句前面放一个 ⚑，点了从标记处播放
     var marks: [Int: [Double]] = [:]
+    /// 心力模式开着：设备叫「心力豆」
+    var heart = false
 
     static func == (a: Self, b: Self) -> Bool {
-        a.first == b.first && a.current == b.current && a.segments == b.segments && a.marks == b.marks
+        a.first == b.first && a.current == b.current && a.segments == b.segments && a.marks == b.marks && a.heart == b.heart
     }
 
     var body: some View {
@@ -552,7 +564,8 @@ struct TranscriptParagraph: View, Equatable {
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
         .help(marks.isEmpty ? Text("Click a sentence to play from there")
-              : Text("Click a sentence to play from there. ⚑ is a moment you marked on the recorder; click it to play from the mark."))
+              : Text(DeviceWord.pick(heart, "Click a sentence to play from there. ⚑ is a moment you marked on the Heart bean; click it to play from the mark.",
+                                     "Click a sentence to play from there. ⚑ is a moment you marked on the recorder; click it to play from the mark.")))
     }
 
     private var attributed: AttributedString {
@@ -587,7 +600,8 @@ struct LibraryHome: View {
             Image(systemName: "waveform.circle").font(.system(size: 44)).foregroundStyle(.tertiary)
             Text("Select a recording").font(.title3.weight(.semibold))
             VStack(alignment: .leading, spacing: 8) {
-                Label("Press the recorder's button to type with your voice", systemImage: "keyboard")
+                Label(DeviceWord.pick(settings.mode.callsDeviceHeartBean, "Press the Heart bean's button to type with your voice",
+                                      "Press the recorder's button to type with your voice"), systemImage: "keyboard")
                 Label("Shortcut: \(settings.hotkeyLabel)", systemImage: "command")
                 Label("Sync brings recordings to this Mac and transcribes them", systemImage: "arrow.triangle.2.circlepath")
             }
