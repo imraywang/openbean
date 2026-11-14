@@ -66,8 +66,10 @@ struct TodayConversationBlock: View {
                     }
                     // 来自哪条录音：多段录音的标题在这里提一下
                     HStack(spacing: 10) {
-                        Label { Text(verbatim: recording.displayTitle) } icon: { Image(systemName: "waveform") }
-                            .lineLimit(1)
+                        if recording.title?.isEmpty == false {
+                            Label { Text(verbatim: recording.displayTitle) } icon: { Image(systemName: "waveform") }
+                                .lineLimit(1)
+                        }
                         if let n = s?.todos.count, n > 0 {
                             Label { Text("\(n) to-dos") } icon: { Image(systemName: "checklist") }
                         }

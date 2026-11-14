@@ -43,7 +43,9 @@ struct DayDigest {
         // 录音最早可以从前一天开始（段落在这一天里）
         for r in library.recordings where !r.isDictation && r.start < interval.end && r.start >= interval.start.addingTimeInterval(-86_400) {
             let convs = r.transcribed ? library.conversations.conversations(r.id) : []
-            if convs.count > 1 {
+            // 只有一段、但这段有段摘要（心力模式写日记前生成的）：也按对话段显示，用段的标题和概述，
+            // 不然心力模式下录音没有标题，只剩「未命名录音」加第一句
+            if convs.count > 1 || convs.first?.summary?.title.isEmpty == false {
                 let mine = convs.filter { boundary.day(of: $0.wallStart) == day }
                 if !mine.isEmpty { recs.append(r); blocks += mine.map { .conversation(r, $0) } }
             } else if boundary.day(of: r.start) == day {
