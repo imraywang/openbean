@@ -235,12 +235,19 @@ final class Delegate: NSObject, NSApplicationDelegate {
 /// 所以等到下一轮（菜单已收起）再激活，并把窗口强制排到最前。
 @MainActor func bringToFront(_ id: String) {
     DispatchQueue.main.async {
-        NSApp.activate()
+        // NSApp.activate()（合作式激活）从菜单栏图标点过来时常被系统忽略，窗口开了却压在别的 App 下面：
+        // 明确要求抢到前台（用户刚点了我们的图标或链接，这是他要的）
+        NSApp.activate(ignoringOtherApps: true)
         let w = NSApp.windows.first { $0.identifier?.rawValue == id || $0.identifier?.rawValue.hasPrefix("\(id)-") == true }
         guard let w else { Log.write("没找到窗口 \(id)"); return }
         if w.isMiniaturized { w.deminiaturize(nil) }
         w.makeKeyAndOrderFront(nil)
         w.orderFrontRegardless()
+        // 第一次打开时窗口刚建出来，激活偶尔赶在它之前：稍后再确认一次
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            if !NSApp.isActive { NSApp.activate(ignoringOtherApps: true) }
+            if !w.isKeyWindow { w.makeKeyAndOrderFront(nil) }
+        }
     }
 }
 
