@@ -40,9 +40,15 @@ final class Navigator {
     var section: MainSection = .today
     /// 「今天」页看的是哪一天（那个日历日的 0 点）；nil = 今天（跟着时间走，过了凌晨 4 点自动换天）
     var day: Date?
-    var settingsTab: SettingsTab = .voice
+    var settingsTab: SettingsTab = .heart
     /// 刚从别处跳过来的录音：那一行亮一下，提示「你在这」
     var flash: UInt32?
+
+    /// 回到首页：心力模式落在今天，普通模式落在录音库（ModeDefaults.landing）
+    func goHome(_ mode: ModeDefaults) {
+        section = mode.landing == .today ? .today : .library
+        day = nil
+    }
 
     func show(recording id: UInt32, in library: LibraryStore) {
         // 当前筛选里看不到这条就回到「全部」
@@ -75,6 +81,10 @@ struct MainView: View {
                 .transition(.opacity)
                 // 整个窗口只有这一个同步入口：每一页的工具栏右边都是它
                 .toolbar {
+                    // 心力模式开着时的小标识（点开就是心力模式设置）
+                    if model.settings.mode.heartMode {
+                        ToolbarItem(placement: .navigation) { HeartModeBadge { model.nav.settingsTab = .heart; model.openSettings?() } }
+                    }
                     ToolbarItem(placement: .primaryAction) {
                         SyncToolbarButton(device: model.device, library: model.library)
                     }
@@ -116,6 +126,18 @@ struct MainView: View {
         .opacity(0)
         .frame(width: 0, height: 0)
         .accessibilityHidden(true)
+    }
+}
+
+/// 工具栏里「心力模式」的小标识：一颗描边的心，悬停有说明，不抢眼
+struct HeartModeBadge: View {
+    var action: () -> Void
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "heart").foregroundStyle(.secondary)
+        }
+        .help("Heart mode is on")
+        .accessibilityLabel("Heart mode is on")
     }
 }
 

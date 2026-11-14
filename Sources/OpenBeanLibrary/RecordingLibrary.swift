@@ -132,12 +132,16 @@ public struct RecordingLibrary: Sendable {
     public struct Match: Sendable, Hashable {
         public enum Field: String, Sendable {
             case title, summary, keyPoint = "key_point", actionItem = "action_item", transcript
+            /// 对话段的段摘要（标题或摘要）；转写原文不给看的录音用它代替转写
+            case conversation = "conversation_summary"
         }
         public var field: Field
         /// 转写命中时：这句的开始时间（秒，相对录音开头）
         public var time: Double?
         /// 命中处前后的文字
         public var snippet: String
+        /// 对话段摘要命中时：第几段
+        public var conversation: Int?
     }
 
     public struct Hit: Sendable {
@@ -150,14 +154,15 @@ public struct RecordingLibrary: Sendable {
 
     /// 在标题、摘要（含要点、待办）和转写里找子串：不分大小写和全半角，不分词（中文没有空格）。
     /// 返回命中的录音（新的在前，最多 limit 条）和命中的录音总数。
-    public func search(_ query: String, in range: DateInterval? = nil, limit: Int = 10,
-                       perRecording: Int = 5) throws -> (hits: [Hit], totalRecordings: Int) {
+    /// - Parameter transcriptVisible: 哪些录音的转写原文可以搜（心力模式录音默认不行，见 HeartPrivacy）；不行的搜段摘要
+    public func search(_ query: String, in range: DateInterval? = nil, limit: Int = 10, perRecording: Int = 5,
+                       transcriptVisible: (LibraryRecording) -> Bool = { _ in true }) throws -> (hits: [Hit], totalRecordings: Int) {
         let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !q.isEmpty else { return ([], 0) }
         var hits: [Hit] = []
         var total = 0
         for r in try recordings(in: range) {
-            let found = matches(in: r, query: q)
+            let found = matches(in: r, query: q, transcript: transcriptVisible(r))
             guard !found.isEmpty else { continue }
             total += 1
             if hits.count < limit {
@@ -168,7 +173,7 @@ public struct RecordingLibrary: Sendable {
     }
 
     /// 这条录音里所有命中
-    public func matches(in r: LibraryRecording, query q: String) -> [Match] {
+    public func matches(in r: LibraryRecording, query q: String, transcript: Bool = true) -> [Match] {
         var out: [Match] = []
         let summary = summary(r.id).value
         let titles = [r.title, summary?.title].compactMap { $0 }.reduce(into: [String]()) { if !$0.contains($1) { $0.append($1) } }
@@ -178,7 +183,14 @@ public struct RecordingLibrary: Sendable {
             for k in s.keyPoints where TextMatch.contains(k, q) { out.append(Match(field: .keyPoint, snippet: TextMatch.snippet(k, q))) }
             for a in s.actionItems where TextMatch.contains(a, q) { out.append(Match(field: .actionItem, snippet: TextMatch.snippet(a, q))) }
         }
-        if let segs = transcript(r.id).value {
+        if !transcript {
+            for c in conversations(r.id) {
+                guard let cs = c.summary else { continue }
+                for t in [cs.title, cs.summary] where !t.isEmpty && TextMatch.contains(t, q) {
+                    out.append(Match(field: .conversation, snippet: TextMatch.snippet(t, q), conversation: c.index))
+                }
+            }
+        } else if let segs = self.transcript(r.id).value {
             for (i, seg) in segs.enumerated() where TextMatch.contains(seg.text, q) {
                 let before = i > 0 ? segs[i - 1].text : ""
                 let after = i + 1 < segs.count ? segs[i + 1].text : ""
@@ -190,13 +202,16 @@ public struct RecordingLibrary: Sendable {
     }
 
     /// list 的关键词过滤：标题、摘要或转写里有这个子串
-    public func contains(_ r: LibraryRecording, query: String) -> Bool {
+    public func contains(_ r: LibraryRecording, query: String, transcript: Bool = true) -> Bool {
         let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !q.isEmpty else { return true }
         if let t = r.title, TextMatch.contains(t, q) { return true }
         if let s = summary(r.id).value,
            ([s.title, s.summary] + s.keyPoints + s.actionItems).contains(where: { TextMatch.contains($0, q) }) { return true }
-        return transcript(r.id).value?.contains { TextMatch.contains($0.text, q) } ?? false
+        guard transcript else {
+            return conversations(r.id).contains { c in c.summary.map { TextMatch.contains($0.title, q) || TextMatch.contains($0.summary, q) } ?? false }
+        }
+        return self.transcript(r.id).value?.contains { TextMatch.contains($0.text, q) } ?? false
     }
 }
 

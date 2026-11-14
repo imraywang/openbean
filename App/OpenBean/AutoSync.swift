@@ -56,7 +56,7 @@ final class AutoSync {
     }
 
     private func schedule(_ reason: String, refresh: Bool, after delay: TimeInterval = debounce) {
-        guard settings.autoSync else { Log.write("自动同步（\(reason)）：设置里关着，不同步"); return }
+        guard settings.mode.autoSync else { Log.write("自动同步（\(reason)）：设置里关着，不同步"); return }
         pending?.cancel()
         pending = Task { [weak self] in
             try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
@@ -69,7 +69,7 @@ final class AutoSync {
 
     private func run(_ reason: String, refresh: Bool) async {
         // 触发了却没跑，写一行原因：排查时分得清是没触发、忙、还是没东西可下
-        if let busy = Self.busyReason(autoSync: settings.autoSync, running: running, syncRunning: library.syncRunning,
+        if let busy = Self.busyReason(autoSync: settings.mode.autoSync, running: running, syncRunning: library.syncRunning,
                                       ready: device.isReady, activity: device.activity) {
             Log.write("自动同步（\(reason)）：\(busy)，这次不同步")
             return

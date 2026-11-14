@@ -5,6 +5,7 @@ import ApplicationServices
 import Carbon.HIToolbox
 import Foundation
 import Observation
+import OpenBeanLibrary
 import OpenBeanVoice
 import Security
 
@@ -146,8 +147,24 @@ final class Settings {
     var keepHistory: Bool { didSet { d.set(keepHistory, forKey: "keepHistory") } }
     /// 转写完用大模型（润色那个服务）写摘要
     var summarizeRecordings: Bool { didSet { d.set(summarizeRecordings, forKey: "summarizeRecordings") } }
-    /// 每天写一篇日记：给每段对话写段摘要、合成当天的日记（会多调用大模型）；切段本身不受影响
-    var dailyDiary: Bool { didSet { d.set(dailyDiary, forKey: "dailyDiary") } }
+    /// 心力模式总开关（0.5 以前的「每天写一篇日记」dailyDiary 启动时迁移过来）。
+    /// 随模式变的取值都在 `mode`（ModeDefaults）里算，别处不直接判断这个开关
+    var heartMode: Bool { didSet { d.set(heartMode, forKey: ModeKeys.heartMode) } }
+    /// 心力模式：同时为每条录音写一篇笔记（默认关，只写日记）
+    var heartRecordingNotes: Bool { didSet { d.set(heartRecordingNotes, forKey: ModeKeys.heartRecordingNotes) } }
+    /// 心力模式：同步并转写完成后，从心力豆删除这条录音
+    var heartDeleteFromRecorder: Bool { didSet { d.set(heartDeleteFromRecorder, forKey: ModeKeys.heartDeleteFromRecorder) } }
+    /// 心力模式录音的本机音频留多久
+    var heartAudioRetention: AudioRetention { didSet { d.set(heartAudioRetention.rawValue, forKey: ModeKeys.heartAudioRetention) } }
+    /// 允许 Agent（MCP）读取心力模式录音的原文（MCP 服务每次调用时从偏好设置读）
+    var heartAgentTranscripts: Bool { didSet { d.set(heartAgentTranscripts, forKey: ModeKeys.heartAgentTranscripts) } }
+
+    /// 现在生效的、随模式变的取值（界面和业务都从这里读）
+    var mode: ModeDefaults {
+        ModeDefaults(heartMode: heartMode, autoSyncSetting: autoSync, notesSetting: notesEnabled,
+                     heartRecordingNotes: heartRecordingNotes, heartDeleteFromRecorder: heartDeleteFromRecorder,
+                     heartAudioRetention: heartAudioRetention, heartAgentTranscripts: heartAgentTranscripts)
+    }
     /// 日记笔记放在笔记文件夹的哪个子文件夹；空 = 默认（按 App 语言，「日记」或 Diary）
     var diaryFolder: String { didSet { d.set(diaryFolder, forKey: "diaryFolder") } }
     /// 每条录音在下面这个文件夹里写一份 Markdown 笔记
@@ -162,6 +179,9 @@ final class Settings {
     static let deleteDictationAudioDefault = true
 
     init() {
+        // 要在注册默认值之前：注册后就分不清 heartMode 是「没设置过」还是「设成了关」
+        if let on = HeartMigration.run(d), on { Log.write("每日日记开着：迁移为心力模式开") }
+        d.register(defaults: ModeDefaults.registeredDefaults)
         d.register(defaults: ["typeIntoApp": true, "polishEnabled": false,
                               "polishEndpoint": "http://127.0.0.1:8092", "polishModel": "local",
                               "paragraphGap": 2.5, "sentencePause": 0.8,
@@ -169,7 +189,7 @@ final class Settings {
                               "onboardingDone": false, "buttonDictates": true, "readySound": true,
                               "keepHistory": true, "autoSync": true, "summarizeRecordings": false,
                               "notesEnabled": false, "notesFolder": "", "dayStartHour": 4,
-                              "dailyDiary": false, "diaryFolder": "",
+                              "diaryFolder": "",
                               "deleteDictationAudio": Self.deleteDictationAudioDefault])
         typeIntoApp = d.bool(forKey: "typeIntoApp")
         polishEnabled = d.bool(forKey: "polishEnabled")
@@ -189,7 +209,12 @@ final class Settings {
         dayStartHour = d.integer(forKey: "dayStartHour")
         summarizeRecordings = d.bool(forKey: "summarizeRecordings")
         notesEnabled = d.bool(forKey: "notesEnabled")
-        dailyDiary = d.bool(forKey: "dailyDiary")
+        let m = ModeDefaults(defaults: d)
+        heartMode = m.heartMode
+        heartRecordingNotes = m.heartRecordingNotes
+        heartDeleteFromRecorder = m.heartDeleteFromRecorder
+        heartAudioRetention = m.heartAudioRetention
+        heartAgentTranscripts = m.heartAgentTranscripts
         diaryFolder = d.string(forKey: "diaryFolder") ?? ""
         notesFolder = d.string(forKey: "notesFolder") ?? ""
         deleteDictationAudio = d.bool(forKey: "deleteDictationAudio")

@@ -30,6 +30,7 @@ final class AppModel {
         DemoController.shared.start(self)
         return
         #endif
+        nav.goHome(settings.mode)
         models.check()
         models.onReady = { [weak self] in self?.dictation.loadRecognizer() }
         device.onEvent = { [weak self] e in
@@ -67,6 +68,13 @@ final class AppModel {
         library.conversations.backfill()
         // 开着每日日记：今天和昨天的日记补一遍（等补算完；没变就不调用大模型）
         library.notes.diary.catchUp()
+        // 心力模式录音的本机音频保留期：启动时和之后每小时看一遍（同步、转写完也会看）
+        Task { [weak self] in
+            while !Task.isCancelled {
+                self?.library.applyAudioRetention()
+                try? await Task.sleep(for: .seconds(3600))
+            }
+        }
         _ = updater
     }
 
@@ -89,14 +97,13 @@ final class AppModel {
         case "sync":
             Task { await library.syncAll() }
         case "open":
-            // 「打开 OpenBean」回到今天；⌘1–4 和 open/<id> 这类链接才去指定的页面
-            nav.section = .today
-            nav.day = nil
+            // 「打开 OpenBean」回到首页（心力模式是今天，普通模式是录音库）；⌘1–4 和 open/<id> 这类链接才去指定的页面
+            nav.goHome(settings.mode)
             openMain?()
         case "settings":
             openSettings?()
         case let p where p.hasPrefix("settings/"):
-            // openbean://settings/voice|polish|library|agent|about（models 是 about 的旧名）
+            // openbean://settings/heart|voice|polish|library|agent|about（models 是 about 的旧名）
             if let tab = SettingsTab(link: String(p.dropFirst(9))) { nav.settingsTab = tab }
             openSettings?()
         case let p where p.hasPrefix("summarize/"):
@@ -272,6 +279,8 @@ struct MenuContent: View {
         let d = model.device, dict = model.dictation, s = model.settings
         Text(deviceLine(d))
             .background(OpenWindowBinder(model: model))
+        // 心力模式开着时标一下（不抢眼：一行灰字，菜单里的普通文字行本来就是灰的）
+        if s.mode.heartMode { Text("♡ Heart mode") }
         if let e = dict.lastError { Text("⚠︎ \(e)") }
         if model.models.state != .ready { Text("Speech models not downloaded") }
         Divider()
@@ -288,7 +297,7 @@ struct MenuContent: View {
         }))
         Toggle("Clean up with an LLM", isOn: Binding(get: { s.polishEnabled }, set: { s.polishEnabled = $0 }))
         Divider()
-        Button("Open OpenBean") { model.nav.section = .today; model.nav.day = nil; open("main") }
+        Button("Open OpenBean") { model.nav.goHome(s.mode); open("main") }
             .keyboardShortcut("o")
         Button("Settings…") { openSettings(); bringSettingsToFront() }
             .keyboardShortcut(",")
@@ -311,7 +320,7 @@ struct MenuContent: View {
         case .connecting: return String(localized: "Connecting…")
         case .ready:
             let b = d.battery.map { String(localized: " · battery \($0)%") } ?? ""
-            return String(localized: "Recorder connected") + b
+            return (model.settings.mode.callsDeviceHeartBean ? String(localized: "Heart bean connected") : String(localized: "Recorder connected")) + b
         case let .failed(m): return String(localized: "Not connected: \(d.problem?.title ?? m)")
         }
     }

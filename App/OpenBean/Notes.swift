@@ -213,13 +213,13 @@ final class NoteService {
     /// 开着每日日记时：先给各段写段摘要（开着摘要时整条的摘要由段摘要合成，不再另读一遍转写），最后更新涉及的那几天的日记
     func afterTranscription(_ id: UInt32) {
         guard let r = library?.recordings.first(where: { $0.id == id }), !r.isDictation else { return }
-        guard settings.summarizeRecordings || settings.notesEnabled || settings.dailyDiary else { return }
+        guard settings.summarizeRecordings || settings.mode.writesRecordingNotes || settings.mode.writesDiary else { return }
         enqueue { [weak self] in
             guard let self else { return }
             if self.settings.summarizeRecordings { await self.runSummary(id, manual: false) }
-            else if self.settings.dailyDiary { _ = await self.diary.summarizeConversations(id, force: false) }
-            if self.settings.notesEnabled { _ = self.writeNote(id, mode: .auto) }
-            if self.settings.dailyDiary { await self.diary.refreshDays(touching: id) }
+            else if self.settings.mode.writesDiary { _ = await self.diary.summarizeConversations(id, force: false) }
+            if self.settings.mode.writesRecordingNotes { _ = self.writeNote(id, mode: .auto) }
+            if self.settings.mode.writesDiary { await self.diary.refreshDays(touching: id) }
         }
     }
 
@@ -227,12 +227,12 @@ final class NoteService {
     /// 开着每日日记时，文字变了的那几段重写段摘要（没变的段留着），再更新那几天的日记
     func transcriptChanged(_ id: UInt32) {
         let hasNote = noteRecord(id) != nil
-        guard hasNote || settings.dailyDiary else { return }
+        guard hasNote || settings.mode.writesDiary else { return }
         enqueue { [weak self] in
             guard let self else { return }
-            if self.settings.dailyDiary { _ = await self.diary.summarizeConversations(id, force: false) }
+            if self.settings.mode.writesDiary { _ = await self.diary.summarizeConversations(id, force: false) }
             if hasNote { _ = self.writeNote(id, mode: .refresh) }
-            if self.settings.dailyDiary { await self.diary.refreshDays(touching: id) }
+            if self.settings.mode.writesDiary { await self.diary.refreshDays(touching: id) }
         }
     }
 
@@ -244,8 +244,8 @@ final class NoteService {
         enqueue { [weak self] in
             guard let self else { return }
             await self.runSummary(id, manual: true)
-            if self.settings.notesEnabled || self.noteRecord(id) != nil { _ = self.writeNote(id, mode: .auto) }
-            if self.settings.dailyDiary { await self.diary.refreshDays(touching: id) }
+            if self.settings.mode.writesRecordingNotes || self.noteRecord(id) != nil { _ = self.writeNote(id, mode: .auto) }
+            if self.settings.mode.writesDiary { await self.diary.refreshDays(touching: id) }
         }
     }
 
@@ -270,7 +270,7 @@ final class NoteService {
         let t0 = Date()
         do {
             let s: RecordingSummary
-            if settings.dailyDiary {
+            if settings.mode.writesDiary {
                 // 开着每日日记：以段摘要为准，整条的摘要由它们合成（一段时直接用，多段时合并一次）
                 s = try await diary.recordingSummary(id, force: manual)
             } else {
@@ -625,36 +625,26 @@ struct NoteSettingsSections: View {
         }
 
         Section {
-            Toggle(isOn: $settings.dailyDiary) {
-                Text("Write a diary for each day")
-                Text("Each conversation gets a short summary, and each day a diary: overview, decisions, to-dos and the people mentioned, each pointing back to its conversation. Uses the same LLM service, with several more requests per recording.")
-            }
-            .onChange(of: settings.dailyDiary) { _, on in if on { notes.diary.catchUp() } }
-            if settings.dailyDiary {
-                LabeledContent {
-                    TextField("Diary folder", text: $settings.diaryFolder, prompt: Text("Diary"))
-                        .labelsHidden().frame(maxWidth: 180)
-                } label: {
-                    Text("Diary folder")
-                    if notes.diary.diaryFolderInvalid {
-                        Text("Must stay inside the notes folder or one level above it; using the default for now.")
-                            .foregroundStyle(.orange)
-                    } else {
-                        Text("Relative to the notes folder, for example Diary or ../Journal")
-                    }
-                }
+            // 每日日记现在是心力模式的一部分（0.5 以前是这里的一个开关）
+            LabeledContent {
+                Button("Heart mode settings…") { AppModel.shared.nav.settingsTab = .heart }
+            } label: {
+                Text(settings.mode.writesDiary ? "Heart mode is on: a diary is written for each day"
+                                               : "A diary for each day is part of Heart mode")
+                Text("Diary folder, day start and what happens after sync are set in Heart mode.")
             }
         } header: {
             Text("Daily diary")
-        } footer: {
-            Text("Recordings are split into conversations at long pauses either way; this only adds the summaries. With a notes folder, one Markdown file per day goes into the subfolder.")
-                .font(.caption).foregroundStyle(.secondary)
         }
 
         Section {
             Toggle(isOn: $settings.notesEnabled) {
                 Text("Save a note for each recording to a folder")
-                Text("One Markdown file per recording with the summary and the transcript, for example in an Obsidian vault. Audio stays in the library.")
+                if settings.mode.heartMode {
+                    Text("In Heart mode only the diary is written, unless “Also write a note for each recording” is on in Heart mode.")
+                } else {
+                    Text("One Markdown file per recording with the summary and the transcript, for example in an Obsidian vault. Audio stays in the library.")
+                }
             }
             LabeledContent("Notes folder") {
                 HStack(spacing: 8) {

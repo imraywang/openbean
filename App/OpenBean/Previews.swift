@@ -15,14 +15,17 @@ enum PreviewFixtures {
     /// 一份摆好状态的 AppModel。state 同 openbean-demo://demo/state/<名字>；select 同 demo/select/<名字>
     static func model(_ state: String = "connected", section: MainSection = .today, dayOffset: Int = 0, tab: SettingsTab = .voice,
                       select: String? = nil, filter: LibraryStore.Filter = .all, transcribedAll: Bool = false,
-                      models: ModelStore.State = .ready, trusted: Bool = true) -> AppModel {
+                      models: ModelStore.State = .ready, trusted: Bool = true, heart: Bool? = nil,
+                      llmReachable: Bool = true) -> AppModel {
         // 不在 Xcode 预览里（例如单元测试里误用）就停下，免得读到真实数据目录
         precondition(Flavor.isFake, "PreviewFixtures 只能在 Xcode 预览里用")
         DemoState.trustedValue = trusted
+        DemoState.llmReachable = llmReachable
         DemoState.shared.playAt = nil
         let m = AppModel()
         m.models.demoSet(models)
         DemoController.apply(state: state, to: m)
+        if let heart { m.settings.heartMode = heart }
         m.nav.section = section
         if dayOffset != 0 {
             let b = DayBoundary(startHour: m.settings.dayStartHour)
@@ -194,9 +197,14 @@ private struct PreviewFrame<Content: View>: View {
 // MARK: - 设置
 
 // 设置窗口的内容（预览里没有窗口的工具栏，分页标签画在内容上方；真实窗口的样子见 bin/ui-shots 的 25–29）
-@MainActor private func settings(_ tab: SettingsTab, dark: Bool = false) -> some View {
-    SettingsWindow(model: PreviewFixtures.model(tab: tab)).preferredColorScheme(dark ? .dark : .light)
+@MainActor private func settings(_ tab: SettingsTab, dark: Bool = false, heart: Bool? = nil, llm: Bool = true) -> some View {
+    SettingsWindow(model: PreviewFixtures.model(tab: tab, heart: heart, llmReachable: llm)).preferredColorScheme(dark ? .dark : .light)
 }
+
+#Preview("设置 · 心力模式 · 开") { settings(.heart, heart: true) }
+#Preview("设置 · 心力模式 · 开 · 服务不通 · 深色") { settings(.heart, dark: true, heart: true, llm: false) }
+#Preview("设置 · 心力模式 · 关") { settings(.heart, heart: false) }
+#Preview("设置 · 录音库 · 心力模式开") { settings(.library, heart: true) }
 
 #Preview("设置 · 语音输入") { settings(.voice) }
 #Preview("设置 · 语音输入 · 深色") { settings(.voice, dark: true) }
