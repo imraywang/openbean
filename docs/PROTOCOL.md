@@ -273,6 +273,26 @@ without pausing first.
 `1A/11` with `01` (sent after a pause) was also tried: the device replied `1A/11` with status `01`, but the file still could
 not be deleted afterwards. openbean does not use it.
 
+**Listening in on a recording that is already running** (verified on hardware on 2026-11-13, firmware `04.82`, three
+runs; `openbean listen`). The recording was started with the recorder's button; the host sent no start, pause or stop.
+
+| Finding | |
+|---|---|
+| `1A/07` with `realtime = 1`, sent 48–75 s into the recording: the head (size `FFFFFFFF`) arrives and slices start 0.2–0.3 s later at the *current* position (e.g. seq 3660), not at seq 0 | ✅ |
+| The recording is not disturbed. The files pulled afterwards were complete (no missing seq, `02` on the first slice, `04` on the last) | ✅ |
+| The file id in the realtime request does not matter: the id of the previous, already closed recording returned the audio being recorded now | ✅ (3 runs) |
+| A recording that just started is not in the `1B/0E` list yet; it showed up with a duration of exactly 60.0 s, so the list seems to be updated once a minute | ⚠️ observed, not measured |
+| After the host stops listening, the recorder keeps sending slices (about 50 frames per second) | ✅ |
+
+Nothing the host sends stops that stream. Tried, each followed by 5 s of counting `1A/08` frames (about 250 every time):
+`1A/11` with `00`, `01`, `02` and with no payload (the device acknowledges `1A/11` with status `01` and carries on);
+`1A/0A` with `01`; a non-realtime `1A/07` for an old one-second file (the device answers with another realtime head and
+keeps streaming the live audio); turning the notification subscription off for 3 s and on again (the stream resumes).
+
+**Disconnecting stops it.** After a disconnect and reconnect no slices arrive and the recording is still running. Three
+reconnects took 2.9–3.5 s from disconnect to the first `01/01` reply. A realtime request after the reconnect works again
+(handshake to first slice: 3.2 s).
+
 Measured end-to-end latency (sound in the room → decrypted audio on the host) is **0.3–0.5 s**. The live stream starts at
 the current position, so the first ~0.7 s after the start command is only available by downloading the file later.
 

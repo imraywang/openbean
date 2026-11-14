@@ -33,6 +33,10 @@ let usage = """
                             --hold        发 --then 之前和之后各观察多少秒（默认 20），期间打印收到的帧
                             --delete-new  最后删掉这次新出现的那一个文件（不需要本机副本；要带 --yes）
                             --marks       同 pull：实时流里的 1A/12 和 flags；另外打印实时流期间收到的所有非 1A/08 帧
+  listen [秒数] [--stops TT/II[:载荷],…]
+                          旁听实验：录音豆已在录音时，对正在录的文件开实时流若干秒（默认 20），不发开始 / 暂停 / 结束。
+                          之后依次看：停止接收后设备是否还在发；--stops 里的命令能否让它停；请求一个旧文件能否顶掉；
+                          关一下通知订阅能否让它停；断开重连 3 次的耗时，以及重连后能否再接进去
   delete <id> --yes [--local 路径 | --dev]
                           ⚠️ 删除录音豆上的一个录音（1A/10，删了不能恢复）。
                           只有本机副本存在、且解码时长和设备上的一致时才删；默认核对 App 录音库里的
@@ -488,6 +492,104 @@ do {
                 } else { say("新出现的文件不是正好一个，不删") }
             }
         }
+
+    case "listen":
+        // 旁听实验：录音豆已经在录音（按键开始的）时，对正在录的文件开实时流，不发开始 / 暂停 / 结束。
+        let secs = Double(args.dropFirst().first ?? "20") ?? 20
+        try await connectDevice()
+        let s = session()
+        let info = try await s.deviceInfo()
+        if let info { say("\n" + info.description + "\n") }
+        guard info?.recording == true else { say("录音豆没在录音，什么都没发。先按录音豆按键开始录音再跑。"); link.disconnect(); exit(1) }
+        let files = try await s.listFiles()
+        guard let cur = files.max(by: { $0.id < $1.id }) else { throw LinkError.missing("文件列表为空") }
+        say("列表里最新的文件 \(cur.id)（\(fmtDate(cur.startDate))，列表时长 \(String(format: "%.1f", cur.durationSeconds)) 秒），当它是正在录的那条")
+        say("ECDH 握手…")
+        try await s.handshake()
+        let t0 = Date()
+        let stream = try s.startRealtime(fileId: cur.id) { _, _ in }
+        say("已请求实时流（1A/07 realtime=1），旁听 \(Int(secs)) 秒，对着录音豆说话…")
+        while Date().timeIntervalSince(t0) < secs {
+            try await Task.sleep(nanoseconds: 2_000_000_000)
+            say(String(format: "  %4.0fs  收到 %6.1f KB ≈ %4.1f 秒音频", Date().timeIntervalSince(t0), Double(stream.bytes) / 1024, Double(stream.bytes) / 160 * 0.02))
+        }
+        guard let t = stream.stop() else { throw LinkError.missing("实时流结果") }
+        say("\n旁听结果：\(t.slices) 片，seq \(t.firstSeq.map(String.init) ?? "-") … \(t.lastSeq.map(String.init) ?? "-")，缺 \(t.missingSeqs) 片，文件头 " + t.heads.map { "size=\($0.size) err=\($0.errorCode)" }.joined(separator: "；"))
+        if let f = t.firstSeq, let a = t.arrivals.first {
+            say(String(format: "  第一片 seq %u ≈ 录音第 %.1f 秒，请求后 %.2f 秒到；首片到达时录音已进行约 %.1f 秒（按文件 id 是开始时刻算）", f, Double(f) * 0.02, a.at.timeIntervalSince(t0), a.at.timeIntervalSince1970 - Double(cur.id)))
+        }
+        save(t, tag: "-listen")
+        // 停止接收后设备还发不发；再发 1A/11:01（停止蓝牙传输）看能不能让它停
+        func count(_ label: String, _ n: Double) async throws -> Int {
+            final class C: @unchecked Sendable { var n = 0; var other: [String] = [] }
+            let c = C()
+            link.onPacket = { p in
+                if p.type == 0x1A && p.id == 0x08 { c.n += 1 } else { c.other.append(String(format: "%02X/%02X st=%02X %@", p.type, p.id, p.status, p.raw.prefix(24).hex)) }
+            }
+            try await Task.sleep(nanoseconds: UInt64(n * 1e9))
+            let r = link.sync { () -> (Int, [String]) in link.onPacket = nil; return (c.n, c.other) }
+            say("\(label)：\(Int(n)) 秒内又收到 1A/08 包 \(r.0) 个" + (r.1.isEmpty ? "" : "；其他帧：" + r.1.joined(separator: " | ")))
+            return r.0
+        }
+        _ = try await count("停止接收后（没发任何命令）", 5)
+        if let stops = option("--stops") {
+            for cnd in stops.split(separator: ",").map(String.init) {
+                say(">>> 发送 \(cnd)")
+                try link.send(try parseFrame(cnd))
+                try await Task.sleep(nanoseconds: 1_000_000_000)
+                _ = try await count("  发 \(cnd) 之后", 5)
+            }
+        }
+        // 1. 用另一个请求顶掉：请求一个最短的旧文件的普通传输
+        if let small = files.filter({ $0.durationSeconds > 0 }).min(by: { $0.durationSeconds < $1.durationSeconds }) {
+            say(">>> 顶掉：请求旧文件 \(small.id)（\(String(format: "%.1f", small.durationSeconds)) 秒）的普通传输")
+            try link.send(Cmd.transferFile(id: small.id, realtime: false))
+            _ = try await count("  请求后", 6)
+            let n = try await count("  再过", 4)
+            say(n == 0 ? "  ✓ 顶掉之后外发停了" : "  ✗ 还在发")
+            if n == 0, let i = try await s.deviceInfo(), i.recording == true {
+                let t1 = Date()
+                let again = try s.startRealtime(fileId: cur.id) { _, _ in }
+                try await Task.sleep(nanoseconds: 4_000_000_000)
+                if let a = again.stop() { say("  再次旁听 4 秒：\(a.slices) 片，seq \(a.firstSeq.map(String.init) ?? "-") … \(a.lastSeq.map(String.init) ?? "-")，首片在请求后 " + (a.arrivals.first.map { String(format: "%.2f 秒", $0.at.timeIntervalSince(t1)) } ?? "?")) }
+            }
+        }
+        // 2. 关掉通知订阅 3 秒再打开（不断开连接）
+        if try await count("关订阅之前", 2) > 0 {
+            say(">>> 关通知订阅 3 秒再打开")
+            link.setNotify(false)
+            try await Task.sleep(nanoseconds: 3_000_000_000)
+            link.setNotify(true)
+            try await Task.sleep(nanoseconds: 1_000_000_000)
+            let n = try await count("  重新订阅后", 4)
+            say(n == 0 ? "  ✓ 关一下订阅外发就停了" : "  ✗ 重新订阅后又接着发")
+            if let i = try await s.deviceInfo() { say("  录音中=\(i.recording == true ? "是" : "否")") }
+        }
+        // 3. 断开重连，量耗时
+        for round in 1...3 {
+            let t1 = Date()
+            link.disconnect()
+            try await Task.sleep(nanoseconds: 500_000_000)
+            do {
+                try await connectDevice()
+                let tc = Date().timeIntervalSince(t1)
+                let i = try await session().deviceInfo()
+                say(String(format: "重连 %d：断开到连上 %.2f 秒，到读回状态 %.2f 秒，录音中=%@", round, tc, Date().timeIntervalSince(t1), i?.recording == true ? "是" : "否"))
+                _ = try await count("  重连后", 3)
+            } catch { say("重连 \(round) 失败：\(error)"); break }
+        }
+        // 重连后再接进去一次（下一次语音输入要走的全程）
+        do {
+            let t1 = Date()
+            let s2 = session()
+            try await s2.handshake()
+            let again = try s2.startRealtime(fileId: cur.id) { _, _ in }
+            try await Task.sleep(nanoseconds: 4_000_000_000)
+            if let a = again.stop() { say("重连后再旁听 4 秒：\(a.slices) 片，seq \(a.firstSeq.map(String.init) ?? "-") … \(a.lastSeq.map(String.init) ?? "-")，缺 \(a.missingSeqs)，握手开始到首片 " + (a.arrivals.first.map { String(format: "%.2f 秒", $0.at.timeIntervalSince(t1)) } ?? "?")) }
+            link.disconnect(); try await Task.sleep(nanoseconds: 500_000_000); try await connectDevice()
+        } catch { say("重连后再旁听失败：\(error)") }
+        let end = try await s.deviceInfo()
+        say("结束时 录音中=\(end?.recording.map { $0 ? "是" : "否" } ?? "?")（应该还是「是」；这次没发开始 / 暂停 / 结束）")
 
     case "delete":
         guard let arg = args.dropFirst().first, let id = UInt32(arg) else { throw LinkError.missing("参数：要删除的录音 id（数字）") }
