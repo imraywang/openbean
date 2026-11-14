@@ -42,6 +42,16 @@
         }
       }
     },
+    "%lld conversations · %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld 段 · %2$@"
+          }
+        }
+      }
+    },
     "%lld deleted": {
       "localizations": {
         "zh-Hans": {
@@ -142,12 +152,62 @@
         }
       }
     },
+    "%lld new recordings are on the Heart bean.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "心力豆上有 %lld 条新录音。"
+          }
+        }
+      }
+    },
+    "%lld new recordings are on the recorder.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "录音豆上有 %lld 条新录音。"
+          }
+        }
+      }
+    },
+    "%lld new recordings on the Heart bean": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "心力豆上有 %lld 条新录音"
+          }
+        }
+      }
+    },
+    "%lld new recordings on the recorder": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "录音豆上有 %lld 条新录音"
+          }
+        }
+      }
+    },
     "%lld of %lld": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "%lld / %lld"
+          }
+        }
+      }
+    },
+    "%lld of %lld done": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已完成 %1$lld / %2$lld"
           }
         }
       }
@@ -182,6 +242,16 @@
         }
       }
     },
+    "%lld recordings from this day aren't transcribed yet": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这天有 %lld 条录音还没转写"
+          }
+        }
+      }
+    },
     "%lld recordings only have a transcript left: their audio was removed under Heart mode's audio retention.": {
       "localizations": {
         "zh-Hans": {
@@ -212,12 +282,22 @@
         }
       }
     },
-    "%lld stayed on the Heart bean because they couldn't be checked against the copy on this Mac.": {
+    "%lld split": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "%lld 条留在了心力豆上：没能和本机的副本核对上。"
+            "value": "已切 %lld 条"
+          }
+        }
+      }
+    },
+    "%lld stayed on the Heart bean because they couldn't be checked against the copy on this iPhone.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 条留在了心力豆上：没能和这台 iPhone 上的副本核对一致。"
           }
         }
       }
@@ -238,6 +318,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "%lld 项待办"
+          }
+        }
+      }
+    },
+    "%lld to-dos": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 条待办"
           }
         }
       }
@@ -272,12 +362,62 @@
         }
       }
     },
+    "127.0.0.1 and localhost mean this iPhone, which has no model server. Use the address of the computer on your network, such as http://192.168.1.20:11434.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "127.0.0.1 和 localhost 指的是这台 iPhone 自己，手机上没有模型服务。请填局域网里那台电脑的地址，例如 http://192.168.1.20:11434。"
+          }
+        }
+      }
+    },
+    "7 days": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "7 天"
+          }
+        }
+      }
+    },
     "A day starts at": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "一天从几点开始"
+          }
+        }
+      }
+    },
+    "A few words": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只有几句话"
+          }
+        }
+      }
+    },
+    "A notification when today's record is updated or something needs you (iOS asks once).": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "今天的记录更新了、或者有事要你处理时发通知（iOS 会问一次）。"
+          }
+        }
+      }
+    },
+    "A secure connection couldn't be made (certificate problem or a proxy in the way).": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法建立加密连接（证书有问题，或被代理拦截）。"
           }
         }
       }
@@ -302,6 +442,26 @@
         }
       }
     },
+    "API key (if the server needs one)": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "API 密钥（服务需要时才填）"
+          }
+        }
+      }
+    },
+    "About": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "关于"
+          }
+        }
+      }
+    },
     "About %@ over Bluetooth.": {
       "localizations": {
         "zh-Hans": {
@@ -312,12 +472,12 @@
         }
       }
     },
-    "About %@ over Bluetooth. Keep OpenBean open while it syncs.": {
+    "About %@ over Bluetooth. It keeps going in the background; if it's interrupted, it picks up where it stopped.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "经蓝牙大约要 %@。同步时请让 OpenBean 留在前台。"
+            "value": "经蓝牙大约要 %@。切到后台也会继续；中途断了，下次从断开的地方接着传。"
           }
         }
       }
@@ -362,6 +522,26 @@
         }
       }
     },
+    "Address": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "地址"
+          }
+        }
+      }
+    },
+    "After each sync": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每次同步之后"
+          }
+        }
+      }
+    },
     "All done": {
       "localizations": {
         "zh-Hans": {
@@ -382,12 +562,42 @@
         }
       }
     },
-    "Any OpenAI-compatible service: a cloud API or a model on a computer on your network. Summaries, conversation titles and the diary use it. The key is kept in the keychain.": {
+    "Allow": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "任何 OpenAI 兼容的服务：云端 API，或局域网里一台电脑上的模型。摘要、对话段标题和日记都用它。密钥存在钥匙串里。"
+            "value": "允许"
+          }
+        }
+      }
+    },
+    "Allow Bluetooth for OpenBean in Settings → OpenBean.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在「设置 → OpenBean」里允许蓝牙。"
+          }
+        }
+      }
+    },
+    "Always on in Heart mode, over Bluetooth, also in the background.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "心力模式下一直开着，走蓝牙，在后台也会同步。"
+          }
+        }
+      }
+    },
+    "Any OpenAI-compatible service. A model server on a computer at home (llama-server, Ollama, LM Studio) works too: use its address on your Wi‑Fi. The key is kept in the keychain.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "任何 OpenAI 兼容服务都行。家里电脑上的模型服务（llama-server、Ollama、LM Studio）也可以：填它在 Wi‑Fi 里的地址。密钥存在钥匙串里。"
           }
         }
       }
@@ -398,6 +608,56 @@
           "stringUnit": {
             "state": "translated",
             "value": "全部状态"
+          }
+        }
+      }
+    },
+    "Apple Intelligence is off": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple 智能未打开"
+          }
+        }
+      }
+    },
+    "Apple Intelligence is still getting its model ready. Keep the iPhone on Wi‑Fi and charging, and try again later.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple 智能的模型还在准备中。请让 iPhone 连着 Wi‑Fi 并充电，稍后再试。"
+          }
+        }
+      }
+    },
+    "Apple on-device": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "苹果端侧模型"
+          }
+        }
+      }
+    },
+    "Apple on-device model": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "苹果端侧模型"
+          }
+        }
+      }
+    },
+    "Apple's on-device model needs iOS 26 or later.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "苹果端侧模型需要 iOS 26 或更高版本。"
           }
         }
       }
@@ -422,32 +682,32 @@
         }
       }
     },
-    "Audio on this Mac is kept for 7 days.": {
+    "Audio on this iPhone is kept for 7 days.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "本机音频保留 7 天。"
+            "value": "这台 iPhone 上的音频保留 7 天。"
           }
         }
       }
     },
-    "Audio on this Mac is kept.": {
+    "Audio on this iPhone is kept.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "本机音频一直保留。"
+            "value": "这台 iPhone 上的音频一直保留。"
           }
         }
       }
     },
-    "Audio on this Mac is removed once it's transcribed.": {
+    "Audio on this iPhone is removed once it's transcribed.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "本机音频转写完就删。"
+            "value": "这台 iPhone 上的音频转写完就删除。"
           }
         }
       }
@@ -482,12 +742,32 @@
         }
       }
     },
+    "Audio, transcripts and the diary are kept on this iPhone.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "音频、转写和日记都存在这台 iPhone 上。"
+          }
+        }
+      }
+    },
     "Back 15 seconds": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "后退 15 秒"
+          }
+        }
+      }
+    },
+    "Background": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "后台"
           }
         }
       }
@@ -512,12 +792,32 @@
         }
       }
     },
+    "Can't find this server. Check the address.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "找不到这个服务器，请检查地址。"
+          }
+        }
+      }
+    },
     "Can't find your recorder": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "找不到录音豆"
+          }
+        }
+      }
+    },
+    "Can't reach this address on your local network. Check that the computer is on and on the same Wi‑Fi, and that Local Network is allowed for OpenBean in the Settings app.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连不上局域网里的这个地址。请确认电脑开着、和手机在同一个 Wi‑Fi，并在「设置」App 里允许 OpenBean 访问本地网络。"
           }
         }
       }
@@ -532,12 +832,42 @@
         }
       }
     },
+    "Change in Settings": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "去设置里修改"
+          }
+        }
+      }
+    },
     "Charging case": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "充电盒"
+          }
+        }
+      }
+    },
+    "Check again": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "再检查一次"
+          }
+        }
+      }
+    },
+    "Checking the LLM service…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在检查大模型服务…"
           }
         }
       }
@@ -558,6 +888,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "正在检查…"
+          }
+        }
+      }
+    },
+    "Choose a model for summaries in Settings.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请先在设置里选一个整理用的模型。"
+          }
+        }
+      }
+    },
+    "Choose a model to turn on summaries.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选一个模型才能写摘要。"
           }
         }
       }
@@ -592,6 +942,26 @@
         }
       }
     },
+    "Clears synced recordings off the Heart bean so it has room for tomorrow.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "把同步好的录音从心力豆上删掉，给明天腾出空间。"
+          }
+        }
+      }
+    },
+    "Cloud or network service": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "云端或局域网服务"
+          }
+        }
+      }
+    },
     "Connect": {
       "localizations": {
         "zh-Hans": {
@@ -602,12 +972,72 @@
         }
       }
     },
+    "Connect to Wi‑Fi to download the speech model, or turn off Wi‑Fi only.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请连上 Wi‑Fi 再下载语音模型，或关掉「仅 Wi‑Fi 下载」。"
+          }
+        }
+      }
+    },
+    "Connect your Heart bean": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接心力豆"
+          }
+        }
+      }
+    },
+    "Connect your recorder": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接录音豆"
+          }
+        }
+      }
+    },
     "Connected": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "已连接"
+          }
+        }
+      }
+    },
+    "Connected. Syncs when the Heart bean goes back in its case.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已连接。心力豆放回充电盒时同步。"
+          }
+        }
+      }
+    },
+    "Connected. Syncs when the recorder goes back in its case.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已连接。录音豆放回充电盒时同步。"
+          }
+        }
+      }
+    },
+    "Connected. The key and the model name work.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已连接，密钥和模型名都可用。"
           }
         }
       }
@@ -628,6 +1058,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "连接日志"
+          }
+        }
+      }
+    },
+    "Continue": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "继续"
+          }
+        }
+      }
+    },
+    "Conversation": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "对话"
           }
         }
       }
@@ -672,12 +1122,32 @@
         }
       }
     },
+    "Custom address": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自定义地址"
+          }
+        }
+      }
+    },
     "Decided": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "定了的事"
+          }
+        }
+      }
+    },
+    "DeepSeek, OpenAI, OpenRouter, or your own server": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "DeepSeek、OpenAI、OpenRouter，或你自己的服务器"
           }
         }
       }
@@ -712,6 +1182,16 @@
         }
       }
     },
+    "Delete after transcription": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "转写后立即删"
+          }
+        }
+      }
+    },
     "Delete audio after transcription": {
       "localizations": {
         "zh-Hans": {
@@ -728,6 +1208,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "从这台 iPhone 上删除"
+          }
+        }
+      }
+    },
+    "Delete recordings from the Heart bean once they're synced and transcribed": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "同步并转写完成后，从心力豆删除录音"
+          }
+        }
+      }
+    },
+    "Delete the recording from the Heart bean after it's synced and transcribed": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "同步并转写完成后，从心力豆删除这条录音"
           }
         }
       }
@@ -752,12 +1252,32 @@
         }
       }
     },
+    "Deleted recordings can't be recovered. A recording is only deleted when the copy on this iPhone is complete and checked against the Heart bean.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除后无法恢复。只有这台 iPhone 上的副本完整、并和心力豆上的核对一致时才会删。"
+          }
+        }
+      }
+    },
     "Deselect all": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "全不选"
+          }
+        }
+      }
+    },
+    "Details": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "详情"
           }
         }
       }
@@ -832,6 +1352,46 @@
         }
       }
     },
+    "Download again": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新下载"
+          }
+        }
+      }
+    },
+    "Download again (%@)": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新下载（%@）"
+          }
+        }
+      }
+    },
+    "Download again if transcripts suddenly come out empty or garbled; the files are replaced.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "转写突然变成空白或乱码时可以重新下载，会替换掉现有的模型文件。"
+          }
+        }
+      }
+    },
+    "Download failed": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下载失败"
+          }
+        }
+      }
+    },
     "Download over Bluetooth": {
       "localizations": {
         "zh-Hans": {
@@ -842,12 +1402,42 @@
         }
       }
     },
-    "Download speech model (about 240 MB)": {
+    "Download over Wi‑Fi only": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "下载语音识别模型（约 240 MB）"
+            "value": "仅 Wi‑Fi 下载"
+          }
+        }
+      }
+    },
+    "Download speech model": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下载语音模型"
+          }
+        }
+      }
+    },
+    "Download the speech model again?": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新下载语音模型？"
+          }
+        }
+      }
+    },
+    "Download the speech recognition model in OpenBean's Settings to transcribe them on this iPhone.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 OpenBean 的设置里下载语音识别模型，就能在这台 iPhone 上转写。"
           }
         }
       }
@@ -862,12 +1452,22 @@
         }
       }
     },
-    "Downloading speech model…": {
+    "Downloading… %lld%%": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "正在下载语音识别模型…"
+            "value": "正在下载… %lld%%"
+          }
+        }
+      }
+    },
+    "Each day": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每天"
           }
         }
       }
@@ -952,6 +1552,26 @@
         }
       }
     },
+    "Forget this Heart bean": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "忘掉这颗心力豆"
+          }
+        }
+      }
+    },
+    "Forget this Heart bean?": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "忘记这颗心力豆？"
+          }
+        }
+      }
+    },
     "Forget this recorder": {
       "localizations": {
         "zh-Hans": {
@@ -988,6 +1608,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "生成摘要"
+          }
+        }
+      }
+    },
+    "Get an API key from %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "去 %@ 申请 API 密钥"
+          }
+        }
+      }
+    },
+    "Greyed lines were voice typing and are left out of summaries.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "灰色的句子是语音输入，不进摘要。"
           }
         }
       }
@@ -1042,12 +1682,32 @@
         }
       }
     },
+    "Heart bean sync keeps stopping": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "心力豆同步一直没完成"
+          }
+        }
+      }
+    },
     "Heart mode": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "心力模式"
+          }
+        }
+      }
+    },
+    "Heart mode is off": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "心力模式已关闭"
           }
         }
       }
@@ -1072,12 +1732,82 @@
         }
       }
     },
+    "Heart mode settings": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "心力模式设置"
+          }
+        }
+      }
+    },
+    "Here's what happens from now on.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开以后会这样："
+          }
+        }
+      }
+    },
+    "Hide details": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "收起详情"
+          }
+        }
+      }
+    },
+    "Internet services must use https://. Plain http:// only works on your local network.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "互联网上的服务必须用 https://；http:// 只能用于局域网。"
+          }
+        }
+      }
+    },
+    "It connects by itself when it's out of its case and near this iPhone.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "从充电盒里拿出来、在这台 iPhone 附近时会自己连上。"
+          }
+        }
+      }
+    },
     "Its audio was already removed under Heart mode's audio retention; this deletes the transcript, summary and to-dos left on this iPhone.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "它的音频已按心力模式的音频保留设置删掉；这会删除这台 iPhone 上剩下的转写、摘要和待办。"
+          }
+        }
+      }
+    },
+    "Keep": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "一直保留"
+          }
+        }
+      }
+    },
+    "Keep Bluetooth on. If you swipe OpenBean away in the app switcher, iOS stops waking it in the background until you open it again. Transcribing and the diary run when iOS allows it, or when you open OpenBean.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请保持蓝牙打开。在多任务界面把 OpenBean 划掉后，iOS 不会再在后台唤醒它，直到你再次打开。转写和日记在 iOS 允许时在后台做，或者在你打开 OpenBean 时做。"
           }
         }
       }
@@ -1102,12 +1832,22 @@
         }
       }
     },
-    "Keep the recorder near this Mac. OpenBean reconnects by itself.": {
+    "Keep audio on this iPhone": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "让录音豆靠近这台 Mac，OpenBean 会自动重连。"
+            "value": "这台 iPhone 上的音频保留"
+          }
+        }
+      }
+    },
+    "Keep the recorder near this iPhone. OpenBean reconnects by itself, also in the background.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "让录音豆靠近这台 iPhone，OpenBean 会自己重连，在后台也会。"
           }
         }
       }
@@ -1132,12 +1872,32 @@
         }
       }
     },
+    "LLM service connected": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "大模型服务已连通"
+          }
+        }
+      }
+    },
     "LLM service not reachable": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "大模型服务连不上"
+          }
+        }
+      }
+    },
+    "Later": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "以后再说"
           }
         }
       }
@@ -1192,6 +1952,16 @@
         }
       }
     },
+    "Meet Heart mode": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "认识心力模式"
+          }
+        }
+      }
+    },
     "Misheard as": {
       "localizations": {
         "zh-Hans": {
@@ -1208,6 +1978,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "模型"
+          }
+        }
+      }
+    },
+    "Model for summaries": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "整理用的模型"
           }
         }
       }
@@ -1272,22 +2052,42 @@
         }
       }
     },
-    "No conversations.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "没有对话。"
-          }
-        }
-      }
-    },
     "No diary for this day yet.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "这一天还没有日记。"
+          }
+        }
+      }
+    },
+    "No model is chosen yet. If you choose a cloud service, transcript text is sent to it.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "还没有选模型。如果选云端服务，转写文字会发给它。"
+          }
+        }
+      }
+    },
+    "No model is set up for summaries. Choose one in Settings.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "还没有整理用的模型，请在设置里选一个。"
+          }
+        }
+      }
+    },
+    "No recordings on the Heart bean.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "心力豆上没有录音。"
           }
         }
       }
@@ -1302,12 +2102,42 @@
         }
       }
     },
+    "No recordings on this day": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这一天没有录音"
+          }
+        }
+      }
+    },
     "No recordings yet": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "还没有录音"
+          }
+        }
+      }
+    },
+    "No recordings yet today": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "今天还没有录音"
+          }
+        }
+      }
+    },
+    "No service is set up yet, so nothing is sent anywhere.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "还没设置好服务，所以什么都不会发出去。"
           }
         }
       }
@@ -1342,6 +2172,16 @@
         }
       }
     },
+    "No transcript for this conversation.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这段对话没有转写。"
+          }
+        }
+      }
+    },
     "No transcript, and the audio was removed.": {
       "localizations": {
         "zh-Hans": {
@@ -1372,16 +2212,6 @@
         }
       }
     },
-    "Not a valid address": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "地址无效"
-          }
-        }
-      }
-    },
     "Not connected": {
       "localizations": {
         "zh-Hans": {
@@ -1408,6 +2238,36 @@
           "stringUnit": {
             "state": "translated",
             "value": "未下载"
+          }
+        }
+      }
+    },
+    "Not ready yet": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "尚未就绪"
+          }
+        }
+      }
+    },
+    "Not set up": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未设置"
+          }
+        }
+      }
+    },
+    "Not supported": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不支持"
           }
         }
       }
@@ -1482,6 +2342,26 @@
         }
       }
     },
+    "Notifications": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通知"
+          }
+        }
+      }
+    },
+    "Notifications are off": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通知已关闭"
+          }
+        }
+      }
+    },
     "Off in settings": {
       "localizations": {
         "zh-Hans": {
@@ -1522,6 +2402,16 @@
         }
       }
     },
+    "On-device model unavailable": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "端侧模型不可用"
+          }
+        }
+      }
+    },
     "Only Heart mode recordings that are transcribed lose their audio; transcripts, summaries and marks stay. Normal recordings always keep their audio. Change the rule in Heart mode settings. OpenBean also applies it on its own every hour.": {
       "localizations": {
         "zh-Hans": {
@@ -1532,32 +2422,62 @@
         }
       }
     },
-    "Open Bluetooth Settings": {
+    "Open OpenBean with the Heart bean nearby to finish syncing. What's already received is kept.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "打开蓝牙设置"
+            "value": "把心力豆放在旁边打开 OpenBean，把同步做完。已经收到的部分会留着。"
           }
         }
       }
     },
-    "Open Privacy Settings": {
+    "Open OpenBean with the recorder nearby to finish syncing. What's already received is kept.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "打开隐私设置"
+            "value": "把录音豆放在旁边打开 OpenBean，把同步做完。已经收到的部分会留着。"
           }
         }
       }
     },
-    "OpenBean %@ (%@)": {
+    "Open Settings": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "OpenBean %1$@（%2$@）"
+            "value": "打开设置"
+          }
+        }
+      }
+    },
+    "Open the Settings app": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开「设置」App"
+          }
+        }
+      }
+    },
+    "OpenBean is open source. Audio stays on this iPhone; speech recognition runs on the iPhone.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OpenBean 是开源软件。音频只留在这台 iPhone 上，语音识别也在手机上完成。"
+          }
+        }
+      }
+    },
+    "OpenBean isn't allowed on your local network. Turn on Local Network for OpenBean in the Settings app (Privacy & Security → Local Network).": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OpenBean 没有本地网络权限。请在「设置」App 的「隐私与安全性 → 本地网络」里打开 OpenBean。"
           }
         }
       }
@@ -1582,12 +2502,22 @@
         }
       }
     },
-    "OpenBean scans for a recorder again next time it connects.": {
+    "OpenBean scans for a Heart bean again next time it connects. Keep it out of its case and near this iPhone.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "下次连接时 OpenBean 会重新扫描录音豆。"
+            "value": "OpenBean 下次连接时会重新搜索心力豆。请把它从充电盒里拿出来，放在这台 iPhone 附近。"
+          }
+        }
+      }
+    },
+    "OpenBean scans for a recorder again next time it connects. Keep it out of its case and near this iPhone.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OpenBean 下次连接时会重新搜索录音豆。请把它从充电盒里拿出来，放在这台 iPhone 附近。"
           }
         }
       }
@@ -1622,16 +2552,6 @@
         }
       }
     },
-    "Paused": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已暂停"
-          }
-        }
-      }
-    },
     "Paused for voice typing": {
       "localizations": {
         "zh-Hans": {
@@ -1658,6 +2578,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "提到的人和事"
+          }
+        }
+      }
+    },
+    "People mentioned": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "提到的人"
           }
         }
       }
@@ -1702,6 +2632,16 @@
         }
       }
     },
+    "Plays from here": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "从这里播放"
+          }
+        }
+      }
+    },
     "Position": {
       "localizations": {
         "zh-Hans": {
@@ -1718,6 +2658,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "前一天"
+          }
+        }
+      }
+    },
+    "Previous day with recordings: %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "上一个有录音的日子：%@"
+          }
+        }
+      }
+    },
+    "Private and free. Works offline.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不外发、免费，离线也能用。"
           }
         }
       }
@@ -1742,12 +2702,42 @@
         }
       }
     },
+    "Ready on this iPhone.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这台 iPhone 上可以使用。"
+          }
+        }
+      }
+    },
+    "Ready to turn on Heart mode": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "准备打开心力模式"
+          }
+        }
+      }
+    },
     "Recorder": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "录音豆"
+          }
+        }
+      }
+    },
+    "Recorder sync keeps stopping": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "录音豆同步一直没完成"
           }
         }
       }
@@ -1768,6 +2758,76 @@
           "stringUnit": {
             "state": "translated",
             "value": "录音"
+          }
+        }
+      }
+    },
+    "Recordings are still synced and transcribed without an LLM service; the diary is written once one is reachable.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有大模型服务也照样同步和转写；连得上服务以后再写日记。"
+          }
+        }
+      }
+    },
+    "Recordings are still synced and transcribed without it; the diary and conversation summaries are written once it's reachable.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有它也照样同步和转写；连得上以后再写日记和段摘要。"
+          }
+        }
+      }
+    },
+    "Recordings are waiting to be transcribed": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "有录音在等着转写"
+          }
+        }
+      }
+    },
+    "Recordings before this hour count toward the previous day, in Today and in the diary.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这个时间之前的录音，在「今天」和日记里算作前一天。"
+          }
+        }
+      }
+    },
+    "Recordings from the Heart bean show up here by day after they're synced.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "心力豆上的录音同步后按天出现在这里。"
+          }
+        }
+      }
+    },
+    "Recordings from the recorder show up here by day after they're synced.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "录音豆上的录音同步后按天出现在这里。"
+          }
+        }
+      }
+    },
+    "Recordings stay on the Heart bean": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "录音留在心力豆上"
           }
         }
       }
@@ -1882,6 +2942,26 @@
         }
       }
     },
+    "Runs in the background when iOS allows it, or when you open OpenBean.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 iOS 允许时于后台进行，或者在你打开 OpenBean 时进行。"
+          }
+        }
+      }
+    },
+    "Runs on this iPhone, offline.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在这台 iPhone 上离线运行。"
+          }
+        }
+      }
+    },
     "Save": {
       "localizations": {
         "zh-Hans": {
@@ -1898,16 +2978,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "已保存。已有的转写正在后台更新。"
-          }
-        }
-      }
-    },
-    "Searching…": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "正在搜索…"
           }
         }
       }
@@ -1932,6 +3002,16 @@
         }
       }
     },
+    "Send transcripts to %@?": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "把转写文字发送给 %@？"
+          }
+        }
+      }
+    },
     "SenseVoice": {
       "localizations": {
         "zh-Hans": {
@@ -1942,22 +3022,32 @@
         }
       }
     },
-    "SenseVoice runs on this iPhone, offline. The model is downloaded once.": {
+    "Service": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "SenseVoice 在这台 iPhone 上离线运行，模型只需下载一次。"
+            "value": "服务"
           }
         }
       }
     },
-    "Server address": {
+    "Service not chosen": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "服务地址"
+            "value": "未选服务"
+          }
+        }
+      }
+    },
+    "Set up Heart mode…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "设置心力模式…"
           }
         }
       }
@@ -2012,6 +3102,16 @@
         }
       }
     },
+    "Size": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "大小"
+          }
+        }
+      }
+    },
     "Skipped: LLM service not reachable": {
       "localizations": {
         "zh-Hans": {
@@ -2028,6 +3128,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "来源"
+          }
+        }
+      }
+    },
+    "Speech is transcribed on this iPhone, offline. The speech recognition model is downloaded once.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "语音在这台 iPhone 上离线转写，语音识别模型只需下载一次。"
           }
         }
       }
@@ -2052,12 +3162,42 @@
         }
       }
     },
+    "Speech recognition always runs on this iPhone, offline. Supports Chinese, English, Japanese, Korean and Cantonese. Audio never leaves the iPhone.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "语音识别始终在这台 iPhone 上离线运行，支持中文、英文、日文、韩文和粤语。音频不会离开手机。"
+          }
+        }
+      }
+    },
     "Speed": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "速度"
+          }
+        }
+      }
+    },
+    "Split by pauses, on this iPhone": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按停顿切分，在这台 iPhone 上完成"
+          }
+        }
+      }
+    },
+    "Split into conversations": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "切成对话段"
           }
         }
       }
@@ -2098,6 +3238,36 @@
           "stringUnit": {
             "state": "translated",
             "value": "存储空间"
+          }
+        }
+      }
+    },
+    "Summaries and diary": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自动摘要与日记"
+          }
+        }
+      }
+    },
+    "Summaries and the diary need a model. Choose one under Model for summaries.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "摘要和日记需要一个模型，请在「整理用的模型」里选择。"
+          }
+        }
+      }
+    },
+    "Summaries are written by Apple's on-device model. Nothing leaves this iPhone.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "摘要由苹果端侧模型在这台 iPhone 上完成，任何内容都不会离开手机。"
           }
         }
       }
@@ -2202,6 +3372,16 @@
         }
       }
     },
+    "Synced recordings are deleted from the Heart bean": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "同步好的录音从心力豆上删除"
+          }
+        }
+      }
+    },
     "Syncing": {
       "localizations": {
         "zh-Hans": {
@@ -2212,12 +3392,62 @@
         }
       }
     },
+    "Syncs automatically when the Heart bean goes back in its case": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "心力豆放回充电盒时自动同步"
+          }
+        }
+      }
+    },
+    "Syncs automatically when the recorder goes back in its case": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "录音豆放回充电盒时自动同步"
+          }
+        }
+      }
+    },
+    "Syncs over Bluetooth by itself when the Heart bean is back in its case.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "心力豆放回充电盒后，自动经蓝牙同步。"
+          }
+        }
+      }
+    },
+    "Take it out of its case. OpenBean finds it over Bluetooth and stays connected in the background.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "把它从充电盒里拿出来。OpenBean 通过蓝牙找到它，在后台也保持连接。"
+          }
+        }
+      }
+    },
     "Take the recorder out of its case, or press the button on the case to wake it. OpenBean keeps looking.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "把录音豆从充电盒里拿出来，或按一下充电盒的按钮唤醒它。OpenBean 会一直找。"
+          }
+        }
+      }
+    },
+    "Tap a line to play from there": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "点一句从那里播放"
           }
         }
       }
@@ -2252,6 +3482,26 @@
         }
       }
     },
+    "Test the on-device model": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "检查端侧模型"
+          }
+        }
+      }
+    },
+    "The Heart bean isn't connected": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "心力豆没连上"
+          }
+        }
+      }
+    },
     "The LLM service did not answer: %@": {
       "localizations": {
         "zh-Hans": {
@@ -2262,12 +3512,32 @@
         }
       }
     },
-    "The LLM service is not reachable. Check Settings → Clean-up.": {
+    "The LLM service is not reachable": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "连不上大模型服务，请检查「设置 → 润色」。"
+            "value": "大模型服务连不上"
+          }
+        }
+      }
+    },
+    "The LLM service is not reachable. Check the model in Settings.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连不上大模型服务，请在设置里检查整理用的模型。"
+          }
+        }
+      }
+    },
+    "The LLM service isn't reachable, so the diary was skipped. It's written once the service is back.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "大模型服务连不上，这次没写日记。服务恢复后会补写。"
           }
         }
       }
@@ -2282,12 +3552,42 @@
         }
       }
     },
+    "The LLM service rejected the API key": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "大模型服务拒绝了 API Key"
+          }
+        }
+      }
+    },
     "The LLM service rejected the API key.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "大模型服务拒绝了 API Key。"
+          }
+        }
+      }
+    },
+    "The audio isn't on this iPhone.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这台 iPhone 上没有音频。"
+          }
+        }
+      }
+    },
+    "The audio was removed from this iPhone as set in Heart mode. The transcript is kept.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按心力模式的设置，音频已从这台 iPhone 上删除，转写还在。"
           }
         }
       }
@@ -2322,12 +3622,32 @@
         }
       }
     },
+    "The diary and conversation summaries are written by the LLM service set in Settings.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "日记和段摘要由设置里的大模型服务来写。"
+          }
+        }
+      }
+    },
     "The diary couldn't be written; OpenBean tries again later.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "日记没写成，OpenBean 稍后会再试。"
+          }
+        }
+      }
+    },
+    "The key is kept in this iPhone's keychain. Model names change over time; Test connection checks the name with the service.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "密钥存在这台 iPhone 的钥匙串里。模型名会随服务更新而变，「测试连接」会向服务核对。"
           }
         }
       }
@@ -2352,22 +3672,92 @@
         }
       }
     },
-    "The server address in Clean-up is not valid.": {
+    "The recorder isn't connected": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "「润色」里的服务器地址无效。"
+            "value": "录音豆没连上"
           }
         }
       }
     },
-    "The service rejected the API key.": {
+    "The server didn't accept the connection. Check the address and port.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "服务拒绝了这个 API 密钥。"
+            "value": "服务器拒绝了连接，请检查地址和端口。"
+          }
+        }
+      }
+    },
+    "The service doesn't know the model “%@”. Check the model name.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "服务不认识模型「%@」，请检查模型名。"
+          }
+        }
+      }
+    },
+    "The service doesn't know the model “%@”. It offers, for example: %@.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "服务不认识模型「%@」。它提供的模型例如：%@。"
+          }
+        }
+      }
+    },
+    "The service had an error (HTTP %lld). Try again later.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "服务出错（HTTP %lld），请稍后再试。"
+          }
+        }
+      }
+    },
+    "The service is limiting requests right now. Try again in a minute.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "服务现在限制了请求频率，请过一分钟再试。"
+          }
+        }
+      }
+    },
+    "The service rejected the API key. Check that it was copied in full.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "服务拒绝了这个 API 密钥，请检查是否复制完整。"
+          }
+        }
+      }
+    },
+    "The service says the account has no credit or quota left.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "服务提示账户余额或额度不足。"
+          }
+        }
+      }
+    },
+    "The service took too long to answer.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "服务太久没有回应。"
           }
         }
       }
@@ -2378,6 +3768,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "它们的转写和摘要会留在这台 iPhone 上。此操作无法撤销。"
+          }
+        }
+      }
+    },
+    "They sync when the Heart bean goes back in its case.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "心力豆放回充电盒时会同步。"
+          }
+        }
+      }
+    },
+    "They sync when the recorder goes back in its case.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "录音豆放回充电盒时会同步。"
           }
         }
       }
@@ -2402,6 +3812,16 @@
         }
       }
     },
+    "This conversation is no longer here": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这段对话已经不在了"
+          }
+        }
+      }
+    },
     "This deletes the audio, transcript, summary and to-dos on this iPhone.": {
       "localizations": {
         "zh-Hans": {
@@ -2418,6 +3838,36 @@
           "stringUnit": {
             "state": "translated",
             "value": "这会删除这台 iPhone 上它们的音频、转写、摘要和待办。"
+          }
+        }
+      }
+    },
+    "This iPhone can't use Apple Intelligence, or Apple Intelligence isn't offered in your region. Use a cloud or network service instead.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这台 iPhone 不能使用 Apple 智能，或所在地区未提供 Apple 智能。请改用云端或局域网服务。"
+          }
+        }
+      }
+    },
+    "This iPhone is offline.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这台 iPhone 没有联网。"
+          }
+        }
+      }
+    },
+    "This is not a valid address. It should start with https:// (or http:// on your local network).": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "地址无效，应以 https:// 开头（局域网里可以用 http://）。"
           }
         }
       }
@@ -2492,6 +3942,16 @@
         }
       }
     },
+    "To write summaries, conversation titles and the diary, the text of your transcripts will be sent to %@. Audio never leaves this iPhone. You can switch back to the on-device model at any time.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "为了写摘要、对话标题和日记，转写文字会发送给 %@。音频不会离开手机。你随时可以切回端侧模型。"
+          }
+        }
+      }
+    },
     "To-dos": {
       "localizations": {
         "zh-Hans": {
@@ -2532,12 +3992,12 @@
         }
       }
     },
-    "Too little was said this day for a diary.": {
+    "Too little was said on this day for a diary; the conversations are listed below.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "这一天说的话太少，没写日记。"
+            "value": "这天说的话太少，没有写日记；对话都列在下面。"
           }
         }
       }
@@ -2608,6 +4068,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "已转写"
+          }
+        }
+      }
+    },
+    "Transcribes on this iPhone and splits the day into conversations.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在这台 iPhone 上转写，并把一天切成一段段对话。"
           }
         }
       }
@@ -2692,6 +4162,46 @@
         }
       }
     },
+    "Transcripts are sent to %@ on your local network. Audio never leaves this iPhone.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "转写文字会发送给局域网里的 %@，音频不会离开手机。"
+          }
+        }
+      }
+    },
+    "Transcripts are sent to %@ to write summaries. Audio never leaves this iPhone.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "转写文字会发送给 %@ 来写摘要，音频不会离开手机。"
+          }
+        }
+      }
+    },
+    "Transcripts, summaries and the diary are always kept.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "转写、摘要和日记一直保留。"
+          }
+        }
+      }
+    },
+    "Transcripts, summaries and the diary are kept. Applies to recordings synced in Heart mode.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "转写、摘要和日记都会保留。只对心力模式下同步的录音生效。"
+          }
+        }
+      }
+    },
     "Try again": {
       "localizations": {
         "zh-Hans": {
@@ -2712,22 +4222,72 @@
         }
       }
     },
-    "Turn on Bluetooth in Control Center or System Settings. OpenBean connects as soon as it's on.": {
+    "Turn on Apple Intelligence in the Settings app (Apple Intelligence & Siri), then come back.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "在控制中心或系统设置里打开蓝牙，打开后 OpenBean 会自动连接。"
+            "value": "请在「设置」App 的「Apple 智能与 Siri」里打开 Apple 智能，然后再回来。"
           }
         }
       }
     },
-    "Turn on OpenBean in System Settings → Privacy & Security → Bluetooth.": {
+    "Turn on Bluetooth in Control Center or Settings. OpenBean connects as soon as it's on.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "在「系统设置 → 隐私与安全性 → 蓝牙」里打开 OpenBean。"
+            "value": "在控制中心或「设置」里打开蓝牙，打开后 OpenBean 会马上连接。"
+          }
+        }
+      }
+    },
+    "Turn on Heart mode": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "开启心力模式"
+          }
+        }
+      }
+    },
+    "Unexpected answer (HTTP %lld). Check that the address is the service's OpenAI-compatible base URL.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "意外的回应（HTTP %lld）。请确认地址是服务的 OpenAI 兼容根地址。"
+          }
+        }
+      }
+    },
+    "Until a model is chosen, OpenBean still syncs and transcribes, but doesn't write summaries or the diary.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选好模型之前，OpenBean 照常同步和转写，只是不写摘要和日记。"
+          }
+        }
+      }
+    },
+    "Use %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用 %@"
+          }
+        }
+      }
+    },
+    "Version": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "版本"
           }
         }
       }
@@ -2738,6 +4298,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "等待中"
+          }
+        }
+      }
+    },
+    "Waiting for the Heart bean…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在等心力豆…"
+          }
+        }
+      }
+    },
+    "Waiting for the recorder…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在等录音豆…"
           }
         }
       }
@@ -2762,12 +4342,62 @@
         }
       }
     },
-    "Wear the recorder all day. When it goes back in its case, OpenBean syncs, transcribes, splits the day into conversations and writes the day's diary and to-dos.": {
+    "Wear your Heart bean all day. When it goes back in its case, OpenBean syncs it — even with your iPhone in your pocket — and sorts the day into conversations, a diary and to-dos.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "整天戴着录音豆。放回盒子后，OpenBean 会同步、转写、把一天切成一段段对话，并写好当天的日记和待办。"
+            "value": "整天戴着心力豆，放回充电盒时，OpenBean 会同步它——手机在口袋里也一样——并把这一天整理成对话、日记和待办。"
+          }
+        }
+      }
+    },
+    "Wear your Heart bean all day. When it goes back in its case, OpenBean syncs the day, splits it into conversations and writes today's diary and to-dos.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "戴着心力豆过一天。放回充电盒后，OpenBean 自动同步、把这一天切成一段段对话，写好今天的日记和待办。"
+          }
+        }
+      }
+    },
+    "Wear your recorder all day as a Heart bean. When it goes back in its case, OpenBean takes care of the rest — even with your iPhone in your pocket.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "把录音豆当作心力豆整天戴着。放回充电盒后，剩下的交给 OpenBean——手机在口袋里也一样。"
+          }
+        }
+      }
+    },
+    "When today's record is updated or a sync needs you.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "今天的记录更新了、或者同步需要你处理时。"
+          }
+        }
+      }
+    },
+    "Where your words go": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你说的话去了哪里"
+          }
+        }
+      }
+    },
+    "With 4:00 AM, a conversation at 2 AM still counts as the day before.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "设为凌晨 4 点时，凌晨两点的谈话仍算前一天。"
           }
         }
       }
@@ -2782,12 +4412,52 @@
         }
       }
     },
+    "Works in the background. Keep Bluetooth on, and don't swipe OpenBean away in the app switcher — iOS then stops waking it until you open it again.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在后台也会工作。请保持蓝牙打开，不要在多任务界面把 OpenBean 划掉——划掉后 iOS 不会再唤醒它，直到你再次打开。"
+          }
+        }
+      }
+    },
     "Write diary": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "写日记"
+          }
+        }
+      }
+    },
+    "Write the diary for this day": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "写这天的日记"
+          }
+        }
+      }
+    },
+    "Writes today's diary and to-dos with your LLM service.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "用你的大模型服务写当天的日记和待办。"
+          }
+        }
+      }
+    },
+    "Writing the diary for this day…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在写这天的日记…"
           }
         }
       }
@@ -2812,12 +4482,52 @@
         }
       }
     },
+    "You can change these later in Heart mode settings.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "以后可以在心力模式的设置里改。"
+          }
+        }
+      }
+    },
+    "You won't hear when today's record is updated or a sync needs you.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "今天的记录更新、或同步需要你处理时，你不会收到提醒。"
+          }
+        }
+      }
+    },
     "about %@": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "约 %@"
+          }
+        }
+      }
+    },
+    "about %@ left": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "大约还要 %@"
+          }
+        }
+      }
+    },
+    "https://… or http://192.168.…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "https://… 或 http://192.168.…"
           }
         }
       }
@@ -2838,6 +4548,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "录音豆。请把它从充电盒拿出来，或按一下充电盒按钮唤醒。"
+          }
+        }
+      }
+    },
+    "starts at %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "从%@算起"
+          }
+        }
+      }
+    },
+    "this service": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这个服务"
           }
         }
       }

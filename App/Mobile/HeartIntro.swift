@@ -110,18 +110,14 @@ struct HeartIntroSheet: View {
         }
     }
 
-    /// 现在设的大模型服务：在云端就说清楚转写文字会发给它
+    /// 现在选的整理用模型：端侧、局域网还是云端；云端就说清楚转写文字会发给它（说法和设置页共用）
     @ViewBuilder private var serviceLine: some View {
-        if let s = model.library.notes.service, !model.settings.polishEndpoint.isEmpty {
-            if s.isLocal {
-                Label { Text("Your LLM service runs on your own network (\(s.endpoint.host ?? "")).") }
-                    icon: { Image(systemName: "house") }
-            } else {
-                Label { Text("Your LLM service is a cloud service: the transcript text of each conversation is sent to \(s.endpoint.host ?? "") to write summaries and the diary.") }
-                    icon: { Image(systemName: "cloud").foregroundStyle(.orange) }
-            }
+        let d = model.settings.llmDisclosure
+        if d.choice == .none {
+            Label("No model is chosen yet. If you choose a cloud service, transcript text is sent to it.", systemImage: "cloud")
         } else {
-            Label("No LLM service is set yet. If you choose a cloud service, transcript text is sent to it.", systemImage: "cloud")
+            Label { Text(d.sentence) }
+                icon: { Image(systemName: d.sendsTextOffDevice ? "cloud" : "lock.shield").foregroundStyle(d.sendsTextOffDevice ? .orange : .secondary) }
         }
     }
 

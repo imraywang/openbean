@@ -931,5 +931,6 @@
 "Your LLM service is a cloud service: the transcript text of each conversation is sent to %@ to write summaries and the diary.": "你的大模型服务在云端：写摘要和日记时，每段对话的转写文字会发送到 %@。",
 "Your LLM service runs on your own network (%@).": "你的大模型服务在你自己的网络里（%@）。",
 "about %@ left": "大约还要 %@",
-"%lld split": "已切 %lld 条"
+"%lld split": "已切 %lld 条",
+"No model is chosen yet. If you choose a cloud service, transcript text is sent to it.": "还没有选模型。如果选云端服务，转写文字会发给它。"
 }

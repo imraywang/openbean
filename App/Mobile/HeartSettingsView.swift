@@ -109,7 +109,6 @@ struct HeartSettingsView: View {
     // MARK: 大模型服务
 
     @ViewBuilder private var serviceRow: some View {
-        let service = model.library.notes.service
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             if checking {
                 ProgressView().controlSize(.small)
@@ -122,24 +121,19 @@ struct HeartSettingsView: View {
                     case .unauthorized: Text("The LLM service rejected the API key")
                     case .unreachable: Text("The LLM service is not reachable")
                     }
-                    if let s = service, let host = s.endpoint.host {
-                        if s.isLocal {
-                            Text("Runs on your own network (\(host)).").font(.caption).foregroundStyle(.secondary)
-                        } else {
-                            Text("Conversation text is sent to \(host) for the diary and summaries.")
-                                .font(.caption).foregroundStyle(.secondary)
-                        }
-                    }
+                    Text(model.settings.llmDisclosure.sentence).font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
                 if status != .ok { Button("Check again") { Task { await check() } }.buttonStyle(.borderless) }
+            } else {
+                Text(model.settings.llmDisclosure.sentence).foregroundStyle(.secondary)
             }
         }
     }
 
     private func check() async {
         if Flavor.isDemo { status = .ok; return } // 演示数据不连任何服务
-        guard let s = model.library.notes.service else { status = .unreachable(String(localized: "invalid address")); return }
+        guard let s = model.library.notes.backend else { status = nil; return }
         checking = true
         status = await s.check()
         checking = false
