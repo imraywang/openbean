@@ -178,28 +178,32 @@ final class NoteService {
         return URL(fileURLWithPath: p, isDirectory: true)
     }
 
-    /// 按服务的上下文长度定好分块预算的 Summarizer（读到的长度记 10 分钟，换了服务地址或模型就重读）
-    func summarizer(_ service: LLMService) async -> Summarizer {
-        let key = "\(service.endpoint.absoluteString)|\(service.model)"
+    /// 按后端的上下文长度定好分块预算的 Summarizer（读到的长度记 10 分钟，换了服务地址、模型或后端就重读）
+    func summarizer(_ backend: any LLMBackend) async -> Summarizer {
+        let key = "\((backend as? LLMService)?.endpoint.absoluteString ?? "on-device")|\(backend.modelName)"
+        let out = backend.preferredMaxOutput ?? 1000
         if let c = contextCache, c.key == key, Date().timeIntervalSince(c.at) < 600 {
-            return Summarizer(service: service, budget: Summarizer.budget(contextLength: c.length), glossary: AppPaths.readGlossary())
+            return Summarizer(backend: backend, budget: Summarizer.budget(for: backend, contextLength: c.length, maxOutput: out),
+                              maxOutput: out, glossary: AppPaths.readGlossary())
         }
-        let n = await service.contextLength()
+        let n = await backend.contextLength()
         contextCache = (key, n, Date())
-        let b = Summarizer.budget(contextLength: n)
+        let b = Summarizer.budget(for: backend, contextLength: n, maxOutput: out)
         Log.write("大模型上下文：\(n.map(String.init) ?? "读不到")，每块 \(b) token")
-        return Summarizer(service: service, budget: b, glossary: AppPaths.readGlossary())
+        return Summarizer(backend: backend, budget: b, maxOutput: out, glossary: AppPaths.readGlossary())
     }
     @ObservationIgnored private var contextCache: (key: String, length: Int?, at: Date)?
 
-    var service: LLMService? {
-        URL(string: settings.polishEndpoint).map { LLMService(endpoint: $0, apiKey: settings.polishAPIKey, model: settings.polishModel) }
-    }
+    /// 整理用的后端（Mac：润色那个 OpenAI 兼容服务；iOS：端侧模型或选的服务）；没有可用的返回 nil
+    var backend: (any LLMBackend)? { settings.llmBackend }
+
+    /// 写进摘要、日记记录的模型名
+    var modelName: String { backend?.modelName ?? settings.polishModel }
 
     /// 大模型服务现在连得上（日记没写成时分清原因用）
     func serviceReachable() async -> Bool {
-        guard let service else { return false }
-        return await service.check() == .ok
+        guard let backend else { return false }
+        return await backend.check() == .ok
     }
 
     /// 转写后写完（或没写成）日记时报给心力模式的四步条
@@ -265,12 +269,12 @@ final class NoteService {
         defer { summarizing[id] = nil }
         guard let library, let r = library.recordings.first(where: { $0.id == id }), canSummarize(r) else { return }
         let lines = library.transcript(id).map { TimedLine(start: $0.start, text: $0.text) }
-        guard let service else { fail(id, manual, String(localized: "The server address in Clean-up is not valid.")); return }
-        let status = await service.check()
+        guard let backend else { fail(id, manual, Self.noBackendMessage); return }
+        let status = await backend.check()
         guard status == .ok else {
             if manual {
                 fail(id, manual, status == .unauthorized ? String(localized: "The LLM service rejected the API key.")
-                                                         : String(localized: "The LLM service is not reachable. Check Settings → Clean-up."))
+                                                         : Self.unreachableMessage(backend, status))
             } else {
                 Log.write("跳过摘要 \(id)：服务不可用（\(status)）")
             }
@@ -284,14 +288,14 @@ final class NoteService {
                 // 开着每日日记：以段摘要为准，整条的摘要由它们合成（一段时直接用，多段时合并一次）
                 s = try await diary.recordingSummary(id, force: manual)
             } else {
-                s = try await summarizer(service).summarize(lines) { p in
+                s = try await summarizer(backend).summarize(lines) { p in
                     Task { @MainActor [weak self] in
                         if self?.summarizing[id] != nil { self?.summarizing[id] = max(p, 0.02) }
                     }
                 }
             }
             let old = stored(id)
-            var stored = StoredSummary(summary: s, createdAt: Date(), model: settings.polishModel, appliedTitle: old?.appliedTitle)
+            var stored = StoredSummary(summary: s, createdAt: Date(), model: backend.modelName, appliedTitle: old?.appliedTitle)
             // 没有用户自己起的标题（或者标题就是上次摘要给的）时，用生成的标题
             if NoteRules.applyTitle(generated: s.title, current: r.title, lastApplied: old?.appliedTitle) {
                 library.rename(id, to: s.title)
@@ -314,6 +318,27 @@ final class NoteService {
                      : String(localized: "The LLM service did not answer: \(error.localizedDescription)"))
             }
         }
+    }
+
+    /// 没有可用的后端时（地址填得不对；iOS 上还没选模型）
+    static var noBackendMessage: String {
+        #if os(macOS)
+        String(localized: "The server address in Clean-up is not valid.")
+        #else
+        String(localized: "Choose a model for summaries in Settings.")
+        #endif
+    }
+
+    /// 后端不可用时
+    static func unreachableMessage(_ backend: any LLMBackend, _ status: LLMService.Status) -> String {
+        #if os(macOS)
+        return String(localized: "The LLM service is not reachable. Check Settings → Clean-up.")
+        #else
+        if backend is OnDeviceLLM, case let .unreachable(why) = status, let a = OnDeviceAvailability(rawValue: why) {
+            return OnDeviceText.unavailable(a)
+        }
+        return String(localized: "The LLM service is not reachable. Check the model in Settings.")
+        #endif
     }
 
     private func fail(_ id: UInt32, _ manual: Bool, _ message: String) {

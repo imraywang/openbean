@@ -68,6 +68,12 @@ enum DemoData {
             ModeKeys.heartAudioRetention: AudioRetention.default.rawValue, ModeKeys.heartAgentTranscripts: false,
         ]
         for (k, v) in values { d.set(v, forKey: k) }
+        #if os(iOS)
+        // iOS 演示：模型选择回到出厂（没选过、没填服务），由启动参数 -llmBackend / -cloudProvider 覆盖着截图
+        for k in ["llmBackend", "cloudProvider", "cloudConfirmed"] { d.removeObject(forKey: k) }
+        d.set("", forKey: "polishEndpoint")
+        d.set("local", forKey: "polishModel")
+        #endif
         #if os(macOS)
         d.set(Hotkey.Preset.optionSpace.rawValue, forKey: "hotkey")
         #endif

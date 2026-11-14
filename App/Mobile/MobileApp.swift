@@ -35,6 +35,10 @@ final class MobileModel {
             return
         }
         models.check()
+        if UserDefaults.standard.bool(forKey: "selftestSummarize") {
+            Task { await ModelSelfTest.run() }
+            return
+        }
         if let file = UserDefaults.standard.string(forKey: "selftestTranscribe") {
             Task { await selfTestTranscribe(file) }
             return

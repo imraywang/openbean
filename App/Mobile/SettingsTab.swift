@@ -4,73 +4,115 @@ import OpenBeanVoice
 import SwiftUI
 import UIKit
 
-/// 设置：大模型服务（地址、模型、密钥存钥匙串）、转写和摘要、语音识别模型、日志
+/// 设置首页，分五组：整理用的模型 / 语音识别模型 / 自动摘要与日记 / 一天从几点开始 / 关于与日志。
+/// 别的页面（心力模式、录音库）要加入口时，加在标了「入口」的位置，各占一行
 struct MobileSettingsTab: View {
     let model: MobileModel
-    @State private var check: LLMService.Status?
-    @State private var checking = false
+    @State private var path: [SettingsRoute] = SettingsRoute.initial
+    @State private var availability = OnDeviceLLM.availability
+    @Environment(\.scenePhase) private var phase
 
     var body: some View {
         @Bindable var settings = model.settings
-        NavigationStack {
+        NavigationStack(path: $path) {
             Form {
+                // 整理用的模型
                 Section {
-                    TextField("Server address", text: $settings.polishEndpoint)
-                        .textContentType(.URL).keyboardType(.URL)
-                        .textInputAutocapitalization(.never).autocorrectionDisabled()
-                    TextField("Model", text: $settings.polishModel)
-                        .textInputAutocapitalization(.never).autocorrectionDisabled()
-                    SecureField("API key", text: $settings.polishAPIKey)
-                    HStack {
-                        Button("Test connection") { Task { await test() } }.disabled(checking)
-                        Spacer()
-                        if checking { ProgressView() } else if let check { Text(checkText(check)).foregroundStyle(check == .ok ? .green : .red).font(.caption) }
+                    NavigationLink(value: SettingsRoute.model) {
+                        LabeledContent("Model", value: modelSummary)
+                    }
+                    if settings.llmChoice == .none {
+                        Label(availability.isAvailable ? String(localized: "Choose a model to turn on summaries.")
+                              : OnDeviceText.unavailable(availability), systemImage: "exclamationmark.triangle")
+                            .font(.footnote).foregroundStyle(.orange)
                     }
                 } header: {
-                    Text("LLM service")
+                    Text("Model for summaries")
                 } footer: {
-                    Text("Any OpenAI-compatible service: a cloud API or a model on a computer on your network. Summaries, conversation titles and the diary use it. The key is kept in the keychain.")
+                    Text(settings.llmDisclosure.sentence)
                 }
 
-                Section("Recordings") {
-                    Toggle("Transcribe after syncing", isOn: $settings.autoTranscribe)
-                    Toggle("Summarise after transcribing", isOn: $settings.summarizeRecordings)
-                    Toggle("Sync automatically", isOn: $settings.autoSync)
-                    Stepper(value: $settings.dayStartHour, in: 0...8) {
-                        LabeledContent("A day starts at", value: hourText(settings.dayStartHour))
-                    }
-                }
-
+                // 语音识别模型
                 Section {
-                    ModelRow(models: model.models)
+                    NavigationLink(value: SettingsRoute.speech) {
+                        LabeledContent("SenseVoice", value: speechSummary)
+                    }
                 } header: {
                     Text("Speech recognition")
                 } footer: {
-                    Text("SenseVoice runs on this iPhone, offline. The model is downloaded once.")
+                    Text("Runs on this iPhone, offline.")
                 }
 
+                // 自动摘要与日记
                 Section {
-                    NavigationLink("Log") { LogView() }
+                    Toggle("Transcribe after syncing", isOn: $settings.autoTranscribe)
+                    // 没有可用的模型时显示为关、不能打开（存着的开关不动，选好模型后照旧生效）
+                    Toggle("Summarise after transcribing", isOn: Binding(
+                        get: { settings.summarizeRecordings && settings.llmBackend != nil },
+                        set: { settings.summarizeRecordings = $0 }))
+                        .disabled(settings.llmBackend == nil)
+                    Toggle("Sync automatically", isOn: $settings.autoSync)
+                    // 入口：心力模式（每天的日记）在这里加一行
+                } header: {
+                    Text("Summaries and diary")
                 } footer: {
-                    Text("OpenBean \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "") (\(Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? ""))")
+                    if settings.llmBackend == nil {
+                        Text("Summaries and the diary need a model. Choose one under Model for summaries.")
+                    }
+                }
+
+                // 一天从几点开始
+                Section {
+                    Stepper(value: $settings.dayStartHour, in: 0...8) {
+                        LabeledContent("A day starts at", value: hourText(settings.dayStartHour))
+                    }
+                } footer: {
+                    Text("Recordings before this hour count toward the previous day, in Today and in the diary.")
+                }
+
+                // 入口：录音库等其他设置在这里加一组
+
+                // 关于与日志
+                Section {
+                    NavigationLink("Log", value: SettingsRoute.log)
+                    LabeledContent("Version", value: "\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "") (\(Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? ""))")
+                } header: {
+                    Text("About")
+                } footer: {
+                    Text("OpenBean is open source. Audio stays on this iPhone; speech recognition runs on the iPhone.")
                 }
             }
             .navigationTitle("Settings")
+            .navigationDestination(for: SettingsRoute.self) { r in
+                switch r {
+                case .model: ModelChoiceView(model: model, confirmOnAppear: SettingsRoute.confirmProvider)
+                case .speech: SpeechModelView(model: model)
+                case .log: LogView()
+                }
+            }
+            .onAppear { availability = OnDeviceLLM.availability }
+            .onChange(of: phase) { _, p in if p == .active { availability = OnDeviceLLM.availability } }
         }
     }
 
-    private func test() async {
-        checking = true
-        defer { checking = false }
-        guard let s = model.library.notes.service else { check = .unreachable(String(localized: "Not a valid address")); return }
-        check = await s.check()
+    private var modelSummary: String {
+        let s = model.settings
+        switch s.llmChoice {
+        case .onDevice: return String(localized: "Apple on-device")
+        case .service:
+            if s.cloudProvider.isEmpty { return String(localized: "Service not chosen") }
+            return LLMChoiceRule.serviceName(provider: s.cloudProvider, endpoint: s.polishEndpoint) ?? String(localized: "Custom address")
+        case .none: return String(localized: "Not set up")
+        }
     }
 
-    private func checkText(_ s: LLMService.Status) -> String {
-        switch s {
-        case .ok: return String(localized: "Connected")
-        case .unauthorized: return String(localized: "The service rejected the API key.")
-        case let .unreachable(why): return why
+    private var speechSummary: String {
+        switch model.models.state {
+        case .checking: return String(localized: "Checking…")
+        case .ready: return String(localized: "Ready")
+        case .missing: return String(localized: "Not downloaded")
+        case let .downloading(p): return String(localized: "Downloading… \(Int(p * 100))%")
+        case .failed: return String(localized: "Download failed")
         }
     }
 
@@ -79,25 +121,22 @@ struct MobileSettingsTab: View {
     }
 }
 
-private struct ModelRow: View {
-    let models: ModelStore
+/// 设置里的子页面
+enum SettingsRoute: Hashable {
+    case model, speech, log
 
-    var body: some View {
-        switch models.state {
-        case .checking:
-            LabeledContent("SenseVoice", value: String(localized: "Checking…"))
-        case .ready:
-            LabeledContent("SenseVoice", value: String(localized: "Ready"))
-        case .missing:
-            Button("Download speech model (about 240 MB)") { Task { await models.download() } }
-        case let .downloading(p):
-            ProgressView(value: p) { Text("Downloading speech model…") }
-        case let .failed(why):
-            VStack(alignment: .leading) {
-                Text(why).foregroundStyle(.red).font(.caption)
-                Button("Try again") { Task { await models.download() } }
-            }
+    /// 截图用：启动参数 -settingsScreen model|speech|confirm（confirm：打开模型页并弹出外发确认，服务用 -confirmProvider，默认 DeepSeek）
+    static var initial: [SettingsRoute] {
+        switch UserDefaults.standard.string(forKey: "settingsScreen") {
+        case "model", "confirm": return [.model]
+        case "speech": return [.speech]
+        default: return []
         }
+    }
+
+    static var confirmProvider: String? {
+        UserDefaults.standard.string(forKey: "settingsScreen") == "confirm"
+            ? (UserDefaults.standard.string(forKey: "confirmProvider") ?? CloudPreset.deepseek.id) : nil
     }
 }
 

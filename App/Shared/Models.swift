@@ -26,7 +26,16 @@ final class ModelStore: NSObject, URLSessionDownloadDelegate {
         Item(url: "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/silero_vad.onnx",
              path: "vad/silero_vad.onnx", bytes: 643_854),
     ]
-    private var totalBytes: Int64 { items.reduce(0) { $0 + $1.bytes } }
+    /// 全部模型文件的大小（下载量）
+    var totalBytes: Int64 { items.reduce(0) { $0 + $1.bytes } }
+    /// 已经在磁盘上的大小
+    var installedBytes: Int64 {
+        items.reduce(0) { sum, item in
+            let size = (try? FileManager.default.attributesOfItem(atPath: AppPaths.models.appendingPathComponent(item.path).path)[.size]
+                        as? NSNumber)?.int64Value ?? 0
+            return sum + size
+        }
+    }
     private var doneBytes: Int64 = 0
     private var current: CheckedContinuation<URL, Error>?
     /// 下载完成后通知（重新加载识别器）
@@ -58,11 +67,17 @@ final class ModelStore: NSObject, URLSessionDownloadDelegate {
         #endif
     }
 
-    func download() async {
+    /// - wifiOnly：不用蜂窝网络（iOS 设置里「仅 Wi‑Fi 下载」）；Mac 不传
+    func download(wifiOnly: Bool = false) async {
         guard state != .ready else { return }
         doneBytes = 0
         state = .downloading(0)
-        let session = URLSession(configuration: .default, delegate: self, delegateQueue: nil)
+        let cfg = URLSessionConfiguration.default
+        if wifiOnly {
+            cfg.allowsCellularAccess = false
+            cfg.allowsExpensiveNetworkAccess = false
+        }
+        let session = URLSession(configuration: cfg, delegate: self, delegateQueue: nil)
         defer { session.finishTasksAndInvalidate() }
         do {
             for item in items {
@@ -88,8 +103,25 @@ final class ModelStore: NSObject, URLSessionDownloadDelegate {
             state = .ready
             onReady()
         } catch {
-            state = .failed(error.localizedDescription)
+            if wifiOnly, let u = error as? URLError, u.networkUnavailableReason == .cellular || u.networkUnavailableReason == .expensive {
+                state = .failed(String(localized: "Connect to Wi‑Fi to download the speech model, or turn off Wi‑Fi only."))
+            } else {
+                state = .failed(error.localizedDescription)
+            }
         }
+    }
+
+    /// 删掉模型文件重新下载（文件坏了、识别出错时用）
+    func redownload(wifiOnly: Bool = false) async {
+        guard !isDownloading else { return }
+        for item in items { try? FileManager.default.removeItem(at: AppPaths.models.appendingPathComponent(item.path)) }
+        state = .missing
+        await download(wifiOnly: wifiOnly)
+    }
+
+    var isDownloading: Bool {
+        if case .downloading = state { return true }
+        return false
     }
 
     /// Apple 设备端中文听写资源（灰字用）
