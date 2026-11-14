@@ -4,9 +4,9 @@ import Foundation
 
 /// 断点续传：「已经收到的范围 → 下次请求的 offset」。
 ///
-/// 设备认不认 1A/07 里的 offset、单位是什么、续传时会不会重发文件头，都还没实测
-/// （`openbean pull --resume-test` 就是测这个的）。所以这里只把换算做好、留一个开关：
-/// `ResumeSupport.current` 现在是「不支持」，App 一律从 0 请求；拿到实验结果后填上单位，续传就生效。
+/// 真机实测（固件 04.82，`openbean pull --resume-test`）：1A/07 的 offset 按「线上字节」填，
+/// 即 已连续收到的片数 × 166，设备就从那一片开始发，密文和完整下载逐片相同。offset 不是 166 的整数倍
+/// 会得到乱序的垃圾数据。每次请求设备都重发文件头、换一把文件密钥，但同一片的密文不变，用这次的头就能解。
 public enum ResumeUnit: String, CaseIterable, Sendable {
     /// 线上字节：每片 166（文件头 size 的口径；社区笔记把这个字段叫 already_transferred_size）
     case wireBytes
@@ -43,19 +43,28 @@ public struct ResumeSupport: Equatable, Sendable {
         self.headResent = headResent
     }
 
-    /// 等 A2 实验结果再改
-    public static let current = ResumeSupport(unit: nil, headResent: true)
+    /// 实测结论：线上字节，每次请求重发文件头
+    public static let current = ResumeSupport(unit: .wireBytes, headResent: true)
 
     public var isSupported: Bool { unit != nil && headResent }
 }
 
 public enum ResumePlan {
-    /// 下一次请求：从哪个 seq 起、offset 填多少。已经有的不够连续一片，或不支持续传时从 0 开始
-    public static func next(received: SeqRanges, firstSeq: UInt32 = 0, support: ResumeSupport = .current)
+    /// 下一次请求：从哪个 seq 起、offset 填多少。只算从 `firstSeq` 起连续的前缀（中间有洞就从洞的位置续）；
+    /// 一片都没有，或不支持续传时从 0 开始。
+    /// `total` 是这个文件应有的片数（列表时长 ÷ 20 ms，不知道时为 0）：前缀已经够了（上次只差结束包）时，
+    /// 从最后一片再要一次，换回文件头、最后一片和结束包，不用整个重下。
+    public static func next(received: SeqRanges, firstSeq: UInt32 = 0, total: Int = 0, support: ResumeSupport = .current)
         -> (offset: UInt32, fromSeq: UInt32) {
         guard support.isSupported, let unit = support.unit else { return (0, firstSeq) }
-        let k = UInt32(received.contiguousCount(from: firstSeq))
+        var k = UInt32(received.contiguousCount(from: firstSeq))
+        if total > 0, k >= UInt32(total) { k = UInt32(total - 1) }
         guard k > 0 else { return (0, firstSeq) }
         return (unit.offset(contiguous: k, firstSeq: firstSeq), firstSeq &+ k)
+    }
+
+    /// 日志用：「续传，从第 N 片」或「从头」
+    public static func label(fromSeq: UInt32, firstSeq: UInt32 = 0) -> String {
+        fromSeq > firstSeq ? "续传，从第 \(fromSeq) 片" : "从头"
     }
 }

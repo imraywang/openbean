@@ -6,8 +6,8 @@ import Foundation
 /// 内存里只留收到的 seq 区间（`SeqRanges`）和一个 64 KB 的写缓冲。8 小时的录音（约 230 MB）不在内存里攒。
 ///
 /// 下不完时文件留着：下一次打开（`keepExisting: true`）会扫一遍已有的记录接着用，
-/// 已经有的 seq 不再写（先到的为准）。没有断点续传时，下一次还是从头请求，但收过的不会白收；
-/// 有续传以后，从 `received.contiguousCount(from:)` 接着要（见 `ResumePlan`）。
+/// 已经有的 seq 不再写（先到的为准）。下一次从 `received.contiguousCount(from: 0)` 接着要
+/// （offset = 片数 × 166，见 `ResumePlan`、`Downloader.runResuming`）。
 /// 不加锁：同一时间只给一个下载用（收包在传输队列上写，进度在同一队列的 `sync` 里读，收尾在下载结束之后）。
 public final class FrameSpool: @unchecked Sendable {
     public static let recordSize = 4 + OggOpus.frameSize

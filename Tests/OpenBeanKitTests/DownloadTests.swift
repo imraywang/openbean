@@ -109,6 +109,165 @@ final class DownloadTests: XCTestCase {
         XCTAssertEqual(try oggFrames(out), 300)
     }
 
+    /// 设备收到 offset 后从第 offset/166 片开始发（真机实测的行为）
+    private func resumingDevice(_ dev: FakeDevice, ch: FakeChannel, f: RecordingFile, total: Int,
+                                firstSeqFor: @escaping (UInt32) -> UInt32 = { $0 / 166 },
+                                offsets: Box<[UInt32]>) -> (UInt32) async throws -> Void {
+        { offset in
+            offsets.value.append(offset)
+            let from = Int(firstSeqFor(offset))
+            var packets = [try dev.head(fileId: f.id, slices: total)]
+            for start in stride(from: from, to: total, by: 10) {
+                packets.append(try dev.slices((start..<min(start + 10, total)).map(UInt32.init)))
+            }
+            packets.append(FakeDevice.done(fileId: f.id))
+            ch.play(count: packets.count) { packets[$0] }
+        }
+    }
+
+    final class Box<T>: @unchecked Sendable { var value: T; init(_ v: T) { value = v } }
+
+    func testResumeRequestsOffsetFromContiguousPrefix() async throws {
+        let dev = try FakeDevice()
+        let f = file(slices: 300)
+        let url = dir.appendingPathComponent("download.part")
+        // 上次收了 0…119 和 200…209（中间有洞）
+        let old = try FrameSpool(url: url, keepExisting: false)
+        for q in Array(0..<120) + Array(200..<210) { old.put(seq: UInt32(q), frame: FakeDevice.plain(seq: UInt32(q))) }
+        old.close()
+        let sp = try FrameSpool(url: url, keepExisting: true)
+        let ch = FakeChannel()
+        let offsets = Box<[UInt32]>([])
+        var logs: [String] = []
+        let r = try await Downloader.runResuming(channel: ch, crypto: dev.crypto, file: f, spool: sp, idle: 0.3, tick: 0.02,
+                                                 doneGrace: 0.1,
+                                                 request: resumingDevice(dev, ch: ch, f: f, total: 300, offsets: offsets),
+                                                 log: { logs.append($0) }, progress: { _ in })
+        XCTAssertEqual(offsets.value, [120 * 166])
+        XCTAssertEqual(r.fromSeq, 120)
+        XCTAssertEqual(r.firstSliceSeq, 120)
+        XCTAssertEqual(r.stop, .done)
+        XCTAssertEqual(r.check.verdict, .complete)
+        XCTAssertEqual(r.received.ranges, [0...299])
+        XCTAssertEqual(r.newFrames, 170)
+        XCTAssertTrue(logs.contains { $0.contains("续传，从第 120 片") }, "\(logs)")
+        XCTAssertTrue(r.summary.hasPrefix("续传，从第 120 片"))
+        // 拼起来和完整下载逐字节相同
+        let out = dir.appendingPathComponent("audio.ogg")
+        try sp.writeOgg(to: out, first: 0, count: 300)
+        let raw = (0..<300).flatMap { FakeDevice.plain(seq: UInt32($0)) }
+        XCTAssertEqual([UInt8](try Data(contentsOf: out)), OggOpus.mux(frames: OggOpus.frames(from: raw)))
+    }
+
+    func testEmptySpoolRequestsFromStart() async throws {
+        let dev = try FakeDevice()
+        let f = file(slices: 100)
+        let sp = try FrameSpool(url: dir.appendingPathComponent("download.part"), keepExisting: false)
+        let ch = FakeChannel()
+        let offsets = Box<[UInt32]>([])
+        var logs: [String] = []
+        let r = try await Downloader.runResuming(channel: ch, crypto: dev.crypto, file: f, spool: sp, idle: 0.3, tick: 0.02,
+                                                 doneGrace: 0.1,
+                                                 request: resumingDevice(dev, ch: ch, f: f, total: 100, offsets: offsets),
+                                                 log: { logs.append($0) }, progress: { _ in })
+        XCTAssertEqual(offsets.value, [0])
+        XCTAssertEqual(r.check.verdict, .complete)
+        XCTAssertTrue(logs.contains { $0.contains("从头") }, "\(logs)")
+    }
+
+    func testAllReceivedOnlyAsksForLastSlice() async throws {
+        let dev = try FakeDevice()
+        let f = file(slices: 100)
+        let url = dir.appendingPathComponent("download.part")
+        let old = try FrameSpool(url: url, keepExisting: false)
+        for q in 0..<100 { old.put(seq: UInt32(q), frame: FakeDevice.plain(seq: UInt32(q))) }
+        old.close()
+        let sp = try FrameSpool(url: url, keepExisting: true)
+        let ch = FakeChannel()
+        let offsets = Box<[UInt32]>([])
+        let r = try await Downloader.runResuming(channel: ch, crypto: dev.crypto, file: f, spool: sp, idle: 0.3, tick: 0.02,
+                                                 doneGrace: 0.1,
+                                                 request: resumingDevice(dev, ch: ch, f: f, total: 100, offsets: offsets),
+                                                 progress: { _ in })
+        XCTAssertEqual(offsets.value, [99 * 166])
+        XCTAssertEqual(r.stop, .done)
+        XCTAssertEqual(r.check.verdict, .complete)
+        XCTAssertEqual(r.newFrames, 0)
+    }
+
+    func testResumeFirstSeqMismatchFallsBackToStart() async throws {
+        let dev = try FakeDevice()
+        let f = file(slices: 300)
+        let url = dir.appendingPathComponent("download.part")
+        let old = try FrameSpool(url: url, keepExisting: false)
+        for q in 0..<120 { old.put(seq: UInt32(q), frame: FakeDevice.plain(seq: UInt32(q))) }
+        old.close()
+        let sp = try FrameSpool(url: url, keepExisting: true)
+        let ch = FakeChannel()
+        let offsets = Box<[UInt32]>([])
+        var logs: [String] = []
+        // 设备把 offset 当成别的单位：续传请求从第 150 片发起（中间 120…149 会缺）；从头请求正常
+        let r = try await Downloader.runResuming(channel: ch, crypto: dev.crypto, file: f, spool: sp, idle: 0.3, tick: 0.02,
+                                                 doneGrace: 0.1,
+                                                 request: resumingDevice(dev, ch: ch, f: f, total: 300,
+                                                                         firstSeqFor: { $0 == 0 ? 0 : 150 }, offsets: offsets),
+                                                 log: { logs.append($0) }, progress: { _ in })
+        XCTAssertEqual(offsets.value, [120 * 166, 0])
+        XCTAssertEqual(r.fromSeq, 0)
+        XCTAssertEqual(r.check.verdict, .complete)
+        XCTAssertEqual(r.received.ranges, [0...299])
+        XCTAssertTrue(logs.contains { $0.contains("不是 120") && $0.contains("从头下载") }, "\(logs)")
+    }
+
+    func testMismatchedAttemptWritesNothing() async throws {
+        let dev = try FakeDevice()
+        let f = file(slices: 300)
+        let sp = try FrameSpool(url: dir.appendingPathComponent("download.part"), keepExisting: false)
+        for q in 0..<120 { sp.put(seq: UInt32(q), frame: FakeDevice.plain(seq: UInt32(q))) }
+        let ch = FakeChannel()
+        var packets = [try dev.head(fileId: f.id, slices: 300)]
+        for start in stride(from: 150, to: 300, by: 10) { packets.append(try dev.slices((start..<start + 10).map(UInt32.init))) }
+        let r = try await Downloader.run(channel: ch, crypto: dev.crypto, file: f, spool: sp, offset: 120 * 166, fromSeq: 120,
+                                         idle: 0.3, tick: 0.02,
+                                         request: { ch.play(count: packets.count) { packets[$0] } }, progress: { _ in })
+        XCTAssertEqual(r.stop, .resumeMismatch)
+        XCTAssertEqual(r.firstSliceSeq, 150)
+        XCTAssertEqual(r.newFrames, 0)
+        XCTAssertEqual(sp.received.ranges, [0...119])
+    }
+
+    func testDeviceIgnoringOffsetIsTakenAsFromStart() async throws {
+        let dev = try FakeDevice()
+        let f = file(slices: 200)
+        let sp = try FrameSpool(url: dir.appendingPathComponent("download.part"), keepExisting: false)
+        for q in 0..<50 { sp.put(seq: UInt32(q), frame: FakeDevice.plain(seq: UInt32(q))) }
+        let ch = FakeChannel()
+        let offsets = Box<[UInt32]>([])
+        var logs: [String] = []
+        let r = try await Downloader.runResuming(channel: ch, crypto: dev.crypto, file: f, spool: sp, idle: 0.3, tick: 0.02,
+                                                 doneGrace: 0.1,
+                                                 request: resumingDevice(dev, ch: ch, f: f, total: 200,
+                                                                         firstSeqFor: { _ in 0 }, offsets: offsets),
+                                                 log: { logs.append($0) }, progress: { _ in })
+        XCTAssertEqual(offsets.value, [50 * 166])
+        XCTAssertEqual(r.check.verdict, .complete)
+        XCTAssertEqual(r.newFrames, 150)
+        XCTAssertTrue(logs.contains { $0.contains("当作从头收") }, "\(logs)")
+    }
+
+    func testResumedHeadSizeEitherWay() {
+        // 续传时文件头 size 不论是全文件还是剩下的部分，都按全文件算
+        let full = FileHead(frame: Self.headFrame(size: 300 * 166))!
+        let rest = FileHead(frame: Self.headFrame(size: 180 * 166))!
+        XCTAssertEqual(DownloadCheck.headFrames(full, fromSeq: 120, listFrames: 300), 300)
+        XCTAssertEqual(DownloadCheck.headFrames(rest, fromSeq: 120, listFrames: 300), 300)
+        XCTAssertEqual(DownloadCheck.headFrames(rest, fromSeq: 0, listFrames: 300), 180)
+    }
+
+    private static func headFrame(size: UInt32) -> [UInt8] {
+        FakeDevice.frame(id: 0x07, payload: u32le(1) + u32le(size) + [UInt8](repeating: 0, count: 78) + [0, 0]).raw
+    }
+
     func testOutOfOrderAndSmallGapIsUsableAndGapIsFilled() async throws {
         let dev = try FakeDevice()
         let f = file(slices: 400)

@@ -39,8 +39,17 @@ public enum DownloadCheck {
     /// 解密正确时几乎所有帧的 TOC 字节都一样；低于这个比例当成密钥不对
     public static let minTOCConsistency = 0.8
 
+    /// 文件头说这个文件有多少片。续传时设备的文件头 size 是全文件还是剩下的部分没测过：
+    /// 两种读法里取和列表时长更接近的那个
+    public static func headFrames(_ head: FileHead, fromSeq: UInt32, listFrames: Int) -> Int {
+        let f = Int(head.size) / 166
+        guard fromSeq > 0, listFrames > 0 else { return f }
+        let rest = f + Int(fromSeq)
+        return abs(rest - listFrames) < abs(f - listFrames) ? rest : f
+    }
+
     public static func evaluate(requestedId: UInt32, head: FileHead?, decrypted: Bool, received: SeqRanges,
-                                gotDone: Bool, listFrames: Int, tocConsistency: Double) -> Result {
+                                gotDone: Bool, listFrames: Int, tocConsistency: Double, resumedFrom: UInt32 = 0) -> Result {
         func result(_ v: Verdict, expected: Int = 0, missing: Int = 0) -> Result {
             Result(verdict: v, expectedFrames: expected, firstSeq: received.first ?? 0, missing: missing)
         }
@@ -61,7 +70,7 @@ public enum DownloadCheck {
         }
         let span = Int(last - first) + 1
         let holes = span - count
-        let headFrames = Int(head!.size) / 166
+        let headFrames = Self.headFrames(head!, fromSeq: resumedFrom, listFrames: listFrames)
         let candidates = [headFrames, listFrames].filter { $0 > 0 }
         // 末尾（或开头）比应有的少多少：取和收到的范围最接近的口径
         let expected = candidates.min { abs($0 - span) < abs($1 - span) } ?? span

@@ -63,6 +63,12 @@ final class TransferState {
     var wrongHead: FileHead?
     /// 这次新收到（spool 里原来没有）的片数
     var newFrames = 0
+    /// 续传时期望的第一片 seq（从头请求时为 nil，不查）
+    var expectFirstSeq: UInt32?
+    /// 装上解密器之后收到的第一片的 seq
+    var firstSliceSeq: UInt32?
+    /// 续传的第一片不是期望的那片：这次收到的一片也不写
+    var resumeMismatch = false
     let created = Date()
     /// 收到的分片包个数（1A/08 和 1A/12 一起数）
     var sliceFrames = 0
@@ -150,6 +156,12 @@ public final class D3200Session {
                 st.slices += slices.count
                 // 没有解密器（没收到头、头不对、密钥解不开）的片存了也没用
                 guard st.wrongHead == nil, let d = st.decryptor else { return }
+                if st.firstSliceSeq == nil, let first = slices.first {
+                    st.firstSliceSeq = first.seq
+                    // 续传要从期望的那片开始；设备不认 offset、从第 0 片发时就当从头下，照收
+                    if let want = st.expectFirstSeq, first.seq != want, first.seq != 0 { st.resumeMismatch = true }
+                }
+                if st.resumeMismatch { return }
                 for s in slices {
                     guard let plain = try? d.decrypt(seq: s.seq, data: s.data) else { continue }
                     if spool.put(seq: s.seq, frame: plain) { st.newFrames += 1 }

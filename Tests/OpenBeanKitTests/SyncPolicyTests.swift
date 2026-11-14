@@ -124,17 +124,32 @@ final class SyncPolicyTests: XCTestCase {
 
     func testResumePlan() {
         let r = SeqRanges([0...4999, 6000...6100])
-        // 现在不支持：从 0
-        XCTAssertEqual(ResumePlan.next(received: r).offset, 0)
-        XCTAssertEqual(ResumePlan.next(received: r).fromSeq, 0)
-        let wire = ResumeSupport(unit: .wireBytes, headResent: true)
-        XCTAssertEqual(ResumePlan.next(received: r, support: wire).offset, 5000 * 166)
-        XCTAssertEqual(ResumePlan.next(received: r, support: wire).fromSeq, 5000)
+        let off = ResumeSupport(unit: nil, headResent: true)
+        // 不支持时：从 0
+        XCTAssertEqual(ResumePlan.next(received: r, support: off).offset, 0)
+        XCTAssertEqual(ResumePlan.next(received: r, support: off).fromSeq, 0)
+        // 现在的默认就是实测的线上字节；中间有洞从洞的位置续
+        XCTAssertEqual(ResumeSupport.current.unit, .wireBytes)
+        XCTAssertEqual(ResumePlan.next(received: r).offset, 5000 * 166)
+        XCTAssertEqual(ResumePlan.next(received: r).fromSeq, 5000)
         XCTAssertEqual(ResumePlan.next(received: r, support: ResumeSupport(unit: .milliseconds, headResent: true)).offset, 100_000)
         XCTAssertEqual(ResumePlan.next(received: r, support: ResumeSupport(unit: .seq, headResent: true)).offset, 5000)
         // 不重发文件头：先不续
         XCTAssertEqual(ResumePlan.next(received: r, support: ResumeSupport(unit: .wireBytes, headResent: false)).offset, 0)
         // 一片都没有：从 0
-        XCTAssertEqual(ResumePlan.next(received: SeqRanges(), support: wire).offset, 0)
+        XCTAssertEqual(ResumePlan.next(received: SeqRanges()).offset, 0)
+        XCTAssertEqual(ResumePlan.next(received: SeqRanges()).fromSeq, 0)
+        // 第 0 片就缺（前缀为 0）：从头
+        XCTAssertEqual(ResumePlan.next(received: SeqRanges([1...900])).fromSeq, 0)
+        // 洞在开头附近
+        XCTAssertEqual(ResumePlan.next(received: SeqRanges([0...0, 2...900])).offset, 166)
+        // 已经全部收完（只差结束包）：从最后一片再要一次
+        let all = ResumePlan.next(received: SeqRanges([0...14026]), total: 14027)
+        XCTAssertEqual(all.fromSeq, 14026)
+        XCTAssertEqual(all.offset, 14026 * 166)
+        // 不知道总片数时按前缀
+        XCTAssertEqual(ResumePlan.next(received: SeqRanges([0...14026])).fromSeq, 14027)
+        XCTAssertEqual(ResumePlan.label(fromSeq: 840), "续传，从第 840 片")
+        XCTAssertEqual(ResumePlan.label(fromSeq: 0), "从头")
     }
 }

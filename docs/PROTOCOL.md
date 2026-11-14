@@ -192,7 +192,8 @@ packet to a decoder. Wrap the packets in an Ogg container to play them; Apple's 
 
 ### Over BLE ✅
 
-Send `1A/07` with `offset = 0`, the file id and `realtime = 0`. The device answers with the file head, then a stream of
+Send `1A/07` with `offset = 0` (or, to resume, the number of slices already received × 166), the file id and
+`realtime = 0`. The device answers with the file head, then a stream of
 slices, then `1A/0A` when done.
 
 Throughput (decrypted audio, recorder in its case): about **40 KB/s** for long files (two samples of 45 and 54 MB:
@@ -206,9 +207,11 @@ What is known about a transfer, and what is not:
 | The head's size field is 166 × the number of slices; the list's duration is 20 ms × the number of slices | ✅ (the list's on a few files; the head's is what OpenBean relies on) |
 | Slice sequence numbers increase by one per 20 ms; slices arrive in order | ✅ observed; whether they always start at 0 is not verified |
 | `1A/0A` ends the transfer; bytes 5–8 of its payload are the file id | ✅ |
-| There is no "stop transfer" command. Whether the device keeps sending after the host stops listening | ⚠️ untested (`pull --resume-test` reports it) |
+| There is no "stop transfer" command. The device keeps sending to the end of the file after the host stops listening | ✅ (firmware 04.82, `pull --resume-test`) |
 | The head can belong to a **different file** than requested: the community notes saw this when requesting an older file while another one was recording. Requesting another file's live stream during a recording returns a head with `err = 1` | ⚠️ from community notes; OpenBean checks the file id and the error code and discards such a transfer |
-| The `offset` field of `1A/07` (the vendor SDK calls it the already-transferred size): whether the device honours it, in which unit (wire bytes, decrypted bytes, milliseconds, slices), and whether the head (with a new file key) is sent again | ⚠️ untested; `openbean pull --offset N` and `pull --resume-test` exist to find out |
+| The `offset` field of `1A/07` (the vendor SDK calls it the already-transferred size) is in **wire bytes**: the number of slices already received × 166. The device then starts at that slice, and every slice's ciphertext is identical to a full download | ✅ (firmware 04.82, `pull --resume-test`) |
+| An `offset` that is not a multiple of 166 returns out-of-order garbage | ✅ observed |
+| Every request gets a new file head with a **new file key**, but the ciphertext of a given slice does not change, so any of the heads decrypts every slice | ✅ observed |
 
 OpenBean (the app) writes each decrypted slice to a temporary file as it arrives, so memory use does not grow with the
 recording. It keeps the recording only when the head's file id matches the request and its error code is 0, the
@@ -216,7 +219,10 @@ decrypted frames look like Opus (one TOC byte dominates), and the slices are com
 to the size in the head (or to the list's duration, whichever matches), with `1A/0A` received. With `1A/0A`, up to
 1 s or 0.1 % of missing slices (frames dropped for a bad checksum, say) is accepted and filled with empty Opus packets
 so the timeline stays aligned. Anything less is kept in the temporary file, and a later attempt only adds the slices it
-does not have yet; without resume support every attempt still asks for the file from the start.
+does not have yet. A later attempt resumes: it counts the slices received without a gap from slice 0 (k) and sends
+`offset = k × 166`; a hole means resuming from the hole. If the first slice that comes back is not slice k, that
+attempt's data is dropped and the file is requested again from offset 0. When all slices are there but the end was
+missed, it asks for the last slice only, which brings back the head and `1A/0A`. Wi‑Fi transfers still start at 0.
 
 ### Over Wi‑Fi ✅
 
@@ -230,7 +236,7 @@ does not have yet; without resume support every attempt still asks for the file 
 6. The device replies with **binary** messages containing ordinary `09 FF` frames: file head, slices, done.
 7. Finish with text `FINISH`, then the hex of `1A/0A` with payload `01`.
 
-The `offset` field has the same open question as over BLE. Frames arrive in the same format, so the same completeness
+Whether the `offset` field works the same way over Wi‑Fi is untested. Frames arrive in the same format, so the same completeness
 check applies.
 
 Measured: a 1 h 57 min recording transferred in 36 s (~1.5 MB/s). Because BLE is gone at step 3, the `1A/02` "close AP"

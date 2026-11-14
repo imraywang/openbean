@@ -353,10 +353,9 @@ final class LibraryStore {
             do {
                 let spool = try FrameSpool(url: partialURL(r.id), keepExisting: true)
                 if spool.count > 0 { Log.write("\(r.id) 有上次没下完的 \(spool.count) 片（\(spool.received.summary)）") }
-                // 断点续传还没实测（ResumeSupport.current 为不支持）：现在一律从 0 请求，收过的片不再写
-                let plan = ResumePlan.next(received: spool.received)
+                // 有从第 0 片起连续的前缀就带 offset 续传（线上字节 = 片数 × 166）；续传首片不对时自动退回从头
                 // download 在后台执行器上回调，这里切回主线程再碰界面状态
-                let result = try await s.download(file, spool: spool, offset: plan.offset, shouldCancel: { [weak self] in
+                let result = try await s.download(file, spool: spool, log: { Log.write($0) }, shouldCancel: { [weak self] in
                     await MainActor.run { self.map { $0.device.syncShouldYield || $0.systemSleeping || $0.wifiSwitchRequested } ?? true }
                 }) { [weak self] p in
                     await MainActor.run {
@@ -470,7 +469,7 @@ final class LibraryStore {
         guard case .downloading = sync, syncRunning else { return nil }
         guard case let .keepSyncing(left) = SyncPolicy.dictation(remaining: currentSecondsLeft,
                                                                   resumable: ResumeSupport.current.isSupported) else { return nil }
-        Log.write("语音输入没开始：正在同步长录音，这一条约剩 \(Int(left)) 秒（没有断点续传，让出就要从头下）")
+        Log.write("语音输入没开始：正在同步长录音，这一条约剩 \(Int(left)) 秒（不能续传，让出就要从头下）")
         return String(localized: "Syncing a long recording, about \(SyncStatus.phrase(left)) left. Voice typing is available when it finishes.")
     }
 

@@ -34,6 +34,7 @@ public enum DownloadStop: Equatable, Sendable {
     case wrongFile         // 文件头是别的文件
     case deviceError       // 文件头报错（err ≠ 0，例如正在录音时请求历史文件）
     case writeFailed       // 写盘出错
+    case resumeMismatch    // 续传回来的第一片不是期望的那片（这次的数据一片没写）
 
     public var label: String {
         switch self {
@@ -46,6 +47,7 @@ public enum DownloadStop: Equatable, Sendable {
         case .wrongFile: return "文件头不对"
         case .deviceError: return "设备报错"
         case .writeFailed: return "写盘失败"
+        case .resumeMismatch: return "续传首片不对"
         }
     }
 
@@ -57,6 +59,10 @@ public struct DownloadResult: Sendable {
     public let fileId: UInt32
     public let head: FileHead?
     public let offset: UInt32
+    /// 这次请求从哪一片起（从头为 0）
+    public let fromSeq: UInt32
+    /// 这次收到的第一片（装上解密器之后）
+    public let firstSliceSeq: UInt32?
     /// spool 里收到的全部 seq（包括之前几次留下的）
     public let received: SeqRanges
     /// 这一次新收到的片数
@@ -71,7 +77,7 @@ public struct DownloadResult: Sendable {
     public var bytesThisAttempt: Int { newFrames * OggOpus.frameSize }
     /// 日志用的一句话
     public var summary: String {
-        "停止原因：\(stop.label)；本次新收 \(bytesThisAttempt / 1024) KB、\(Int(seconds)) 秒；"
+        "\(ResumePlan.label(fromSeq: fromSeq))；停止原因：\(stop.label)；本次新收 \(bytesThisAttempt / 1024) KB、\(Int(seconds)) 秒；"
             + "累计 \(received.count) / \(check.expectedFrames) 片（\(received.summary)）；结束包 \(gotDone ? "有" : "没有")"
     }
 }
@@ -82,7 +88,7 @@ extension FileHead: @unchecked Sendable {}
 /// 判断完整性。和 `D3200Session.pull` 的区别：不在内存里攒，校验文件头，认得断开和睡眠。
 public enum Downloader {
     public static func run(channel: TransferChannel, crypto: SessionCrypto, file: RecordingFile, spool: FrameSpool,
-                           offset: UInt32 = 0, idle: Double = 20, tick: Double = 0.5, clockJump: Double = 15,
+                           offset: UInt32 = 0, fromSeq: UInt32 = 0, idle: Double = 20, tick: Double = 0.5, clockJump: Double = 15,
                            doneGrace: Double = 2,
                            request: () async throws -> Void,
                            shouldCancel: () async -> Bool = { false },
@@ -90,6 +96,7 @@ public enum Downloader {
         let st = TransferState(fileId: file.id)
         st.spool = spool
         st.requestedOffset = offset
+        if fromSeq > 0 { st.expectFirstSeq = fromSeq }
         let started = Date()
         channel.sync { channel.onPacket = { p in D3200Session.handle(p, st, crypto) } }
         var stop: DownloadStop = .idle
@@ -110,12 +117,14 @@ public enum Downloader {
             let s = channel.sync {
                 (frames: spool.count, new: st.newFrames, done: st.done, quiet: now.timeIntervalSince(st.lastActivity),
                  head: st.head, wrong: st.wrongHead != nil, connected: channel.isConnected,
-                 writeFailed: spool.writeError != nil)
+                 writeFailed: spool.writeError != nil, mismatch: st.resumeMismatch)
             }
-            let expectedFrames = s.head.map { Int($0.size) / 166 } ?? file.audioBytes / OggOpus.frameSize
+            let listFrames = file.audioBytes / OggOpus.frameSize
+            let expectedFrames = s.head.map { DownloadCheck.headFrames($0, fromSeq: fromSeq, listFrames: listFrames) } ?? listFrames
             await progress(DownloadProgress(received: s.frames * OggOpus.frameSize, expected: expectedFrames * OggOpus.frameSize,
                                             thisAttempt: s.new * OggOpus.frameSize, elapsed: now.timeIntervalSince(started)))
             if s.wrong { stop = .wrongFile; break }
+            if s.mismatch { stop = .resumeMismatch; break }
             if let h = s.head, h.errorCode != 0 { stop = .deviceError; break }
             if s.writeFailed { stop = .writeFailed; break }
             if s.done { stop = .done; break }
@@ -132,28 +141,64 @@ public enum Downloader {
         }
         let snapshot = channel.sync {
             channel.onPacket = nil
-            return (head: st.head, decrypted: st.decryptor != nil, done: st.done, new: st.newFrames, wrong: st.wrongHead)
+            return (head: st.head, decrypted: st.decryptor != nil, done: st.done, new: st.newFrames, wrong: st.wrongHead,
+                    first: st.firstSliceSeq)
         }
         spool.flush()
         let head = snapshot.wrong ?? snapshot.head
         let check = DownloadCheck.evaluate(requestedId: file.id, head: head, decrypted: snapshot.decrypted || snapshot.wrong != nil,
                                            received: spool.received, gotDone: snapshot.done,
-                                           listFrames: file.audioBytes / OggOpus.frameSize, tocConsistency: spool.tocConsistency)
-        return DownloadResult(fileId: file.id, head: head, offset: offset, received: spool.received, newFrames: snapshot.new,
+                                           listFrames: file.audioBytes / OggOpus.frameSize, tocConsistency: spool.tocConsistency,
+                                           resumedFrom: fromSeq)
+        return DownloadResult(fileId: file.id, head: head, offset: offset, fromSeq: fromSeq, firstSliceSeq: snapshot.first,
+                              received: spool.received, newFrames: snapshot.new,
                               gotDone: snapshot.done, seconds: Date().timeIntervalSince(started), stop: stop, check: check,
                               tocConsistency: spool.tocConsistency)
     }
 }
 
+extension Downloader {
+    /// 带断点续传的下载：spool 里从第 0 片起已经连续有 k 片时，offset = k × 166、从第 k 片接着要（见 `ResumePlan`）。
+    /// 续传回来的第一片不是第 k 片时，这次收的丢掉，再从头请求一次（已有的片不重写）。
+    /// `request(offset)` 发 1A/07；`log` 记「续传，从第 N 片」/「从头」和回退。
+    public static func runResuming(channel: TransferChannel, crypto: SessionCrypto, file: RecordingFile, spool: FrameSpool,
+                                   support: ResumeSupport = .current, idle: Double = 20, tick: Double = 0.5,
+                                   clockJump: Double = 15, doneGrace: Double = 2,
+                                   request: (UInt32) async throws -> Void,
+                                   log: (String) -> Void = { _ in },
+                                   shouldCancel: () async -> Bool = { false },
+                                   progress: (DownloadProgress) async -> Void) async throws -> DownloadResult {
+        let plan = ResumePlan.next(received: spool.received, total: file.audioBytes / OggOpus.frameSize, support: support)
+        log("\(file.id)：\(ResumePlan.label(fromSeq: plan.fromSeq))（offset \(plan.offset)）")
+        func attempt(offset: UInt32, fromSeq: UInt32) async throws -> DownloadResult {
+            try await run(channel: channel, crypto: crypto, file: file, spool: spool, offset: offset, fromSeq: fromSeq,
+                          idle: idle, tick: tick, clockJump: clockJump, doneGrace: doneGrace,
+                          request: { try await request(offset) }, shouldCancel: shouldCancel, progress: progress)
+        }
+        let first = try await attempt(offset: plan.offset, fromSeq: plan.fromSeq)
+        guard first.stop == .resumeMismatch else {
+            if plan.fromSeq > 0, let got = first.firstSliceSeq, got != plan.fromSeq {
+                log("\(file.id)：设备没从第 \(plan.fromSeq) 片续，从第 \(got) 片发起，当作从头收")
+            }
+            return first
+        }
+        log("\(file.id)：续传回来的第一片是 \(first.firstSliceSeq.map(String.init) ?? "?")，不是 \(plan.fromSeq)；丢掉这次，从头下载")
+        return try await attempt(offset: 0, fromSeq: 0)
+    }
+}
+
 extension D3200Session {
     /// App 同步用的下载（蓝牙）：边收边写进 `spool`，校验文件头，认得断开和 Mac 睡眠。
-    /// `offset` 原样放进 1A/07（续传，等 `pull --resume-test` 的结果再用；见 `ResumePlan`）。
-    public func download(_ file: RecordingFile, spool: FrameSpool, offset: UInt32 = 0, idle: Double = 20,
+    /// spool 里有上次没下完的连续前缀时带 offset 续传（见 `Downloader.runResuming`）。
+    public func download(_ file: RecordingFile, spool: FrameSpool, idle: Double = 20,
+                         log: (String) -> Void = { _ in },
                          shouldCancel: () async -> Bool = { false },
                          progress: (DownloadProgress) async -> Void) async throws -> DownloadResult {
         let link = self.link
-        return try await Downloader.run(channel: link, crypto: crypto, file: file, spool: spool, offset: offset, idle: idle,
-                                        request: { try link.send(Cmd.transferFile(id: file.id, offset: offset, realtime: false)) },
-                                        shouldCancel: shouldCancel, progress: progress)
+        return try await Downloader.runResuming(channel: link, crypto: crypto, file: file, spool: spool, idle: idle,
+                                                request: { offset in
+                                                    try link.send(Cmd.transferFile(id: file.id, offset: offset, realtime: false))
+                                                },
+                                                log: log, shouldCancel: shouldCancel, progress: progress)
     }
 }
