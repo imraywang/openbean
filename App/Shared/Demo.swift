@@ -86,7 +86,7 @@ enum DemoData {
     }
 
     /// 假数据的版本：specs、台词、生成的文件改了就加 1
-    static let dataVersion = 3
+    static let dataVersion = 4
 
     /// 可重现的随机数（SplitMix64）：同一天生成的数据完全一样
     struct RNG {
@@ -214,12 +214,49 @@ enum DemoData {
             }
             list.append(r)
         }
+        #if os(iOS)
+        iosExtras(&list)
+        #endif
         try? enc.encode(list).write(to: AppPaths.library.appendingPathComponent("index.json"))
         #if os(macOS)
         try? JSONEncoder.iso.encode(dictationEntries(today)).write(to: AppPaths.support.appendingPathComponent("dictation.json"))
         #endif
         writeDays(dayConvs, recordings: list)
     }
+
+    #if os(iOS)
+    /// iOS 版录音标签要看的状态（Mac 的演示数据不变）：今天、昨天的录音是心力模式同步的；
+    /// 8 天前、11 天前两条心力模式录音的音频已按保留期删掉；三条带重点标记；
+    /// 有音频的录音放一个和真文件差不多大的占位文件（稀疏文件，不占磁盘，读不出来：播放走假进度），存储页按它算
+    static func iosExtras(_ list: inout [Recording]) {
+        let b = DayBoundary(startHour: 4)
+        let today = b.day(of: Date())
+        let marks: [String: [Double]] = ["Q4 路线图评审": [312, 1_460, 2_890], "用户访谈：老城区咖啡店主": [655], "激活率专项": [420, 980]]
+        for i in list.indices {
+            let r = list[i]
+            let age = Calendar.current.dateComponents([.day], from: b.day(of: r.start), to: today).day ?? 0
+            if r.downloaded, age <= 1 || age == 8 || age == 11 {
+                list[i].source = .heart
+                list[i].syncedAt = r.end ?? r.start
+            }
+            if r.downloaded, age == 8 || age == 11 {
+                list[i].audioDeletedAt = (r.end ?? r.start).addingTimeInterval(7 * 86_400)
+            }
+            let dir = AppPaths.library.appendingPathComponent(String(r.id))
+            if let t = r.title, let m = marks[t], let d = try? RecordingMarks(marks: m).encoded() {
+                try? d.write(to: dir.appendingPathComponent(RecordingMarks.fileName))
+            }
+            if r.downloaded, list[i].audioDeletedAt == nil {
+                let url = dir.appendingPathComponent("audio.ogg")
+                FileManager.default.createFile(atPath: url.path, contents: nil)
+                if let h = try? FileHandle(forWritingTo: url) {
+                    try? h.truncate(atOffset: UInt64(r.duration * 2_000))  // 约 16 kbps 的 Opus
+                    try? h.close()
+                }
+            }
+        }
+    }
+    #endif
 
     /// 日文件：今天有日记（概述、定了的事、待办、提到的人），4 天前只有一条随手记（内容太少，只列对话）
     static func writeDays(_ convs: [(Recording, Conversation)], recordings: [Recording]) {
