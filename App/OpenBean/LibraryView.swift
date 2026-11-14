@@ -589,22 +589,36 @@ struct LibraryHome: View {
 
 // MARK: - 播放
 
+/// 播放：AVAudioEngine + 按帧定位。
+/// 不用 AVAudioPlayer：它对 Ogg Opus 设 `currentTime` 后报的时间是对的，实际播出的却是别处的声音
+/// （实测：跳到 20、60 秒仍从头播，跳到 1200 秒播的是 1087 秒处）。AVAudioFile 按帧读是准的。
 @MainActor @Observable
 final class PlayerModel {
-    private var audio: AVAudioPlayer?
-    private var timer: Timer?
+    @ObservationIgnored private let engine = AVAudioEngine()
+    @ObservationIgnored private let node = AVAudioPlayerNode()
+    @ObservationIgnored private var file: AVAudioFile?
+    @ObservationIgnored private var timer: Timer?
+    /// 这次排进去的那段从第几秒开始；播放位置 = base + 节点已播的时长
+    @ObservationIgnored private var base: Double = 0
+    /// 每次重新排段加一：旧段的结束回调据此认出自己已经过期
+    @ObservationIgnored private var generation = 0
     private(set) var playing = false
     private(set) var duration: Double = 0
     var time: Double = 0
 
+    init() { engine.attach(node) }
+
     func load(_ url: URL) {
-        audio = try? AVAudioPlayer(contentsOf: url)
-        audio?.prepareToPlay()
-        duration = audio?.duration ?? 0
+        stop()
+        file = try? AVAudioFile(forReading: url)
+        time = 0
+        guard let f = file else { duration = 0; return }
+        duration = Double(f.length) / f.processingFormat.sampleRate
+        engine.connect(node, to: engine.mainMixerNode, format: f.processingFormat)
     }
 
     #if DEMO || DEBUG
-    func demoDuration(_ d: Double) { if audio == nil { duration = d } }
+    func demoDuration(_ d: Double) { if file == nil { duration = d } }
     /// 假装正在播放到 t 秒（没有音频，不会走动）
     func demoPlaying(at t: Double) { time = t; playing = true }
     #endif
@@ -612,23 +626,68 @@ final class PlayerModel {
     func toggle() { playing ? pause() : play(from: nil) }
 
     func play(from t: Double?) {
-        guard let a = audio else { return }
-        if let t { a.currentTime = t; time = t }
-        a.play()
+        guard file != nil else { return }
+        var start = min(max(t ?? time, 0), duration)
+        if t == nil, start >= duration - 0.05 { start = 0 } // 播完了再按播放：从头
+        guard schedule(from: start) else { return }
+        if !engine.isRunning { engine.prepare(); guard (try? engine.start()) != nil else { return } }
+        node.play()
         playing = true
         timer?.invalidate()
         timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated {
-                guard let self, let a = self.audio else { return }
-                self.time = a.currentTime
-                if !a.isPlaying { self.playing = false; self.timer?.invalidate() }
-            }
+            MainActor.assumeIsolated { self?.tick() }
         }
     }
 
-    func pause() { audio?.pause(); playing = false; timer?.invalidate() }
-    func seek(_ t: Double) { audio?.currentTime = t; time = t }
-    func stop() { audio?.stop(); playing = false; timer?.invalidate() }
+    func pause() {
+        tick()
+        generation += 1
+        node.stop()
+        playing = false
+        timer?.invalidate()
+    }
+
+    func seek(_ t: Double) {
+        let to = min(max(t, 0), duration)
+        if playing { if schedule(from: to) { node.play() } } else { time = to }
+    }
+
+    func stop() {
+        generation += 1
+        node.stop()
+        engine.stop()
+        playing = false
+        timer?.invalidate()
+    }
+
+    /// 从 start 秒起把文件剩下的部分排进节点（先清掉之前排的）
+    private func schedule(from start: Double) -> Bool {
+        guard let f = file else { return false }
+        generation += 1
+        let gen = generation
+        node.stop()
+        let sr = f.processingFormat.sampleRate
+        let frame = min(AVAudioFramePosition(start * sr), f.length)
+        base = Double(frame) / sr
+        time = base
+        let left = f.length - frame
+        guard left > 0 else { return false }
+        node.scheduleSegment(f, startingFrame: frame, frameCount: AVAudioFrameCount(left), at: nil,
+                             completionCallbackType: .dataPlayedBack) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self, self.generation == gen else { return }
+                self.playing = false
+                self.time = self.duration
+                self.timer?.invalidate()
+            }
+        }
+        return true
+    }
+
+    private func tick() {
+        guard playing, let nt = node.lastRenderTime, let pt = node.playerTime(forNodeTime: nt) else { return }
+        time = min(base + Double(pt.sampleTime) / pt.sampleRate, duration)
+    }
 }
 
 /// 播放条：播放键 + 波形（已播放部分着色，点哪里跳到哪里）+ 时间
