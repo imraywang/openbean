@@ -70,6 +70,39 @@ public final class Link: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         central = CBCentralManager(delegate: self, queue: q)
     }
 
+    #if os(iOS)
+    /// iOS：带状态恢复标识建 CBCentralManager。App 被系统结束后，挂着的连接、连上的设备有事件时系统会在后台把 App 拉起来，
+    /// 在 `centralManager(_:willRestoreState:)` 里交还当时的设备（取用见 `takeRestored`）
+    public init(restoreIdentifier: String) {
+        super.init()
+        central = CBCentralManager(delegate: self, queue: q, options: [CBCentralManagerOptionRestoreIdentifierKey: restoreIdentifier])
+    }
+
+    /// 系统恢复时交还的设备（第一个是我们的录音豆）
+    private var restored: [CBPeripheral] = []
+
+    public func centralManager(_ c: CBCentralManager, willRestoreState dict: [String: Any]) {
+        let ps = dict[CBCentralManagerRestoredStatePeripheralsKey] as? [CBPeripheral] ?? []
+        restored = ps
+        for p in ps { p.delegate = self }
+        log("系统恢复了蓝牙状态：\(ps.map { "\($0.identifier.uuidString) 状态 \($0.state.rawValue)" }.joined(separator: "，"))")
+    }
+
+    /// 取走系统恢复时交还的设备（取一次就清掉）
+    public func takeRestored() -> [CBPeripheral] {
+        q.sync { defer { restored = [] }; return restored }
+    }
+
+    /// 取消挂着的 connect（iOS 的 connect 可以不超时，「忘掉这台设备」时要能叫停）
+    public func cancelConnect() {
+        q.sync {
+            stopAssistScan()
+            if let p = peripheral { central.cancelPeripheralConnection(p) }
+            finishConnect(.failure(LinkError.disconnected))
+        }
+    }
+    #endif
+
     // MARK: 准备
 
     public func waitPoweredOn() async throws {
@@ -107,8 +140,9 @@ public final class Link: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     // MARK: 扫描
 
     /// 扫描 `seconds` 秒。`all` 为 true 时也返回不像 D3200 的有名设备，便于排查。
-    public func scan(seconds: Double, all: Bool = false) async -> [Discovered] {
-        q.sync { found = [:]; central.scanForPeripherals(withServices: nil, options: [CBCentralManagerScanOptionAllowDuplicatesKey: false]) }
+    /// `services`：只扫这些服务（iOS 在后台必须这样，`nil` 在后台什么都收不到）；Mac 不传
+    public func scan(seconds: Double, all: Bool = false, services: [CBUUID]? = nil) async -> [Discovered] {
+        q.sync { found = [:]; central.scanForPeripherals(withServices: services, options: [CBCentralManagerScanOptionAllowDuplicatesKey: false]) }
         try? await Task.sleep(nanoseconds: UInt64(seconds * 1e9))
         return q.sync {
             central.stopScan()
@@ -146,7 +180,12 @@ public final class Link: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     /// `scanAssist`：连接挂着的同时开着扫描。按系统记住的 identifier 直连时，系统要先收到设备的广播才连得上；
     /// 新启动的进程里光等常常 8 秒都等不到（开发版日志里启动后的直连约八成超时，改扫描后几秒就连上），
     /// 主动扫描让系统更快看到广播。连上、失败或超时都会停掉扫描。
-    public func connect(_ p: CBPeripheral, timeout: Double = 25, scanAssist: Bool = false) async throws {
+    ///
+    /// `timeout` 为 nil：不超时（iOS：挂着等录音豆进范围，系统在后台也会连上）。`scanServices`：辅助扫描只扫这些服务
+    /// （iOS 后台必须指定）；Mac 都不传，行为不变
+    public func connect(_ p: CBPeripheral, timeout: Double? = 25, scanAssist: Bool = false, scanServices: [CBUUID]? = nil) async throws {
+        // CBUUID 不是 Sendable，但创建后不可变，带进 BLE 队列没问题
+        nonisolated(unsafe) let scanServices = scanServices
         try await withCheckedThrowingContinuation { (c: CheckedContinuation<Void, Error>) in
             q.async {
                 self.peripheral = p
@@ -154,11 +193,22 @@ public final class Link: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                 self.assembler = FrameAssembler()
                 p.delegate = self
                 self.connecting = c
+                #if os(iOS)
+                // 系统恢复时交还的、已经连着的设备：不用再连，直接重新发现服务、打开通知
+                if p.state == .connected {
+                    self.log("设备已经连着（系统恢复），重新发现服务…")
+                    p.discoverServices(nil)
+                } else {
+                    self.central.connect(p)
+                }
+                #else
                 self.central.connect(p)
+                #endif
                 if scanAssist {
                     self.assistScanning = true
-                    self.central.scanForPeripherals(withServices: nil, options: [CBCentralManagerScanOptionAllowDuplicatesKey: false])
+                    self.central.scanForPeripherals(withServices: scanServices, options: [CBCentralManagerScanOptionAllowDuplicatesKey: false])
                 }
+                guard let timeout else { return }
                 self.q.asyncAfter(deadline: .now() + timeout) {
                     guard let c = self.connecting else { return }
                     self.connecting = nil

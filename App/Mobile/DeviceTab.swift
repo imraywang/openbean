@@ -2,6 +2,7 @@
 
 import OpenBeanKit
 import SwiftUI
+import UIKit
 
 /// 录音豆：连接（扫描 → 连接 → 握手，每一步写进日志）、电量 / 存储 / 固件、设备上的录音、手动同步
 struct DeviceTab: View {
@@ -30,7 +31,13 @@ struct DeviceTab: View {
                     }
                     if case .failed = device.state {
                         let p = device.problem ?? .other
-                        Label(p.title, systemImage: p.symbol).foregroundStyle(.orange)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Label(p.title, systemImage: p.symbol).foregroundStyle(.orange)
+                            Text(p.advice).font(.callout).foregroundStyle(.secondary)
+                        }
+                        if let s = p.settings {
+                            Button(s.label) { UIApplication.shared.open(s.url) }
+                        }
                     }
                     NavigationLink("Connection log") { LogView() }
                 }
@@ -62,12 +69,14 @@ struct DeviceTab: View {
                     Text(DeviceWord.pick(heart, "On Heart bean", "On recorder"))
                 } footer: {
                     if let s = library.pendingSyncSeconds {
-                        Text("About \(Self.minutes(s)) over Bluetooth. Keep OpenBean open while it syncs.")
+                        Text("About \(Self.minutes(s)) over Bluetooth. It keeps going in the background; if it's interrupted, it picks up where it stopped.")
                     }
                 }
                 Section {
                     let onDevice = library.recordings.filter { $0.onDevice && !$0.isDictation }
-                    if onDevice.isEmpty { Text("No recordings on the recorder.").foregroundStyle(.secondary) }
+                    if onDevice.isEmpty {
+                        Text(heart ? "No recordings on the Heart bean." : "No recordings on the recorder.").foregroundStyle(.secondary)
+                    }
                     ForEach(onDevice) { r in
                         HStack {
                             VStack(alignment: .leading) {
@@ -84,16 +93,17 @@ struct DeviceTab: View {
 
                 if started, !Flavor.isDemo {
                     Section {
-                        Button("Forget this recorder", role: .destructive) { confirmForget = true }
+                        Button(DeviceWord.pick(heart, "Forget this Heart bean", "Forget this recorder"), role: .destructive) { confirmForget = true }
                     }
                 }
             }
             .navigationTitle(DeviceWord.title(heart: heart))
             .refreshable { await device.refreshInfo() }
-            .confirmationDialog("Forget this recorder?", isPresented: $confirmForget) {
+            .confirmationDialog(DeviceWord.pick(heart, "Forget this Heart bean?", "Forget this recorder?"), isPresented: $confirmForget) {
                 Button("Forget", role: .destructive) { device.forget() }
             } message: {
-                Text("OpenBean scans for a recorder again next time it connects.")
+                Text(DeviceWord.pick(heart, "OpenBean scans for a Heart bean again next time it connects. Keep it out of its case and near this iPhone.",
+                                     "OpenBean scans for a recorder again next time it connects. Keep it out of its case and near this iPhone."))
             }
         }
     }
@@ -112,10 +122,9 @@ struct DeviceTab: View {
                 }
                 Text(String(format: "%.1f KB/s", kbps)).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
             }
-        case let .wifi(msg):
-            Text(msg)
-        case .paused:
-            Text("Paused")
+        case .wifi, .paused:
+            // iOS 没有 Wi‑Fi 同步和语音输入：不会出现
+            EmptyView()
         case let .failed(why):
             Text(why).foregroundStyle(.red).font(.caption)
         }
@@ -124,7 +133,9 @@ struct DeviceTab: View {
     private var stateText: String {
         switch device.state {
         case .idle: return String(localized: "Not connected")
-        case .searching: return String(localized: "Searching…")
+        case .searching:
+            // iOS 挂着不超时的连接：录音豆一进范围、一出盒子就连上
+            return heart ? String(localized: "Waiting for the Heart bean…") : String(localized: "Waiting for the recorder…")
         case .connecting: return String(localized: "Connecting…")
         case .ready:
             switch device.activity {

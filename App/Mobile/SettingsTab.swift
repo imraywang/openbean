@@ -16,6 +16,7 @@ struct MobileSettingsTab: View {
         @Bindable var settings = model.settings
         NavigationStack(path: $path) {
             Form {
+                Section { NavigationLink { HeartSettingsView(model: model) } label: { Label("Heart mode", systemImage: "heart.text.square") } }
                 // 整理用的模型
                 Section {
                     NavigationLink(value: SettingsRoute.model) {

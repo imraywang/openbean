@@ -132,7 +132,11 @@ enum SyncRunText {
         var parts: [String] = []
         let d = r.deletedFromRecorder, k = r.keptOnRecorder
         if d > 0 { parts.append(String(localized: "Deleted \(d) recordings from the Heart bean.")) }
+        #if os(iOS)
+        if k > 0 { parts.append(String(localized: "\(k) stayed on the Heart bean because they couldn't be checked against the copy on this iPhone.")) }
+        #else
         if k > 0 { parts.append(String(localized: "\(k) stayed on the Heart bean because they couldn't be checked against the copy on this Mac.")) }
+        #endif
         if d > 0 { parts.append(retention(r.options.audioRetention)) }
         return parts.isEmpty ? nil : joinSentences(parts)
     }
@@ -146,11 +150,19 @@ enum SyncRunText {
     }
 
     static func retention(_ r: AudioRetention) -> String {
+        #if os(iOS)
+        switch r {
+        case .afterTranscription: return String(localized: "Audio on this iPhone is removed once it's transcribed.")
+        case .sevenDays: return String(localized: "Audio on this iPhone is kept for 7 days.")
+        case .forever: return String(localized: "Audio on this iPhone is kept.")
+        }
+        #else
         switch r {
         case .afterTranscription: return String(localized: "Audio on this Mac is removed once it's transcribed.")
         case .sevenDays: return String(localized: "Audio on this Mac is kept for 7 days.")
         case .forever: return String(localized: "Audio on this Mac is kept.")
         }
+        #endif
     }
 
     /// 结束后收起成一行：「14:32 同步 · 3 条录音 · 日记已更新 · 从心力豆删了 3 条」

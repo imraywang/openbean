@@ -215,6 +215,14 @@ final class NoteService {
 
     // MARK: 队列
 
+    /// 等队列里现在和之后排进来的活都做完（iOS 的后台处理任务等日记写完再结束）
+    func drain() async {
+        while let q = queue {
+            await q.value
+            if queue == q { return }
+        }
+    }
+
     func enqueue(_ job: @escaping @MainActor () async -> Void) {
         let prev = queue
         queue = Task { @MainActor in

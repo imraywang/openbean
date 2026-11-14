@@ -126,6 +126,8 @@ final class LibraryStore {
     private(set) var syncRunning = false
     /// 每次成功读到设备上的文件列表后调用（自动同步用）
     @ObservationIgnored var onListRefreshed: () -> Void = {}
+    /// 下完一条要不要先不转写（iOS：App 在后台时交给后台处理任务）。Mac 不设，总是马上转写
+    @ObservationIgnored var deferTranscription: () -> Bool = { false }
 
     private var indexURL: URL { AppPaths.library.appendingPathComponent("index.json") }
     func folder(_ id: UInt32) -> URL {
@@ -153,6 +155,9 @@ final class LibraryStore {
         notes.library = self
         conversations.library = self
         notes.onDiaryResult = { [weak self] id, r in self?.progress.diary(id, r) }
+        #if os(iOS)
+        loadSynced()
+        #endif
     }
 
     var visible: [Recording] { recordings.filter { includes($0, in: filter) } }
@@ -496,7 +501,11 @@ final class LibraryStore {
             }
             Log.write("已下载 \(id)（\(result.receivedBytes / 1024) KB，\(Int(result.seconds)) 秒，\(via)）"
                       + (written.filled > 0 ? "，缺 \(written.filled) 片已补静音" : ""))
-            if settings.autoTranscribe { Task { await transcribe(id) } }
+            if settings.autoTranscribe {
+                // iOS 在后台下载时先不转写（蓝牙回调里不做重活），交给后台处理任务（BackgroundSync）；Mac 上这个一直是 false
+                if deferTranscription() { Log.write("\(id) 先不转写：App 在后台，交给后台处理任务") }
+                else { Task { await transcribe(id) } }
+            }
             return true
         case let .rejected(why):
             Log.write("下载 \(id) 的数据不能用：\(why)；临时文件删掉")
@@ -657,8 +666,26 @@ final class LibraryStore {
 
     // MARK: 心力模式：同步后从设备删除、本机音频保留期
 
-    /// 这次运行里同步下载的心力模式录音 → 下载校验完整（没有补静音）。只在内存里：App 重启后就不再自动删这些
-    @ObservationIgnored private var syncedThisRun: [UInt32: Bool] = [:]
+    /// 这次运行里同步下载的心力模式录音 → 下载校验完整（没有补静音）。Mac 只在内存里：App 重启后就不再自动删这些。
+    /// iOS 存进文件：后台下完以后 App 常被系统结束，转写在下一次启动（后台处理任务）里才做完，删除设备上的录音要靠这份记录
+    @ObservationIgnored private var syncedThisRun: [UInt32: Bool] = [:] {
+        didSet {
+            #if os(iOS)
+            if let d = try? JSONEncoder().encode(syncedThisRun.map { SyncedEntry(id: $0.key, complete: $0.value) }) {
+                try? d.write(to: Self.syncedURL, options: .atomic)
+            }
+            #endif
+        }
+    }
+    #if os(iOS)
+    private struct SyncedEntry: Codable { var id: UInt32; var complete: Bool }
+    private static var syncedURL: URL { AppPaths.library.appendingPathComponent("heart-synced.json") }
+    private func loadSynced() {
+        guard let d = try? Data(contentsOf: Self.syncedURL),
+              let list = try? JSONDecoder().decode([SyncedEntry].self, from: d) else { return }
+        syncedThisRun = Dictionary(list.map { ($0.id, $0.complete) }, uniquingKeysWith: { a, _ in a })
+    }
+    #endif
     @ObservationIgnored private var housekeeping = false
     @ObservationIgnored private var housekeepingAgain = false
 

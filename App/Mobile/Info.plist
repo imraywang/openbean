@@ -2,6 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>dev.openbean.ios.process</string>
+	</array>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
@@ -33,7 +37,7 @@
 		<true/>
 	</dict>
 	<key>NSBluetoothAlwaysUsageDescription</key>
-	<string>OpenBean connects to your soundcore Work recorder to sync its recordings to this iPhone.</string>
+	<string>OpenBean connects to your soundcore Work recorder to sync its recordings to this iPhone, also in the background when the recorder goes back in its case in Heart mode.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>OpenBean connects to the LLM service you set in Settings when it runs on your local network.</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
@@ -42,6 +46,7 @@
 	<array>
 		<string>bluetooth-central</string>
 		<string>audio</string>
+		<string>processing</string>
 	</array>
 	<key>UILaunchScreen</key>
 	<dict/>
