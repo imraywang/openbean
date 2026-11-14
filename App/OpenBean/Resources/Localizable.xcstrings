@@ -3222,6 +3222,16 @@
         }
       }
     },
+    "Queued…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "排队中…"
+          }
+        }
+      }
+    },
     "Quit OpenBean": {
       "localizations": {
         "zh-Hans": {
@@ -5008,6 +5018,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "等待中"
+          }
+        }
+      }
+    },
+    "Waiting for other summaries to finish…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "前面还有摘要或日记在写，轮到就开始…"
           }
         }
       }
