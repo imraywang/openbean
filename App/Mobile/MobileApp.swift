@@ -48,6 +48,8 @@ final class MobileModel {
         // 已转写的录音补算对话段；开着心力模式时今天和昨天的日记补一遍（没变就不调用大模型）
         library.conversations.backfill()
         library.notes.diary.catchUp()
+        // 后台同步：后台下完的录音交给后台处理任务转写、写日记，结果发通知（BackgroundSync.swift）
+        background.attach(self)
         // 心力模式录音的本机音频保留期：启动时和之后每小时看一遍（同步、转写完也会看）
         Task { [weak self] in
             while !Task.isCancelled {
@@ -96,6 +98,7 @@ final class MobileModel {
 @main
 struct OpenBeanMobileApp: App {
     @Environment(\.scenePhase) private var phase
+    @UIApplicationDelegateAdaptor(MobileAppDelegate.self) private var delegate
     private let model = MobileModel.shared
 
     var body: some Scene {
@@ -109,7 +112,7 @@ struct OpenBeanMobileApp: App {
 
 struct RootView: View {
     let model: MobileModel
-    @State private var tab = Self.initialTab
+    @Bindable private var router = MobileRouter.shared
 
     /// 截图用：启动参数 -tab heart|recordings|recorder|settings
     static var initialTab: MobileTab {
@@ -117,7 +120,7 @@ struct RootView: View {
     }
 
     var body: some View {
-        TabView(selection: $tab) {
+        TabView(selection: $router.tab) {
             Tab("Heart mode", systemImage: "heart.text.square", value: MobileTab.heart) {
                 HeartTab(model: model)
             }

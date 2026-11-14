@@ -3,6 +3,9 @@
 import Foundation
 import Observation
 import OpenBeanKit
+#if os(iOS)
+import UIKit
+#endif
 
 /// 保持和录音豆的连接：启动时连上，断了自动重连；把设备事件转给听写；
 /// 仲裁谁在用连接（听写和同步录音都要独占传输通道，听写优先）。
@@ -33,7 +36,11 @@ final class DeviceController {
     /// 故意断开时登记：这个时刻之前收到的一次断开回调是我们自己断的，不当成掉线
     @ObservationIgnored private var intentionalDropUntil: Date?
     @ObservationIgnored private var intentionalDropSeen = false
-    #if DEMO || DEBUG || os(iOS)
+    #if os(iOS)
+    /// 用到才建（建 Link 就会初始化 CoreBluetooth、弹蓝牙权限）。带状态恢复标识：App 被系统结束后，
+    /// 录音豆有事件（放回盒子、进入范围）时系统在后台把 App 拉起来
+    @ObservationIgnored lazy var link = Link(restoreIdentifier: ConnectPlan.restoreIdentifier)
+    #elseif DEMO || DEBUG
     /// 演示版、预览从不连接：用到才建（建 Link 就会初始化 CoreBluetooth、弹蓝牙权限）
     @ObservationIgnored lazy var link = Link()
     #else
@@ -78,6 +85,10 @@ final class DeviceController {
         if Flavor.isFake { return }
         #endif
         try? FileManager.default.removeItem(at: lastDeviceFile)
+        #if os(iOS)
+        // iOS 的直连可以不超时：先叫停挂着的那个，连接循环接着就会改为扫描
+        link.cancelConnect()
+        #endif
         link.disconnect()
     }
 
@@ -109,6 +120,9 @@ final class DeviceController {
 
     private func connectLoop() async {
         var delay: UInt64 = 2
+        #if os(iOS)
+        attempt = 0
+        #endif
         while !Task.isCancelled {
             do {
                 // 蓝牙状态偶尔迟迟不回报，也要一直重试，不能放弃
@@ -120,6 +134,9 @@ final class DeviceController {
                 state = .failed("\(error)")
                 problem = ConnectionProblem(error)
                 Log.write("连接失败（\(delay) 秒后重试）：\(error)")
+                #if os(iOS)
+                attempt += 1
+                #endif
                 try? await Task.sleep(nanoseconds: delay * 1_000_000_000)
                 delay = min(delay * 2, 30)
             }
@@ -133,8 +150,60 @@ final class DeviceController {
         #endif
     }
 
+    #if os(iOS)
+    /// 这一轮连接循环里第几次尝试（决定 iOS 的直连限不限时，见 ConnectPlan）
+    @ObservationIgnored private var attempt = 0
+
+    /// iOS 版的连接：按 ConnectPlan 来。认识的设备挂一个（后台、或前台第一次之后）不超时的 connect，辅助扫描只扫录音豆的服务；
+    /// 系统恢复时交还的设备优先。返回连上的设备名（扫描新连上时）
+    private func connectOnceIOS(quiet: Bool) async throws {
+        let background = UIApplication.shared.applicationState == .background
+        let restored = link.takeRestored().first
+        let saved = (try? String(contentsOf: lastDeviceFile, encoding: .utf8))
+            .flatMap { UUID(uuidString: $0.trimmingCharacters(in: .whitespacesAndNewlines)) }
+        var target = restored ?? saved.flatMap { link.retrieve($0) }
+        let plan = ConnectPlan.iOS(knownDevice: target != nil, background: background, attempt: attempt)
+        step("开始（上次的设备：\(saved?.uuidString ?? "无")\(restored != nil ? "，系统恢复了 \(restored!.identifier.uuidString) 状态 \(restored!.state.rawValue)" : "")，"
+             + "\(background ? "后台" : "前台")，第 \(attempt + 1) 次）：\(plan)")
+        if case let .direct(timeout, scanAssist, fallbackScan) = plan, let p = target {
+            if !quiet { state = timeout == nil ? .searching : .connecting }
+            let t0 = Date()
+            do {
+                try await link.connect(p, timeout: timeout, scanAssist: scanAssist, scanServices: [UUIDs.service])
+                Log.write(String(format: "直连成功，用了 %.1f 秒", Date().timeIntervalSince(t0)))
+            } catch {
+                guard fallbackScan else { throw error }
+                Log.write("直连失败：\(error)，改为扫描")
+                target = nil
+            }
+        } else {
+            target = nil
+        }
+        if target == nil {
+            let seconds: Double, servicesOnly: Bool
+            if case let .scan(s, only) = plan { seconds = s; servicesOnly = only } else { seconds = 6; servicesOnly = background }
+            step("扫描 \(Int(seconds)) 秒\(servicesOnly ? "（只扫录音豆的服务）" : "")")
+            let found = await link.scan(seconds: seconds, services: servicesOnly ? [UUIDs.service] : nil)
+            step("扫描到 \(found.count) 个：" + found.map { "\($0.name.isEmpty ? "?" : $0.name) rssi=\($0.rssi) 服务\($0.serviceMatch ? "匹配" : "不匹配")\($0.bound.map { $0 ? " 已绑定" : " 未绑定" } ?? "")" }.joined(separator: "；"))
+            guard let d = found.first(where: \.serviceMatch) else {
+                throw LinkError.missing(String(localized: "recorder. Take it out of the case or press the case button to wake it."))
+            }
+            if !quiet { state = .connecting }
+            step("连接 \(d.name)（\(d.peripheral.identifier.uuidString)）")
+            try await link.connect(d.peripheral)
+            step("GATT 连上，通知已打开")
+            if !d.name.isEmpty { deviceName = d.name }
+            try? d.peripheral.identifier.uuidString.write(to: lastDeviceFile, atomically: true, encoding: .utf8)
+        }
+    }
+    #endif
+
     /// `quiet`：故意重连时不改 state（界面不闪「正在搜索」）、不调用 onConnected（重连完再调用）
     private func connectOnce(quiet: Bool = false) async throws {
+        #if os(iOS)
+        if !quiet { state = .searching }
+        try await connectOnceIOS(quiet: quiet)
+        #else
         if !quiet { state = .searching }
         step("开始（上次的设备：\((try? String(contentsOf: lastDeviceFile, encoding: .utf8))?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "无")）")
         var target = (try? String(contentsOf: lastDeviceFile, encoding: .utf8))
@@ -166,6 +235,7 @@ final class DeviceController {
             if !d.name.isEmpty { deviceName = d.name }
             try? d.peripheral.identifier.uuidString.write(to: lastDeviceFile, atomically: true, encoding: .utf8)
         }
+        #endif
         let s = D3200Session(link: link)
         step("读设备信息")
         info = try await s.deviceInfo()
@@ -418,6 +488,15 @@ enum ConnectionProblem: Equatable {
     }
 
     var advice: String {
+        #if os(iOS)
+        switch self {
+        case .bluetoothOff: return String(localized: "Turn on Bluetooth in Control Center or Settings. OpenBean connects as soon as it's on.")
+        case .noPermission: return String(localized: "Allow Bluetooth for OpenBean in Settings → OpenBean.")
+        case .notFound: return String(localized: "Take the recorder out of its case, or press the button on the case to wake it. OpenBean keeps looking.")
+        case .lost: return String(localized: "Keep the recorder near this iPhone. OpenBean reconnects by itself, also in the background.")
+        case .other: return String(localized: "OpenBean keeps trying. If it doesn't connect in a minute, put the recorder back in its case and take it out again.")
+        }
+        #else
         switch self {
         case .bluetoothOff: return String(localized: "Turn on Bluetooth in Control Center or System Settings. OpenBean connects as soon as it's on.")
         case .noPermission: return String(localized: "Turn on OpenBean in System Settings → Privacy & Security → Bluetooth.")
@@ -425,6 +504,7 @@ enum ConnectionProblem: Equatable {
         case .lost: return String(localized: "Keep the recorder near this Mac. OpenBean reconnects by itself.")
         case .other: return String(localized: "OpenBean keeps trying. If it doesn't connect in a minute, put the recorder back in its case and take it out again.")
         }
+        #endif
     }
 
     var symbol: String {
@@ -437,6 +517,13 @@ enum ConnectionProblem: Equatable {
 
     /// 能帮上忙的系统设置页
     var settings: (label: String, url: URL)? {
+        #if os(iOS)
+        // iOS 只能打开本 App 的设置页（蓝牙权限在那里）；蓝牙总开关在控制中心，没有能直接打开的地址
+        switch self {
+        case .noPermission: return (String(localized: "Open Settings"), URL(string: UIApplication.openSettingsURLString)!)
+        default: return nil
+        }
+        #else
         switch self {
         case .bluetoothOff:
             return (String(localized: "Open Bluetooth Settings"), URL(string: "x-apple.systempreferences:com.apple.Bluetooth-Settings.extension")!)
@@ -444,5 +531,6 @@ enum ConnectionProblem: Equatable {
             return (String(localized: "Open Privacy Settings"), URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Bluetooth")!)
         default: return nil
         }
+        #endif
     }
 }

@@ -14,6 +14,7 @@ struct MobileSettingsTab: View {
         @Bindable var settings = model.settings
         NavigationStack {
             Form {
+                Section { NavigationLink { HeartSettingsView(model: model) } label: { Label("Heart mode", systemImage: "heart.text.square") } }
                 Section {
                     TextField("Server address", text: $settings.polishEndpoint)
                         .textContentType(.URL).keyboardType(.URL)
