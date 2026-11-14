@@ -2922,6 +2922,16 @@
         }
       }
     },
+    "OpenBean keeps running in the menu bar after you close this window. Right-click its icon for the menu.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "关掉这个窗口后 OpenBean 仍在菜单栏运行。右键点菜单栏图标可以打开菜单。"
+          }
+        }
+      }
+    },
     "OpenBean keeps trying. If it doesn't connect in a minute, put the recorder back in its case and take it out again.": {
       "localizations": {
         "zh-Hans": {
