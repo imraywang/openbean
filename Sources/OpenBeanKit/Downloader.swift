@@ -42,7 +42,11 @@ public enum DownloadStop: Equatable, Sendable {
         case .reachedExpected: return "收够了"
         case .idle: return "没有新数据"
         case .disconnected: return "连接断开"
+        #if os(iOS)
+        case .clockJump: return "App 被挂起太久"
+        #else
         case .clockJump: return "Mac 睡眠"
+        #endif
         case .cancelled: return "被取消"
         case .wrongFile: return "文件头不对"
         case .deviceError: return "设备报错"
@@ -84,19 +88,43 @@ public struct DownloadResult: Sendable {
 
 extension FileHead: @unchecked Sendable {}
 
+/// 下载循环在中断这件事上怎么做。Mac 用 `.standard`（原来的行为）；iOS 用 `.backgroundSafe`
+public struct DownloadBehavior: Equatable, Sendable {
+    /// App 会被系统挂起（iOS 后台）：两次检查之间隔了很久不算「睡过、连接多半断了」，只要连接还在、蓝牙数据还在来就接着收；
+    /// 刚恢复运行的那一下也不按「多久没数据」判停，等排队的蓝牙数据进来
+    public var suspendable: Bool
+    /// 续传回来的第一片不对时，马上从 0 再要一次。iOS 不这样：录音豆多半还在发上一次请求的数据，
+    /// 马上再要只会得到 err=4；交给调用方等录音豆停下再续传（见 StreamQuiet）
+    public var fallbackToStart: Bool
+    /// 从头请求时也要求第一片是第 0 片（不是就当作还在发上一次的数据，一片不写）
+    public var strictStart: Bool
+
+    public init(suspendable: Bool, fallbackToStart: Bool, strictStart: Bool) {
+        self.suspendable = suspendable
+        self.fallbackToStart = fallbackToStart
+        self.strictStart = strictStart
+    }
+
+    public static let standard = DownloadBehavior(suspendable: false, fallbackToStart: true, strictStart: false)
+    public static let backgroundSafe = DownloadBehavior(suspendable: true, fallbackToStart: false, strictStart: true)
+
+    /// 挂起多久算「刚恢复运行」（秒）
+    public static func wasSuspended(gap: Double, tick: Double) -> Bool { gap > max(2, tick * 4) }
+}
+
 /// 下载一个文件到 `FrameSpool`：发请求 → 每 `tick` 秒看一次进度 → 收完 / 断开 / 睡眠 / 取消 / 出错时停 →
 /// 判断完整性。和 `D3200Session.pull` 的区别：不在内存里攒，校验文件头，认得断开和睡眠。
 public enum Downloader {
     public static func run(channel: TransferChannel, crypto: SessionCrypto, file: RecordingFile, spool: FrameSpool,
                            offset: UInt32 = 0, fromSeq: UInt32 = 0, idle: Double = 20, tick: Double = 0.5, clockJump: Double = 15,
-                           doneGrace: Double = 2,
+                           doneGrace: Double = 2, behavior: DownloadBehavior = .standard,
                            request: () async throws -> Void,
                            shouldCancel: () async -> Bool = { false },
                            progress: (DownloadProgress) async -> Void) async throws -> DownloadResult {
         let st = TransferState(fileId: file.id)
         st.spool = spool
         st.requestedOffset = offset
-        if fromSeq > 0 { st.expectFirstSeq = fromSeq }
+        if fromSeq > 0 { st.expectFirstSeq = fromSeq } else if behavior.strictStart { st.expectFirstSeq = 0 }
         let started = Date()
         channel.sync { channel.onPacket = { p in D3200Session.handle(p, st, crypto) } }
         var stop: DownloadStop = .idle
@@ -109,6 +137,8 @@ public enum Downloader {
         }
         var lastTick = Date()
         var reachedAt: Date?
+        /// iOS：最近一次从挂起中恢复运行的时刻（「多久没数据」从这之后算）
+        var resumedAt: Date?
         while true {
             try? await Task.sleep(nanoseconds: UInt64(tick * 1_000_000_000))
             let now = Date()
@@ -128,7 +158,9 @@ public enum Downloader {
             if let h = s.head, h.errorCode != 0 { stop = .deviceError; break }
             if s.writeFailed { stop = .writeFailed; break }
             if s.done { stop = .done; break }
-            if gap > clockJump { stop = .clockJump; break }
+            if behavior.suspendable {
+                if DownloadBehavior.wasSuspended(gap: gap, tick: tick) { resumedAt = now }
+            } else if gap > clockJump { stop = .clockJump; break }
             if !s.connected { stop = .disconnected; break }
             if expectedFrames > 0, s.frames >= expectedFrames {
                 // 收够了，再等一会儿结束包
@@ -136,7 +168,8 @@ public enum Downloader {
                 if now.timeIntervalSince(reachedAt!) >= doneGrace { stop = .reachedExpected; break }
                 continue
             }
-            if s.quiet > idle { stop = .idle; break }
+            let quiet = resumedAt.map { min(s.quiet, now.timeIntervalSince($0)) } ?? s.quiet
+            if quiet > idle { stop = .idle; break }
             if await shouldCancel() { stop = .cancelled; break }
         }
         let snapshot = channel.sync {
@@ -163,7 +196,7 @@ extension Downloader {
     /// `request(offset)` 发 1A/07；`log` 记「续传，从第 N 片」/「从头」和回退。
     public static func runResuming(channel: TransferChannel, crypto: SessionCrypto, file: RecordingFile, spool: FrameSpool,
                                    support: ResumeSupport = .current, idle: Double = 20, tick: Double = 0.5,
-                                   clockJump: Double = 15, doneGrace: Double = 2,
+                                   clockJump: Double = 15, doneGrace: Double = 2, behavior: DownloadBehavior = .standard,
                                    request: (UInt32) async throws -> Void,
                                    log: (String) -> Void = { _ in },
                                    shouldCancel: () async -> Bool = { false },
@@ -172,7 +205,7 @@ extension Downloader {
         log("\(file.id)：\(ResumePlan.label(fromSeq: plan.fromSeq))（offset \(plan.offset)）")
         func attempt(offset: UInt32, fromSeq: UInt32) async throws -> DownloadResult {
             try await run(channel: channel, crypto: crypto, file: file, spool: spool, offset: offset, fromSeq: fromSeq,
-                          idle: idle, tick: tick, clockJump: clockJump, doneGrace: doneGrace,
+                          idle: idle, tick: tick, clockJump: clockJump, doneGrace: doneGrace, behavior: behavior,
                           request: { try await request(offset) }, shouldCancel: shouldCancel, progress: progress)
         }
         let first = try await attempt(offset: plan.offset, fromSeq: plan.fromSeq)
@@ -180,6 +213,10 @@ extension Downloader {
             if plan.fromSeq > 0, let got = first.firstSliceSeq, got != plan.fromSeq {
                 log("\(file.id)：设备没从第 \(plan.fromSeq) 片续，从第 \(got) 片发起，当作从头收")
             }
+            return first
+        }
+        guard behavior.fallbackToStart else {
+            log("\(file.id)：回来的第一片是 \(first.firstSliceSeq.map(String.init) ?? "?")，不是 \(plan.fromSeq)；录音豆多半还在发上一次的数据，这次一片不写，已收的留着")
             return first
         }
         log("\(file.id)：续传回来的第一片是 \(first.firstSliceSeq.map(String.init) ?? "?")，不是 \(plan.fromSeq)；丢掉这次，从头下载")
@@ -190,12 +227,13 @@ extension Downloader {
 extension D3200Session {
     /// App 同步用的下载（蓝牙）：边收边写进 `spool`，校验文件头，认得断开和 Mac 睡眠。
     /// spool 里有上次没下完的连续前缀时带 offset 续传（见 `Downloader.runResuming`）。
-    public func download(_ file: RecordingFile, spool: FrameSpool, idle: Double = 20,
+    public func download(_ file: RecordingFile, spool: FrameSpool, idle: Double = 20, behavior: DownloadBehavior = .standard,
                          log: (String) -> Void = { _ in },
                          shouldCancel: () async -> Bool = { false },
                          progress: (DownloadProgress) async -> Void) async throws -> DownloadResult {
         let link = self.link
         return try await Downloader.runResuming(channel: link, crypto: crypto, file: file, spool: spool, idle: idle,
+                                                behavior: behavior,
                                                 request: { offset in
                                                     try link.send(Cmd.transferFile(id: file.id, offset: offset, realtime: false))
                                                 },

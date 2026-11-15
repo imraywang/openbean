@@ -142,6 +142,8 @@ public final class D3200Session {
                 if st.spool != nil { return }
             }
             st.head = head
+            // 落盘下载：设备报错的头（err ≠ 0，例如 4 = 正在发别的）后面跟来的片多半是上一次请求的数据，不装解密器、一片不写
+            if st.spool != nil, head.errorCode != 0 { return }
             do { st.decryptor = try crypto.fileDecryptor(for: head) } catch {
                 st.decryptError = "\(error)"
             }

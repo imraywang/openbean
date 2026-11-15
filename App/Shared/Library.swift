@@ -401,6 +401,10 @@ final class LibraryStore {
         defer { ProcessInfo.processInfo.endActivity(activity) }
         observeSleep()
         Log.write("同步 \(pending.count) 条录音 recorder=\(DeviceController.field(device.battery))")
+        #if os(iOS)
+        // 每一轮先听一下录音豆是不是还在发上一次请求的数据（进程被系统结束后重新拉起时，系统交还的连接上常常还在发）
+        var needsQuiet = true
+        #endif
         for (n, r) in pending.enumerated() {
             if device.syncShouldYield { pauseForDictation(); return }
             if wifiSwitchRequested { sync = .idle; return }
@@ -412,11 +416,26 @@ final class LibraryStore {
             syncSecondsLeft = rest + currentSecondsLeft!
             let file = RecordingFile(id: r.id, endTime: nil, durationMs: r.durationMs)
             do {
+                var attempt = 0
+                var result: DownloadResult
+                var saved: Bool
+                repeat {
+                attempt += 1
+                #if os(iOS)
+                if needsQuiet {
+                    guard await waitForQuietStream() else { streamBusy(r); return }
+                }
+                // 第二次（录音豆已经安静了）续传首片还不对：设备是真不认 offset，允许从头要（已收的片不重写）
+                var behavior = DownloadBehavior.backgroundSafe
+                if attempt > 1 { behavior.fallbackToStart = true }
+                #else
+                let behavior = DownloadBehavior.standard
+                #endif
                 let spool = try FrameSpool(url: partialURL(r.id), keepExisting: true)
                 if spool.count > 0 { Log.write("\(r.id) 有上次没下完的 \(spool.count) 片（\(spool.received.summary)）") }
                 // 有从第 0 片起连续的前缀就带 offset 续传（线上字节 = 片数 × 166）；续传首片不对时自动退回从头
                 // download 在后台执行器上回调，这里切回主线程再碰界面状态
-                let result = try await s.download(file, spool: spool, log: { Log.write($0) }, shouldCancel: { [weak self] in
+                result = try await s.download(file, spool: spool, behavior: behavior, log: { Log.write($0) }, shouldCancel: { [weak self] in
                     await MainActor.run { self.map { $0.device.syncShouldYield || $0.systemSleeping || $0.wifiSwitchRequested } ?? true }
                 }) { [weak self] p in
                     await MainActor.run {
@@ -431,13 +450,21 @@ final class LibraryStore {
                     }
                 }
                 Log.write("下载 \(r.id)：\(result.summary)")
-                let saved = await finishDownload(result, spool: spool, id: r.id, via: "蓝牙")
+                saved = await finishDownload(result, spool: spool, id: r.id, via: "蓝牙")
+                #if os(iOS)
+                needsQuiet = !saved && TransferRecovery.needsQuiet(result.stop)
+                #endif
+                } while Self.retrySameFile(saved: saved, stop: result.stop, attempt: attempt) && !device.syncShouldYield
                 if saved, SyncEstimate.shouldLearn(bytes: result.bytesThisAttempt, seconds: result.seconds) {
                     bluetoothRate = SyncEstimate.blend(old: bluetoothRate, measured: Double(result.bytesThisAttempt) / result.seconds)
                 }
                 if device.syncShouldYield { pauseForDictation(); return }
                 if wifiSwitchRequested { sync = .idle; return }
                 if !saved {
+                    #if os(iOS)
+                    // 录音豆还在忙（设备报错、片号对不上、头是别的文件）：已收的留着，等一会儿再来，后面的这次也先不下
+                    if Self.deviceBusyStops.contains(result.stop) { streamBusy(r); return }
+                    #endif
                     lastFailure = result.stop.isInterruption ? .interrupted : .failed
                     lastFailureLong = estimate(durationMs: r.durationMs, rate: known) > SyncPolicy.longFile
                     // 连接没了（断开、Mac 睡过）：后面的也下不了，等重连
@@ -458,6 +485,65 @@ final class LibraryStore {
         }
         sync = .idle
     }
+
+    /// 录音豆多半还在发上一次请求的数据时会出现的几种停法
+    static let deviceBusyStops: Set<DownloadStop> = [.deviceError, .resumeMismatch, .wrongFile]
+
+    /// 同一个文件这一轮要不要再试一次（iOS：录音豆忙时先等它安静再试；Mac 一律不再试，和原来一样）
+    static func retrySameFile(saved: Bool, stop: DownloadStop, attempt: Int) -> Bool {
+        #if os(iOS)
+        return !saved && deviceBusyStops.contains(stop) && attempt < TransferRecovery.attemptsPerFile
+        #else
+        return false
+        #endif
+    }
+
+    #if os(iOS)
+    /// 上次为了让录音豆停下而断开的时刻（StreamQuiet 用，免得反复断开）
+    @ObservationIgnored private var lastStreamRelink: Date?
+
+    /// 发请求前等录音豆不再发上一次的数据（规则见 OpenBeanKit 的 StreamQuiet）。返回 false：这一轮不下了
+    /// （断开重连了，重连后自动同步会再来；或等太久、要让出连接）
+    private func waitForQuietStream() async -> Bool {
+        let t0 = Date()
+        var said = false
+        while true {
+            let now = Date()
+            let stray = device.link.straySliceAge(now: now)
+            let step = StreamQuiet.next(sinceLastStray: stray.age, listened: now.timeIntervalSince(t0),
+                                        sinceRelink: lastStreamRelink.map { now.timeIntervalSince($0) })
+            switch step {
+            case .proceed:
+                if said { Log.write(String(format: "录音豆安静了（等了 %.0f 秒），接着请求", now.timeIntervalSince(t0))) }
+                return true
+            case .wait:
+                if !said, let a = stray.age, a < StreamQuiet.quietWindow {
+                    said = true
+                    Log.write("录音豆还在发上一次请求的数据（没人在收的分片累计 \(stray.count) 包），等它停下再请求")
+                }
+                if device.syncShouldYield || device.session == nil { return false }
+                try? await Task.sleep(nanoseconds: 500_000_000)
+            case .relink:
+                Log.write(String(format: "录音豆等了 %.0f 秒还在发：断开重连一次让它停下，重连后再同步", now.timeIntervalSince(t0)))
+                lastStreamRelink = now
+                device.link.disconnect()
+                return false
+            case .giveUp:
+                Log.write(String(format: "录音豆发了 %.0f 秒还没停，这次先不下，稍后再试", now.timeIntervalSince(t0)))
+                return false
+            }
+        }
+    }
+
+    /// 录音豆忙、这一轮不下了：按「中断」算（重连或过一会儿再试），已收的留着
+    private func streamBusy(_ r: Recording) {
+        lastFailure = .interrupted
+        lastFailureLong = estimate(durationMs: r.durationMs, rate: bluetoothRate) > SyncPolicy.longFile
+        sync = .failed(settings.mode.callsDeviceHeartBean
+                       ? String(localized: "The Heart bean is still busy sending. Sync continues shortly from where it stopped.")
+                       : String(localized: "The recorder is still busy sending. Sync continues shortly from where it stopped."))
+    }
+    #endif
 
     /// 一个文件经蓝牙下完大约要多少秒：固定开销 + 字节 ÷ 大文件的速度
     private func estimate(durationMs: UInt32, rate: Double) -> Double {
@@ -508,6 +594,13 @@ final class LibraryStore {
             }
             return true
         case let .rejected(why):
+            #if os(iOS)
+            // 设备忙（err=4）、头不对、片号对不上、被打断：不是数据坏了，已收的连续前缀留着下次续传
+            if TransferRecovery.keepsPartial(stop: result.stop, verdict: result.check.verdict) {
+                Log.write("下载 \(id) 这次没成：\(why)（\(result.stop.label)）；不是数据坏了，临时文件留着（\(spool.count) 片），稍后续传")
+                return false
+            }
+            #endif
             Log.write("下载 \(id) 的数据不能用：\(why)；临时文件删掉")
             spool.remove()
             return false

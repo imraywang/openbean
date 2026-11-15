@@ -204,6 +204,12 @@ public struct HeartPipeline: Equatable, Sendable {
         return [.scheduleProcessing(.standard)]
     }
 
+    /// 启动一会儿以后判断这次是不是系统在后台拉起来的：没有在前台的界面、App 也还在后台。
+    /// （启动那一刻 applicationState 总是 background，那时判断会把每次正常打开都当成后台启动）
+    public static func launchedInBackground(sceneInForeground: Bool, applicationInBackground: Bool) -> Bool {
+        !sceneInForeground && applicationInBackground
+    }
+
     private mutating func notice(_ a: HeartAttention, now: Date) -> Action? {
         if let last = notified[a], now.timeIntervalSince(last) < Self.noticeInterval { return nil }
         notified[a] = now
