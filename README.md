@@ -54,6 +54,17 @@ text is sent to it; audio never leaves your Mac.**
 Details — notes and templates, the word list, the diary, automation links, the MCP tools — are in the
 [user guide](docs/GUIDE.md).
 
+## iPhone (preview)
+
+The same recordings library and Heart mode run on an iPhone (iOS 26): Bluetooth sync that continues in the
+background, Wi‑Fi transfer for long recordings, on-device transcription, and summaries and the diary from Apple's
+on-device model or an LLM service you choose. Voice typing and the MCP server are Mac only, and the iPhone and Mac
+libraries are separate for now.
+
+There is no App Store or TestFlight build yet; build it from source (see below). It has been tested on one iPhone
+with firmware 04.82. The recorder accepts one connection at a time, so quit OpenBean on the Mac while the iPhone
+uses the recorder, and the other way round.
+
 ## For agents (MCP)
 
 `openbean-mcp` ships inside the app. *Settings → For agents (MCP)* shows its path and a ready-to-copy configuration:
@@ -75,6 +86,10 @@ Scripts/make-signing-cert.sh   # recommended: permissions survive rebuilds
 bin/build-app && open ".build/OpenBean Dev.app"
 ```
 
+For the iPhone app: `bin/build-ios` builds for the simulator (no certificate needed; launch it with `-demo YES` for
+sample data), `bin/build-ios device` for a phone. For a phone, first put your own Apple developer team and a bundle
+identifier of yours in `App/project.yml` (target `OpenBeanMobile`).
+
 This builds **OpenBean Dev**, a separate app with its own data and permissions; don't run it next to the released
 app, both would connect to the recorder. The command-line tool, the Swift library, the demo build and the release
 process are described in [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md); the wire protocol in
@@ -87,6 +102,8 @@ process are described in [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md); the wire pr
 - Bluetooth sync runs at roughly twice real time; for long recordings OpenBean offers Wi‑Fi, which takes your Mac
   offline for about a minute.
 - No speaker separation yet.
+- iPhone: a recording made in the normal mode is treated like a Heart mode recording; Wi‑Fi transfer asks you to
+  join the recorder's network each time.
 
 ## Third-party components
 

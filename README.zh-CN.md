@@ -46,6 +46,15 @@ OpenBean 常驻菜单栏。左键点豆子图标打开主窗口，右键出菜�
 
 笔记模板、个人词表、日记、自动化链接、MCP 工具等细节见[使用指南](docs/GUIDE.md)。
 
+## iPhone 版（预览）
+
+录音库和心力模式也能在 iPhone（iOS 26）上用：蓝牙同步在后台继续，长录音可以走 Wi‑Fi，转写在手机上完成，
+摘要和日记用 Apple 的端侧模型或你自己选的大模型服务。语音输入和 MCP 服务只有 Mac 版有；iPhone 和 Mac 的录音库
+目前各管各的。
+
+还没有 App Store 或 TestFlight 版本，需要自己从源码编译（见下）。目前只在一台 iPhone、固件 04.82 上测过。
+录音豆同一时间只接受一个连接：iPhone 用的时候先退出 Mac 上的 OpenBean，反过来也一样。
+
 ## 给 agent 用（MCP）
 
 App 里自带 `openbean-mcp`。「设置 → 给 agent 用（MCP）」里有路径和可以直接拷贝的配置：
@@ -67,7 +76,10 @@ Scripts/make-signing-cert.sh   # 建议：重新编译后不用重新授权
 bin/build-app && open ".build/OpenBean Dev.app"
 ```
 
-编出来的是 **OpenBean Dev**，和正式版是两个 App，数据和权限分开；不要和正式版同时运行，否则都会去连录音豆。
+iPhone 版：`bin/build-ios` 编模拟器版（不需要证书，加启动参数 `-demo YES` 用演示数据），`bin/build-ios device` 编真机版。
+编真机版之前，先把 `App/project.yml` 里 `OpenBeanMobile` 的开发者团队和 bundle id 换成你自己的。
+
+`bin/build-app` 编出来的是 **OpenBean Dev**，和正式版是两个 App，数据和权限分开；不要和正式版同时运行，否则都会去连录音豆。
 命令行工具、Swift 库、演示版和发版流程见 [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)，协议见 [docs/PROTOCOL.md](docs/PROTOCOL.md)。
 
 ## 已知限制
@@ -76,6 +88,7 @@ bin/build-app && open ".build/OpenBean Dev.app"
 - 录音中做完语音输入后，App 会重连一次蓝牙（约 5 秒）让录音豆停止外发实时音频。
 - 蓝牙同步大约是录音时长的一半；长录音可以改走 Wi‑Fi，期间 Mac 会断网约一分钟。
 - 还不能区分说话人。
+- iPhone 版：普通模式下录的音也会按心力模式的录音处理；每次走 Wi‑Fi 都要你确认加入录音豆的网络。
 
 ## 声明
 
