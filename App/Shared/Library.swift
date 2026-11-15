@@ -661,6 +661,7 @@ final class LibraryStore {
     func switchToWifi() async {
         let ids = pendingDownloads().map(\.id)
         guard !ids.isEmpty else { return }
+        let wasSyncing = syncRunning
         if syncRunning {
             wifiSwitchRequested = true
             Log.write("改用 Wi‑Fi：先停蓝牙同步")
@@ -668,6 +669,25 @@ final class LibraryStore {
             wifiSwitchRequested = false
             guard !syncRunning else { Log.write("蓝牙同步 10 秒内没停下，不改用 Wi‑Fi"); return }
         }
+        #if os(iOS)
+        // 我们停下不收以后，录音豆还会把那个文件接着发完。真机上它正在发蓝牙数据时让它开热点，
+        // 它只回一个不带地址的确认、热点不起来；Mac 命令行在没有传输时开热点是好的。所以先断开重连一次让它停下
+        let stray = device.link.straySliceAge(now: Date())
+        if wasSyncing || (stray.age ?? .infinity) < StreamQuiet.quietWindow {
+            Log.write("改用 Wi‑Fi：断开重连一次，让录音豆停止发蓝牙数据")
+            lastStreamRelink = Date()
+            wifiRunning = true   // 重连后的自动同步先别抢
+            device.link.disconnect()
+            for _ in 0..<40 where device.isReady { try? await Task.sleep(nanoseconds: 250_000_000) }
+            let t0 = Date()
+            for _ in 0..<120 where !device.isReady { try? await Task.sleep(nanoseconds: 250_000_000) }
+            wifiRunning = false
+            guard device.isReady else { Log.write("改用 Wi‑Fi：30 秒内蓝牙没连回来，这次不用 Wi‑Fi"); return }
+            Log.write(String(format: "改用 Wi‑Fi：蓝牙连回来了（%.1f 秒）", Date().timeIntervalSince(t0)))
+            // 等读设备列表这类连上后的例行请求走完
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+        }
+        #endif
         await syncViaWifi(ids: ids)
     }
 
