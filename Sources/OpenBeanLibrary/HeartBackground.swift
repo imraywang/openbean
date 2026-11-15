@@ -204,10 +204,16 @@ public struct HeartPipeline: Equatable, Sendable {
         return [.scheduleProcessing(.standard)]
     }
 
-    /// 启动一会儿以后判断这次是不是系统在后台拉起来的：没有在前台的界面、App 也还在后台。
-    /// （启动那一刻 applicationState 总是 background，那时判断会把每次正常打开都当成后台启动）
-    public static func launchedInBackground(sceneInForeground: Bool, applicationInBackground: Bool) -> Bool {
-        !sceneInForeground && applicationInBackground
+    public enum LaunchKind: Equatable, Sendable { case foreground, background }
+
+    /// 认定「没有界面出现 = 系统在后台拉起来的」之前最多等多久（秒）。真机冷启动到界面出现约 4 秒，留足余量
+    public static let launchDecisionCap: Double = 30
+
+    /// 这次启动是怎么来的（只用来写日志）。`firstForegroundAfter`：启动后第几秒第一次到前台（还没到为 nil）；
+    /// `elapsed`：启动到现在多少秒。nil = 还不能下结论。启动那一刻 applicationState 总是 background，不能拿它判断
+    public static func launchKind(firstForegroundAfter: Double?, elapsed: Double) -> LaunchKind? {
+        if let t = firstForegroundAfter, t <= launchDecisionCap { return .foreground }
+        return elapsed >= launchDecisionCap ? .background : nil
     }
 
     private mutating func notice(_ a: HeartAttention, now: Date) -> Action? {

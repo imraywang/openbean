@@ -43,7 +43,7 @@ final class BackgroundSync {
         guard self.model == nil else { return }
         self.model = model
         // 启动那一刻 applicationState 总是 background（有界面的启动也一样，界面稍后才连上）：
-        // 先按后台算、不发事件，等一会儿看界面连没连上再定（见 decideLaunch）；前台启动时 scenePhase 的 active 也会马上到
+        // 先按后台算；前台启动时 scenePhase 的 active 几秒内会到（冷启动约 4 秒），见 catchUpIfStillInBackground、logLaunchKind
         pipeline = HeartPipeline(app: .background, speechModelReady: model.models.state == .ready)
         model.library.deferTranscription = { UIApplication.shared.applicationState == .background }
         let forward = model.device.onEvent
@@ -57,21 +57,35 @@ final class BackgroundSync {
                   + "系统语言 \(Locale.preferredLanguages.prefix(3).joined(separator: ","))")
         Task { [weak self] in
             try? await Task.sleep(for: .seconds(1.5))
-            self?.decideLaunch()
+            self?.catchUpIfStillInBackground()
+        }
+        Task { [weak self] in
+            try? await Task.sleep(for: .seconds(HeartPipeline.launchDecisionCap))
+            self?.logLaunchKind(firstForegroundAfter: nil)
         }
     }
 
-    /// 启动 1.5 秒后：界面连上了、在前台就是正常打开；否则是系统在后台拉起来的（蓝牙状态恢复、后台处理任务）
-    private func decideLaunch() {
-        let sceneUp = UIApplication.shared.connectedScenes.contains {
-            $0.activationState == .foregroundActive || $0.activationState == .foregroundInactive
-        }
-        let background = HeartPipeline.launchedInBackground(sceneInForeground: sceneUp,
-                                                            applicationInBackground: UIApplication.shared.applicationState == .background)
-        Log.write(background ? "App 是系统在后台拉起来的（蓝牙状态恢复或后台处理任务）" : "App 是在前台打开的")
-        // 后台启动时上次可能有没做完的；前台启动的 becameActive 已经由 scenePhase 报过
-        if background, pipeline.app == .background { send(.enteredBackground(work: work())) }
+    private let launchedAt = Date()
+    private var launchLogged = false
+
+    /// 这次启动是前台打开还是系统在后台拉起（只写日志）：第一次到前台时、或过了上限还没到前台时下结论
+    private func logLaunchKind(firstForegroundAfter: Double?) {
+        guard !launchLogged else { return }
+        let elapsed = Date().timeIntervalSince(launchedAt)
+        guard let kind = HeartPipeline.launchKind(firstForegroundAfter: firstForegroundAfter, elapsed: elapsed) else { return }
+        launchLogged = true
+        Log.write(kind == .foreground
+                  ? String(format: "App 是在前台打开的（启动后 %.1f 秒到前台）", elapsed)
+                  : "App 是系统在后台拉起来的（蓝牙状态恢复或后台处理任务；\(Int(HeartPipeline.launchDecisionCap)) 秒内没有到前台）")
     }
+
+    /// 启动 1.5 秒后还没到前台：按后台补排上次没做完的（排一个后台处理任务）。冷启动慢的正常打开也会走到这里，
+    /// 那样几秒后到前台时 becameActive 会取消这个任务、直接在前台做，所以不需要等到确定是哪种启动
+    private func catchUpIfStillInBackground() {
+        guard pipeline.app == .background else { return }
+        send(.enteredBackground(work: work()))
+    }
+
 
     /// 前后台切换（App 的 scenePhase）
     func phaseChanged(_ phase: ScenePhase, model: MobileModel) {
@@ -81,6 +95,7 @@ final class BackgroundSync {
             Log.write("进入后台")
             send(.enteredBackground(work: work()))
         case .active:
+            logLaunchKind(firstForegroundAfter: Date().timeIntervalSince(launchedAt))
             Log.write("回到前台")
             send(.becameActive(work: work()))
         default:
@@ -352,7 +367,7 @@ final class MobileAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificati
         UNUserNotificationCenter.current().delegate = self
         BackgroundSync.registerTasks()
         MainActor.assumeIsolated {
-            // 是不是后台启动这里还看不出来（applicationState 此刻总是 background），由 BackgroundSync.decideLaunch 稍后判断
+            // 是不是后台启动这里还看不出来（applicationState 此刻总是 background），由 BackgroundSync.logLaunchKind 等到第一次到前台（或超过上限）再判断
             if let keys = launchOptions?.keys, !keys.isEmpty {
                 Log.write("启动参数：\(keys.map(\.rawValue).joined(separator: "、"))")
             }
