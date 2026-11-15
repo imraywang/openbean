@@ -37,13 +37,13 @@ private final class FakeBackend: LLMBackend, @unchecked Sendable {
 
     struct Channel: LLMChannel {
         let owner: FakeBackend
-        func complete(_ r: LLMRequest) async throws -> String {
+        func complete(_ r: LLMRequest) async throws -> LLMReply {
             owner.lock.lock()
             owner.requests.append(r)
             owner.lock.unlock()
             // 提示词 + 转写 + 格式说明 + 输出上限 超过窗口就和真的一样报错
             if Self.cost(r, overhead: owner.promptOverhead) > owner.context { throw LLMBackendError.contextExceeded }
-            return owner.reply(r)
+            return LLMReply(text: owner.reply(r), finishReason: "stop", maxTokens: r.maxTokens)
         }
         static func cost(_ r: LLMRequest, overhead: Int) -> Int {
             FakeBackend.tokens(r.system) + FakeBackend.tokens(r.user) + overhead + r.maxTokens

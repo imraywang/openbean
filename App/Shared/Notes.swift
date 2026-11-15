@@ -57,6 +57,8 @@ final class NoteService {
 
     init(settings: Settings) {
         self.settings = settings
+        // 大模型回复不能用时，包里记的元数据（结束原因、字数、推理）写进 App 的日志
+        LLMLog.sink = { Log.write($0) }
         diary = DiaryService(settings: settings)
         diary.notes = self
     }

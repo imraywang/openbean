@@ -264,9 +264,13 @@ public struct Summarizer: Sendable {
         }
         text = text.replacingOccurrences(of: "```json", with: "").replacingOccurrences(of: "```JSON", with: "")
             .replacingOccurrences(of: "```", with: "")
-        guard let a = text.firstIndex(of: "{"), let b = text.lastIndex(of: "}"), a < b,
-              let d = String(text[a...b]).data(using: .utf8),
-              let obj = try? JSONSerialization.jsonObject(with: d) as? [String: Any] else { return nil }
+        // 先按原来的办法取；取不出（前后有说明文字、多了逗号）再宽松地试
+        let strict: [String: Any]? = {
+            guard let a = text.firstIndex(of: "{"), let b = text.lastIndex(of: "}"), a < b,
+                  let d = String(text[a...b]).data(using: .utf8) else { return nil }
+            return (try? JSONSerialization.jsonObject(with: d)) as? [String: Any]
+        }()
+        guard let obj = strict ?? JSONReply.lenientObject(text) else { return nil }
 
         func str(_ keys: String...) -> String {
             for k in keys {
@@ -351,8 +355,8 @@ public struct Summarizer: Sendable {
     /// 生成摘要。progress 报告已完成的请求比例（0…1）。
     /// 服务不通时抛网络错误；模型回复不可用时抛 `Failure.unusable`（调用方不写入任何摘要）。
     public func summarize(_ lines: [TimedLine], progress: (@Sendable (Double) -> Void)? = nil) async throws -> RecordingSummary {
-        do { return try await summarizeOnce(lines, progress: progress) } catch LLMBackendError.contextExceeded {
-            guard let smaller = shrunk() else { throw LLMBackendError.contextExceeded }
+        do { return try await summarizeOnce(lines, progress: progress) } catch let e as LLMBackendError where e.shrinkable {
+            guard let smaller = shrunk() else { throw e }
             return try await smaller.summarize(lines, progress: progress)
         }
     }
@@ -373,9 +377,8 @@ public struct Summarizer: Sendable {
             let user = "Transcript:\n" + chunks[0].map(Self.line).joined(separator: "\n")
             // 回复不可用时再试一次（网络错误直接抛出）
             let s: RecordingSummary
-            do { s = try await ask(Self.chunkPrompt + "\n" + lang, user, session: session) } catch Failure.unusable {
-                s = try await ask(Self.chunkPrompt + "\n" + lang, user, session: session)
-            }
+            // 回复不可用时 LLMAsk 会再问一次；截断时加大输出上限（网络错误直接抛出）
+            s = try await ask(Self.chunkPrompt + "\n" + lang, user, session: session)
             progress?(1)
             return Self.corrected(s, with: corrector)
         }
@@ -384,8 +387,8 @@ public struct Summarizer: Sendable {
         var parts: [RecordingSummary] = []
         for (i, c) in chunks.enumerated() {
             let user = "Part \(i + 1) of \(chunks.count). Transcript:\n" + c.map(Self.line).joined(separator: "\n")
-            var got = try await Self.skippable { try await ask(Self.partPrompt + "\n" + lang, user, session: session) }
-            if got == nil { got = try await Self.skippable { try await ask(Self.partPrompt + "\n" + lang, user, session: session) } }
+            // 不可用时 LLMAsk 里已经再问过一次
+            let got = try await Self.skippable { try await ask(Self.partPrompt + "\n" + lang, user, session: session) }
             if let got { parts.append(got) } else if await backend.check() != .ok {
                 throw URLError(.cannotConnectToHost)
             }
@@ -412,8 +415,8 @@ public struct Summarizer: Sendable {
     /// 把几份已有的摘要（例如一条录音各段对话的摘要）合并成整条录音的一份，用和长录音分块时同一个合并提示词。
     /// 只有一份时原样返回、不调用大模型。languageSample：判断输出语言用的原文（转写），不要传摘要
     public func merge(_ parts: [RecordingSummary], languageSample: String) async throws -> (RecordingSummary, calls: Int) {
-        do { return try await mergeOnce(parts, languageSample: languageSample) } catch LLMBackendError.contextExceeded {
-            guard let smaller = shrunk() else { throw LLMBackendError.contextExceeded }
+        do { return try await mergeOnce(parts, languageSample: languageSample) } catch let e as LLMBackendError where e.shrinkable {
+            guard let smaller = shrunk() else { throw e }
             return try await smaller.merge(parts, languageSample: languageSample)
         }
     }
@@ -467,10 +470,7 @@ public struct Summarizer: Sendable {
     }
 
     private func ask(_ system: String, _ user: String, session: any LLMChannel) async throws -> RecordingSummary {
-        let raw = try await session.complete(LLMRequest(system: system, user: user, maxTokens: maxOutput, temperature: 0.2,
-                                                        shape: Self.shape))
-        guard let s = Self.parse(raw) else { throw Failure.unusable }
-        return s
+        try await LLMAsk(channel: session, maxOutput: maxOutput, label: "摘要").run(system, user, shape: Self.shape, parse: Self.parse).value
     }
 
     /// 回复的结构（端侧模型做结构化生成用；OpenAI 兼容服务不发）
@@ -483,6 +483,6 @@ public struct Summarizer: Sendable {
 
     /// 分块时某一块失败可以跳过（再试一次、或用别的块）；超出上下文要整体缩小分块重来，不能跳过
     static func skippable<T>(_ body: () async throws -> T) async throws -> T? {
-        do { return try await body() } catch LLMBackendError.contextExceeded { throw LLMBackendError.contextExceeded } catch { return nil }
+        do { return try await body() } catch let e as LLMBackendError where e == .contextExceeded || e == .outputTruncated { throw e } catch { return nil }
     }
 }

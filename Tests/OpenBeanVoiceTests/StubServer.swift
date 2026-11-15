@@ -15,6 +15,14 @@ final class StubServer: @unchecked Sendable {
 
     var requests: [[String: Any]] { lock.lock(); defer { lock.unlock() }; return bodies }
 
+    /// 整个 choices[0] 和 usage 都由调用方给（模拟 finish_reason、reasoning_content、用量）
+    private var full: (([String: Any]) -> [String: Any])?
+
+    convenience init(get: ((String) -> (Int, String))? = nil, full: @escaping ([String: Any]) -> [String: Any]) throws {
+        try self.init(get: get) { _ in "" }
+        self.full = full
+    }
+
     init(get: ((String) -> (Int, String))? = nil, reply: @escaping ([String: Any]) -> String) throws {
         self.reply = reply
         self.get = get
@@ -77,7 +85,7 @@ final class StubServer: @unchecked Sendable {
         } else {
             let req = (try? JSONSerialization.jsonObject(with: body) as? [String: Any]) ?? [:]
             lock.lock(); bodies.append(req); lock.unlock()
-            let obj: [String: Any] = ["choices": [["message": ["role": "assistant", "content": reply(req)]]]]
+            let obj: [String: Any] = full?(req) ?? ["choices": [["message": ["role": "assistant", "content": reply(req)]]]]
             out = (try? JSONSerialization.data(withJSONObject: obj)) ?? Data()
         }
         var resp = Data("HTTP/1.1 \(status)\r\nContent-Type: application/json\r\nContent-Length: \(out.count)\r\nConnection: close\r\n\r\n".utf8)

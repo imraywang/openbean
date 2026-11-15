@@ -20,13 +20,15 @@ public struct CloudPreset: Sendable, Hashable, Identifiable {
     public let models: [String]
     /// 去哪里申请密钥
     public let keyPage: String?
+    /// 请求方言（关掉整理用不着的思考/推理）
+    public var dialect: LLMService.Dialect = .standard
 
     public static let deepseek = CloudPreset(id: "deepseek", name: "DeepSeek", endpoint: "https://api.deepseek.com",
                                              models: ["deepseek-flash", "deepseek-v4-pro"],
-                                             keyPage: "https://platform.deepseek.com/api_keys")
+                                             keyPage: "https://platform.deepseek.com/api_keys", dialect: .deepseek)
     public static let openai = CloudPreset(id: "openai", name: "OpenAI", endpoint: "https://api.openai.com/v1",
                                            models: ["gpt-6-luna", "gpt-6.1-terra"],
-                                           keyPage: "https://platform.openai.com/api-keys")
+                                           keyPage: "https://platform.openai.com/api-keys", dialect: .openai)
     public static let openrouter = CloudPreset(id: "openrouter", name: "OpenRouter", endpoint: "https://openrouter.ai/api/v1",
                                                models: ["deepseek/deepseek-v4.1-flash", "qwen/qwen3.8-flash"],
                                                keyPage: "https://openrouter.ai/settings/keys")
@@ -103,8 +105,9 @@ public enum LLMConnectionTest {
         // 本机、局域网的服务：列表能读就够了（没加载模型时一次补全可能要很久）
         if service.isLocal, !listed.isEmpty { return nil }
         do {
-            let body: [String: Any] = ["model": service.model, "max_tokens": 1, "temperature": 0,
+            var body: [String: Any] = ["model": service.model, "max_tokens": 1, "temperature": 0,
                                        "messages": [["role": "user", "content": "ping"]]]
+            service.dialect.apply(&body)
             var req = URLRequest(url: LLMService.url(service.endpoint, "chat/completions"))
             req.httpMethod = "POST"
             req.setValue("application/json", forHTTPHeaderField: "Content-Type")
