@@ -936,5 +936,7 @@
 "Sync the recordings on your recorder?": "同步录音豆上的录音？",
 "Sync now": "现在同步",
 "Not now": "先不同步",
-"There are %lld recordings (%@) on it. Over Bluetooth this takes about %lld minutes and continues in the background. If you choose Not now, automatic sync is turned off; you can turn it on in Settings or sync from the recorder page.": "上面有 %1$lld 条录音（共 %2$@）。蓝牙传完大约要 %3$lld 分钟，切到后台也会继续。选「先不同步」会关掉自动同步，之后可以在设置里打开，或在录音豆页手动同步。"
+"There are %lld recordings (%@) on it. Over Bluetooth this takes about %lld minutes and continues in the background. If you choose Not now, automatic sync is turned off; you can turn it on in Settings or sync from the recorder page.": "上面有 %1$lld 条录音（共 %2$@）。蓝牙传完大约要 %3$lld 分钟，切到后台也会继续。选「先不同步」会关掉自动同步，之后可以在设置里打开，或在录音豆页手动同步。",
+"The Heart bean is still busy sending. Sync continues shortly from where it stopped.": "心力豆还在忙着发送，稍后从断开的地方接着同步。",
+"The recorder is still busy sending. Sync continues shortly from where it stopped.": "录音豆还在忙着发送，稍后从断开的地方接着同步。"
 }

@@ -84,6 +84,13 @@ final class HeartBackgroundTests: XCTestCase {
         XCTAssertEqual(p.phase, .idle)
     }
 
+    func testLaunchKind() {
+        XCTAssertFalse(HeartPipeline.launchedInBackground(sceneInForeground: true, applicationInBackground: true),
+                       "正常打开：界面连上了，即使 applicationState 还没变")
+        XCTAssertFalse(HeartPipeline.launchedInBackground(sceneInForeground: true, applicationInBackground: false))
+        XCTAssertTrue(HeartPipeline.launchedInBackground(sceneInForeground: false, applicationInBackground: true))
+    }
+
     // MARK: 要用户处理的事
 
     func testRepeatedFailuresNotifyOnceUntilTheIntervalPasses() {

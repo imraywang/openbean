@@ -42,8 +42,9 @@ final class BackgroundSync {
     func attach(_ model: MobileModel) {
         guard self.model == nil else { return }
         self.model = model
-        pipeline = HeartPipeline(app: UIApplication.shared.applicationState == .background ? .background : .active,
-                                 speechModelReady: model.models.state == .ready)
+        // 启动那一刻 applicationState 总是 background（有界面的启动也一样，界面稍后才连上）：
+        // 先按后台算、不发事件，等一会儿看界面连没连上再定（见 decideLaunch）；前台启动时 scenePhase 的 active 也会马上到
+        pipeline = HeartPipeline(app: .background, speechModelReady: model.models.state == .ready)
         model.library.deferTranscription = { UIApplication.shared.applicationState == .background }
         let forward = model.device.onEvent
         model.device.onEvent = { [weak self] e in
@@ -51,9 +52,25 @@ final class BackgroundSync {
             forward(e)
         }
         observeSync()
-        Log.write("后台同步：已接上（\(pipeline.app == .background ? "后台启动" : "前台启动")，待转写 \(work().untranscribed) 条）")
-        // 后台启动时上次可能有没做完的
-        if pipeline.app == .background { send(.enteredBackground(work: work())) }
+        // 语言：真机上通知和系统错误文字是英文时看这一行（App 解析出来的语言、系统的语言顺序）
+        Log.write("后台同步：已接上（待转写 \(work().untranscribed) 条）；App 语言 \(Bundle.main.preferredLocalizations.joined(separator: ","))，"
+                  + "系统语言 \(Locale.preferredLanguages.prefix(3).joined(separator: ","))")
+        Task { [weak self] in
+            try? await Task.sleep(for: .seconds(1.5))
+            self?.decideLaunch()
+        }
+    }
+
+    /// 启动 1.5 秒后：界面连上了、在前台就是正常打开；否则是系统在后台拉起来的（蓝牙状态恢复、后台处理任务）
+    private func decideLaunch() {
+        let sceneUp = UIApplication.shared.connectedScenes.contains {
+            $0.activationState == .foregroundActive || $0.activationState == .foregroundInactive
+        }
+        let background = HeartPipeline.launchedInBackground(sceneInForeground: sceneUp,
+                                                            applicationInBackground: UIApplication.shared.applicationState == .background)
+        Log.write(background ? "App 是系统在后台拉起来的（蓝牙状态恢复或后台处理任务）" : "App 是在前台打开的")
+        // 后台启动时上次可能有没做完的；前台启动的 becameActive 已经由 scenePhase 报过
+        if background, pipeline.app == .background { send(.enteredBackground(work: work())) }
     }
 
     /// 前后台切换（App 的 scenePhase）
@@ -335,8 +352,9 @@ final class MobileAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificati
         UNUserNotificationCenter.current().delegate = self
         BackgroundSync.registerTasks()
         MainActor.assumeIsolated {
-            if application.applicationState == .background {
-                Log.write("App 在后台启动（蓝牙状态恢复或后台处理任务）：\(launchOptions.map { $0.keys.map(\.rawValue).joined(separator: "、") } ?? "无启动参数")")
+            // 是不是后台启动这里还看不出来（applicationState 此刻总是 background），由 BackgroundSync.decideLaunch 稍后判断
+            if let keys = launchOptions?.keys, !keys.isEmpty {
+                Log.write("启动参数：\(keys.map(\.rawValue).joined(separator: "、"))")
             }
             // 后台启动时不一定有界面（RootView 的 onAppear 不会来）：这里就把连接、自动同步接上，
             // CBCentralManager 也要在启动结束前用同一个恢复标识建好

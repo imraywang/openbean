@@ -64,6 +64,10 @@ public final class Link: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     /// iOS 版设成写进 App 的日志文件，在「设置 → 日志」里看。BLE 队列上回调
     public var logHandler: ((String) -> Void)?
     public private(set) var rxBytes = 0
+    /// 最近一次收到「没人在收」的文件分片（没有下载在进行，onPacket 为 nil）的时刻：录音豆还在发上一次请求的数据。
+    /// 只在 BLE 队列上改；读用 `straySliceAge`
+    private var lastStraySlice: Date?
+    private var straySlices = 0
 
     public override init() {
         super.init()
@@ -295,6 +299,10 @@ public final class Link: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             if verbose, !(Rx.isTransport(pkt) && pkt.id == Rx.fileSlice) {
                 log("\(pkt)  \(pkt.raw.prefix(48).hex)\(pkt.raw.count > 48 ? " …" : "")")
             }
+            if onPacket == nil, Rx.isTransport(pkt), pkt.id == Rx.fileSlice || pkt.id == Rx.fileSliceMark {
+                lastStraySlice = Date()
+                straySlices += 1
+            }
             onPacket?(pkt)
             onEvent?(pkt)
             for l in latches where l.latch.packet == nil && l.match(pkt) { l.latch.packet = pkt }
@@ -384,6 +392,11 @@ public final class Link: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
 
     /// 在 BLE 队列上执行一段代码（给 onPacket 回调之外的状态读写用）。
     public func sync<T>(_ body: () throws -> T) rethrows -> T { try q.sync(execute: body) }
+
+    /// 离上次收到没人在收的文件分片过了多少秒（没收到过为 nil），和累计收到几包这样的分片
+    public func straySliceAge(now: Date = Date()) -> (age: Double?, count: Int) {
+        q.sync { (lastStraySlice.map { now.timeIntervalSince($0) }, straySlices) }
+    }
 
     /// 连着、通知已打开。只在 `sync` 里读
     public var isConnected: Bool { established && peripheral?.state == .connected }
