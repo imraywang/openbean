@@ -85,10 +85,13 @@ final class HeartBackgroundTests: XCTestCase {
     }
 
     func testLaunchKind() {
-        XCTAssertFalse(HeartPipeline.launchedInBackground(sceneInForeground: true, applicationInBackground: true),
-                       "正常打开：界面连上了，即使 applicationState 还没变")
-        XCTAssertFalse(HeartPipeline.launchedInBackground(sceneInForeground: true, applicationInBackground: false))
-        XCTAssertTrue(HeartPipeline.launchedInBackground(sceneInForeground: false, applicationInBackground: true))
+        // 真机：划掉再点开，冷启动 4 秒才到前台（07:14:14 → 07:14:18），1.5 秒时还不能下结论
+        XCTAssertNil(HeartPipeline.launchKind(firstForegroundAfter: nil, elapsed: 1.5))
+        XCTAssertEqual(HeartPipeline.launchKind(firstForegroundAfter: 4, elapsed: 4), .foreground)
+        XCTAssertNil(HeartPipeline.launchKind(firstForegroundAfter: nil, elapsed: HeartPipeline.launchDecisionCap - 1))
+        XCTAssertEqual(HeartPipeline.launchKind(firstForegroundAfter: nil, elapsed: HeartPipeline.launchDecisionCap), .background)
+        // 后台拉起、过了很久用户才打开：仍算后台启动
+        XCTAssertEqual(HeartPipeline.launchKind(firstForegroundAfter: 600, elapsed: 600), .background)
     }
 
     // MARK: 要用户处理的事
