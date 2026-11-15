@@ -2242,6 +2242,16 @@
         }
       }
     },
+    "Not now": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "先不同步"
+          }
+        }
+      }
+    },
     "Not ready yet": {
       "localizations": {
         "zh-Hans": {
@@ -3342,12 +3352,32 @@
         }
       }
     },
+    "Sync now": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "现在同步"
+          }
+        }
+      }
+    },
     "Sync the recording to transcribe it.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "先同步这条录音才能转写。"
+          }
+        }
+      }
+    },
+    "Sync the recordings on your recorder?": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "同步录音豆上的录音？"
           }
         }
       }
@@ -3768,6 +3798,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "它们的转写和摘要会留在这台 iPhone 上。此操作无法撤销。"
+          }
+        }
+      }
+    },
+    "There are %lld recordings (%@) on it. Over Bluetooth this takes about %lld minutes and continues in the background. If you choose Not now, automatic sync is turned off; you can turn it on in Settings or sync from the recorder page.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "上面有 %1$lld 条录音（共 %2$@）。蓝牙传完大约要 %3$lld 分钟，切到后台也会继续。选「先不同步」会关掉自动同步，之后可以在设置里打开，或在录音豆页手动同步。"
           }
         }
       }

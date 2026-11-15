@@ -43,8 +43,13 @@ final class MobileModel {
             Task { await selfTestTranscribe(file) }
             return
         }
-        device.onEvent = { [weak self] e in self?.autoSync.handle(e) }
-        library.onListRefreshed = { [weak self] in self?.autoSync.listRefreshed() }
+        device.onEvent = { [weak self] e in
+            guard let self else { return }
+            // 第一次同步还没问过时，放回充电盒也不自己开始同步
+            if case .charging = e, !settings.heartMode, !Flavor.defaults.bool(forKey: Self.firstSyncAskedKey) { return }
+            autoSync.handle(e)
+        }
+        library.onListRefreshed = { [weak self] in self?.listRefreshed() }
         device.onConnected = { [weak self] in Task { await self?.library.refreshDeviceList() } }
         device.link.verbose = Flavor.defaults.bool(forKey: LogView.verboseKey)
         if Flavor.defaults.bool(forKey: Self.connectKey) { device.start() }
@@ -54,6 +59,11 @@ final class MobileModel {
         library.notes.diary.catchUp()
         // 后台同步：后台下完的录音交给后台处理任务转写、写日记，结果发通知（BackgroundSync.swift）
         background.attach(self)
+        // 语音模型还没下好时，下完的录音先不转写（不然每条都报「缺少模型文件」）；模型到位后把积下的一起转写
+        let inBackground = library.deferTranscription
+        library.deferTranscription = { [models] in models.state != .ready || inBackground() }
+        models.onReady = { [weak self] in Task { await self?.transcribeBacklog() } }
+        if Flavor.defaults.bool(forKey: Self.connectKey) { downloadSpeechModelIfNeeded() }
         // 心力模式录音的本机音频保留期：启动时和之后每小时看一遍（同步、转写完也会看）
         Task { [weak self] in
             while !Task.isCancelled {
@@ -96,7 +106,71 @@ final class MobileModel {
         Flavor.defaults.set(true, forKey: Self.connectKey)
         guard !Flavor.isDemo else { return }
         device.start()
+        downloadSpeechModelIfNeeded()
     }
+
+    // MARK: 语音模型和积下的转写
+
+    /// 连上录音豆就要用到语音模型：没有就自己开始下载（遵守「仅 Wi‑Fi 下载」；失败了在设置 → 语音识别里能看到并重试）
+    func downloadSpeechModelIfNeeded() {
+        guard models.state == .missing else { return }
+        Log.write("语音模型还没下载，开始下载\(settings.modelWifiOnly ? "（仅 Wi‑Fi）" : "")")
+        Task { [weak self] in
+            guard let self else { return }
+            await models.download(wifiOnly: settings.modelWifiOnly)
+            if models.state != .ready { Log.write("语音模型下载没成功：\(models.state)") }
+        }
+    }
+
+    /// 模型到位后：把已经下到本机、还没转写的录音一条一条转写（短的先来）
+    private func transcribeBacklog() async {
+        guard settings.autoTranscribe else { return }
+        let fm = FileManager.default
+        let ids = library.recordings
+            .filter { $0.downloaded && !$0.transcribed && fm.fileExists(atPath: library.audioURL($0.id).path) }
+            .sorted { $0.durationMs < $1.durationMs }.map(\.id)
+        guard !ids.isEmpty else { return }
+        Log.write("语音模型已就绪，补转写 \(ids.count) 条")
+        for id in ids where library.recordings.first(where: { $0.id == id })?.transcribed == false {
+            await library.transcribe(id)
+        }
+    }
+
+    // MARK: 第一次同步先问
+
+    /// 第一次读到录音豆上有没下载的录音：先问，不自己开始（可能是几小时的量）。问过之后照常自动同步
+    static let firstSyncAskedKey = "firstSyncAsked"
+
+    private func listRefreshed() {
+        if !Flavor.defaults.bool(forKey: Self.firstSyncAskedKey), !settings.heartMode {
+            let pending = library.pendingDownloads()
+            guard !pending.isEmpty else { return }
+            if MobileRouter.shared.firstSync == nil {
+                let seconds = pending.reduce(0.0) { $0 + Double($1.durationMs) / 1000 }
+                Log.write("第一次同步：录音豆上有 \(pending.count) 条、\(Int(seconds)) 秒，先问用户")
+                MobileRouter.shared.firstSync = FirstSyncOffer(count: pending.count, audioSeconds: seconds)
+            }
+            return
+        }
+        autoSync.listRefreshed()
+    }
+
+    /// 用户对「第一次同步」的回答。同步：以后照常自动同步；先不：关掉自动同步（设置里能再打开，录音豆页能手动同步）
+    func answerFirstSync(syncNow: Bool) {
+        Flavor.defaults.set(true, forKey: Self.firstSyncAskedKey)
+        MobileRouter.shared.firstSync = nil
+        Log.write("第一次同步：用户选了\(syncNow ? "现在同步" : "先不同步，自动同步关掉")")
+        if syncNow { autoSync.listRefreshed() } else { settings.autoSync = false }
+    }
+}
+
+/// 第一次连上时录音豆上积着的录音（问用户要不要全部同步）
+struct FirstSyncOffer: Equatable {
+    let count: Int
+    let audioSeconds: Double
+    /// 蓝牙传完大约要多久：实测约为实时的 4 倍
+    var transferMinutes: Int { max(1, Int((audioSeconds / 4 / 60).rounded(.up))) }
+    var audioText: String { Duration.seconds(audioSeconds).formatted(.units(allowed: [.hours, .minutes], width: .abbreviated)) }
 }
 
 @main
@@ -137,6 +211,13 @@ struct RootView: View {
             Tab("Settings", systemImage: "gearshape", value: MobileTab.settings) {
                 MobileSettingsTab(model: model)
             }
+        }
+        .alert("Sync the recordings on your recorder?", isPresented: Binding(get: { router.firstSync != nil }, set: { _ in }),
+               presenting: router.firstSync) { _ in
+            Button("Sync now") { model.answerFirstSync(syncNow: true) }
+            Button("Not now", role: .cancel) { model.answerFirstSync(syncNow: false) }
+        } message: { offer in
+            Text("There are \(offer.count) recordings (\(offer.audioText)) on it. Over Bluetooth this takes about \(offer.transferMinutes) minutes and continues in the background. If you choose Not now, automatic sync is turned off; you can turn it on in Settings or sync from the recorder page.")
         }
     }
 }

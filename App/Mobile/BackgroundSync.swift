@@ -312,6 +312,8 @@ final class MobileRouter {
     static let shared = MobileRouter()
     var tab: MobileTab = RootView.initialTab
     private(set) var todayRequests = 0
+    /// 第一次连上时问要不要全部同步（RootView 弹出）
+    var firstSync: FirstSyncOffer?
 
     func open(_ route: HeartNotices.Route) {
         switch route {
