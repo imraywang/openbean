@@ -462,6 +462,16 @@
         }
       }
     },
+    "About %@ left over Bluetooth. Over Wi‑Fi the rest takes about %@.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "蓝牙还要约 %1$@。改用 Wi‑Fi，剩下的约 %2$@ 就能传完。"
+          }
+        }
+      }
+    },
     "About %@ over Bluetooth.": {
       "localizations": {
         "zh-Hans": {
@@ -478,6 +488,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "经蓝牙大约要 %@。切到后台也会继续；中途断了，下次从断开的地方接着传。"
+          }
+        }
+      }
+    },
+    "About %@ over Wi‑Fi, with OpenBean kept open.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "用 Wi‑Fi 约 %@，期间要让 OpenBean 留在前台。"
           }
         }
       }
@@ -658,6 +678,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "苹果端侧模型需要 iOS 26 或更高版本。"
+          }
+        }
+      }
+    },
+    "Asking the Heart bean to start its Wi‑Fi…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在让心力豆开启 Wi‑Fi…"
+          }
+        }
+      }
+    },
+    "Asking the recorder to start its Wi‑Fi…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在让录音豆开启 Wi‑Fi…"
           }
         }
       }
@@ -1042,6 +1082,26 @@
         }
       }
     },
+    "Connecting to the Heart bean over Wi‑Fi…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在经 Wi‑Fi 连接心力豆…"
+          }
+        }
+      }
+    },
+    "Connecting to the recorder over Wi‑Fi…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在经 Wi‑Fi 连接录音豆…"
+          }
+        }
+      }
+    },
     "Connecting…": {
       "localizations": {
         "zh-Hans": {
@@ -1112,12 +1172,32 @@
         }
       }
     },
+    "Couldn't connect to the Heart bean's Wi‑Fi. Bluetooth sync picks up from where it stopped.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没能连上心力豆的 Wi‑Fi。蓝牙同步会从停下的地方接着传。"
+          }
+        }
+      }
+    },
     "Couldn't connect to the recorder": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "连不上录音豆"
+          }
+        }
+      }
+    },
+    "Couldn't connect to the recorder's Wi‑Fi. Bluetooth sync picks up from where it stopped.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没能连上录音豆的 Wi‑Fi。蓝牙同步会从停下的地方接着传。"
           }
         }
       }
@@ -1448,6 +1528,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "正在下载第 %1$lld 条，共 %2$lld 条"
+          }
+        }
+      }
+    },
+    "Downloading %lld of %lld over Wi‑Fi… %lld%%": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wi‑Fi 下载第 %1$lld/%2$lld 条… %3$lld%%"
           }
         }
       }
@@ -1792,6 +1882,26 @@
         }
       }
     },
+    "Joining the Heart bean's Wi‑Fi…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在加入心力豆的 Wi‑Fi…"
+          }
+        }
+      }
+    },
+    "Joining the recorder's Wi‑Fi…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在加入录音豆的 Wi‑Fi…"
+          }
+        }
+      }
+    },
     "Keep": {
       "localizations": {
         "zh-Hans": {
@@ -1908,6 +2018,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "留空则显示日期和时间。"
+          }
+        }
+      }
+    },
+    "Leaving the Wi‑Fi…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在离开这个 Wi‑Fi…"
           }
         }
       }
@@ -2512,6 +2632,16 @@
         }
       }
     },
+    "OpenBean needs Local Network access for Wi‑Fi sync. Turn it on in Settings › Privacy & Security › Local Network.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "用 Wi‑Fi 同步需要「本地网络」权限。请在「设置 › 隐私与安全性 › 本地网络」里为 OpenBean 打开。"
+          }
+        }
+      }
+    },
     "OpenBean scans for a Heart bean again next time it connects. Keep it out of its case and near this iPhone.": {
       "localizations": {
         "zh-Hans": {
@@ -2728,6 +2858,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "准备打开心力模式"
+          }
+        }
+      }
+    },
+    "Reconnecting to the Heart bean over Bluetooth…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在重新经蓝牙连接心力豆…"
+          }
+        }
+      }
+    },
+    "Reconnecting to the recorder over Bluetooth…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在重新经蓝牙连接录音豆…"
           }
         }
       }
@@ -3332,6 +3482,16 @@
         }
       }
     },
+    "Switch to Wi‑Fi": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "改用 Wi‑Fi"
+          }
+        }
+      }
+    },
     "Sync": {
       "localizations": {
         "zh-Hans": {
@@ -3358,6 +3518,36 @@
           "stringUnit": {
             "state": "translated",
             "value": "现在同步"
+          }
+        }
+      }
+    },
+    "Sync over Bluetooth": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "用蓝牙同步"
+          }
+        }
+      }
+    },
+    "Sync over Wi‑Fi": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "用 Wi‑Fi 同步"
+          }
+        }
+      }
+    },
+    "Sync over Wi‑Fi?": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "用 Wi‑Fi 同步？"
           }
         }
       }
@@ -3522,6 +3712,16 @@
         }
       }
     },
+    "The Heart bean didn't start its Wi‑Fi. Try again, or keep syncing over Bluetooth.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "心力豆没有开启 Wi‑Fi。可以再试一次，或继续用蓝牙同步。"
+          }
+        }
+      }
+    },
     "The Heart bean is still busy sending. Sync continues shortly from where it stopped.": {
       "localizations": {
         "zh-Hans": {
@@ -3608,6 +3808,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "大模型服务拒绝了 API Key。"
+          }
+        }
+      }
+    },
+    "The Wi‑Fi connection dropped. What was received is kept; Bluetooth continues from there.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wi‑Fi 连接断了。已收到的部分留着，蓝牙会从那里接着传。"
           }
         }
       }
@@ -3708,6 +3918,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "模型的回复无法使用，请重试或换一个更大的模型。"
+          }
+        }
+      }
+    },
+    "The recorder didn't start its Wi‑Fi. Try again, or keep syncing over Bluetooth.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "录音豆没有开启 Wi‑Fi。可以再试一次，或继续用蓝牙同步。"
           }
         }
       }
@@ -3822,12 +4042,22 @@
         }
       }
     },
-    "There are %lld recordings (%@) on it. Over Bluetooth this takes about %lld minutes and continues in the background. If you choose Not now, automatic sync is turned off; you can turn it on in Settings or sync from the recorder page.": {
+    "There are %lld recordings (%@) on it. Over Bluetooth this takes about %@ and continues in the background. If you choose Not now, automatic sync is turned off; you can turn it on in Settings or sync from the recorder page.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "上面有 %1$lld 条录音（共 %2$@）。蓝牙传完大约要 %3$lld 分钟，切到后台也会继续。选「先不同步」会关掉自动同步，之后可以在设置里打开，或在录音豆页手动同步。"
+            "value": "上面有 %1$lld 条录音（共 %2$@）。蓝牙传完大约要 %3$@，切到后台也会继续。选「先不同步」会关掉自动同步，之后可以在设置里打开，或在录音豆页手动同步。"
+          }
+        }
+      }
+    },
+    "There are %lld recordings (%@) on it. Over Bluetooth this takes about %@ and continues in the background. Over Wi‑Fi it takes about %@: your iPhone joins the recorder's own Wi‑Fi meanwhile (iOS asks once), and OpenBean needs to stay open. If you choose Not now, automatic sync is turned off; you can turn it on in Settings or sync from the recorder page.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "上面有 %1$lld 条录音（共 %2$@）。蓝牙传完大约要 %3$@，切到后台也会继续。用 Wi‑Fi 大约 %4$@：期间 iPhone 会连到录音豆自己的 Wi‑Fi（系统会问一次），OpenBean 要留在前台。选「先不同步」会关掉自动同步，之后可以在设置里打开，或在录音豆页手动同步。"
           }
         }
       }
@@ -4462,6 +4692,26 @@
         }
       }
     },
+    "Wi‑Fi sync stopped because OpenBean left the screen. What was received is kept; Bluetooth continues from there.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OpenBean 离开了前台，Wi‑Fi 同步已停下。已收到的部分留着，蓝牙会从那里接着传。"
+          }
+        }
+      }
+    },
+    "Wi‑Fi sync was cancelled. Bluetooth sync picks up from where it stopped.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wi‑Fi 同步已取消。蓝牙同步会从停下的地方接着传。"
+          }
+        }
+      }
+    },
     "Working…": {
       "localizations": {
         "zh-Hans": {
@@ -4558,6 +4808,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "今天的记录更新、或同步需要你处理时，你不会收到提醒。"
+          }
+        }
+      }
+    },
+    "Your iPhone joins the Heart bean's own Wi‑Fi for about %@, then goes back to your usual Wi‑Fi. iOS asks once to join the network. Meanwhile there's no internet over Wi‑Fi; mobile data may take over. Keep OpenBean open: if you leave it, what was received is kept and Bluetooth continues from there.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iPhone 会连到心力豆自己的 Wi‑Fi 约 %@，之后回到你原来的 Wi‑Fi。系统会问一次是否加入这个网络。这期间 Wi‑Fi 上没有互联网，可能改走蜂窝数据。请让 OpenBean 留在前台：离开的话，已收到的部分留着，蓝牙会从那里接着传。"
+          }
+        }
+      }
+    },
+    "Your iPhone joins the recorder's own Wi‑Fi for about %@, then goes back to your usual Wi‑Fi. iOS asks once to join the network. Meanwhile there's no internet over Wi‑Fi; mobile data may take over. Keep OpenBean open: if you leave it, what was received is kept and Bluetooth continues from there.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iPhone 会连到录音豆自己的 Wi‑Fi 约 %@，之后回到你原来的 Wi‑Fi。系统会问一次是否加入这个网络。这期间 Wi‑Fi 上没有互联网，可能改走蜂窝数据。请让 OpenBean 留在前台：离开的话，已收到的部分留着，蓝牙会从那里接着传。"
           }
         }
       }

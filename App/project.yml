@@ -119,6 +119,13 @@ targets:
         embed: false
       - framework: ../Vendor/sherpa-onnx-ios/onnxruntime.xcframework
         embed: false
+    # Wi‑Fi 同步：加入录音豆自己的热点（NEHotspotConfiguration），读当前 Wi‑Fi 名写日志（NEHotspotNetwork.fetchCurrent）。
+    # 自动签名（-allowProvisioningUpdates）会在 App ID 上打开这两项能力。见 App/Mobile/WifiHotspot.swift
+    entitlements:
+      path: Mobile/OpenBeanMobile.entitlements
+      properties:
+        com.apple.developer.networking.HotspotConfiguration: true
+        com.apple.developer.networking.wifi-info: true
     info:
       path: Mobile/Info.plist
       properties:
@@ -139,4 +146,4 @@ targets:
         # 大模型服务可以是局域网里的 http 地址（如另一台电脑上的本机模型）
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
-        NSLocalNetworkUsageDescription: OpenBean connects to the LLM service you set in Settings when it runs on your local network.
+        NSLocalNetworkUsageDescription: OpenBean connects to your recorder over its own Wi‑Fi to sync recordings faster, and to the LLM service you set in Settings when it runs on your local network.

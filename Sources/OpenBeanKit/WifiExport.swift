@@ -3,9 +3,14 @@
 import Foundation
 import Network
 
-public struct SoftAPEndpoint: CustomStringConvertible {
+public struct SoftAPEndpoint: CustomStringConvertible, Equatable, Sendable {
     public let ip: String
     public let port: Int
+
+    public init(ip: String, port: Int) {
+        self.ip = ip
+        self.port = port
+    }
     public var description: String { "\(ip):\(port)" }
 
     /// BLE 回包 1A/05：IP 在第 9–12 字节（倒序），端口在 13–14（小端）。
@@ -32,6 +37,8 @@ public final class WifiExport: NSObject, URLSessionDelegate, URLSessionWebSocket
     private var udpTimer: DispatchSourceTimer?
     public private(set) var rxBytes = 0
     public var log: (String) -> Void = { _ in }
+    /// `WifiTransport.open()` 试几次 WebSocket 握手
+    public var connectAttempts = 3
     /// 落盘下载（Downloader）装的处理函数；只在 `sync` 里改
     public var onPacket: ((Packet) -> Void)?
 
@@ -50,6 +57,9 @@ public final class WifiExport: NSObject, URLSessionDelegate, URLSessionWebSocket
         #else
         // iOS 只有 HTTP 一项常量；空字典就是不走任何代理
         cfg.connectionProxyDictionary = [:]
+        // 设备热点没有互联网：iPhone 可能仍把流量走蜂窝。禁止蜂窝，WebSocket 只能走 Wi‑Fi
+        //（设备地址在热点的子网里，路由本来就走 Wi‑Fi；这一条是保险）
+        cfg.allowsCellularAccess = false
         #endif
         cfg.timeoutIntervalForRequest = 12
         session = URLSession(configuration: cfg, delegate: self, delegateQueue: nil)
@@ -168,7 +178,22 @@ public final class WifiExport: NSObject, URLSessionDelegate, URLSessionWebSocket
     // MARK: 保活
 
     private func startKeepAlive() {
+        #if os(iOS)
+        // 和 WebSocket 一样只走 Wi‑Fi（不让系统把保活包送到蜂窝上）
+        let params = NWParameters.udp
+        params.requiredInterfaceType = .wifi
+        let conn = NWConnection(host: NWEndpoint.Host(endpoint.ip), port: 32003, using: params)
+        conn.stateUpdateHandler = { [weak self, weak conn] st in
+            switch st {
+            case .ready: self?.log("UDP 保活就绪（\(conn?.currentPath?.availableInterfaces.first?.name ?? "?")）")
+            case let .waiting(e): self?.log("UDP 保活在等：\(e)")
+            case let .failed(e): self?.log("UDP 保活失败：\(e)")
+            default: break
+            }
+        }
+        #else
         let conn = NWConnection(host: NWEndpoint.Host(endpoint.ip), port: 32003, using: .udp)
+        #endif
         conn.start(queue: q)
         udp = conn
         let timer = DispatchSource.makeTimerSource(queue: q)

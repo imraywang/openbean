@@ -8,6 +8,8 @@ import UIKit
 struct DeviceTab: View {
     let model: MobileModel
     @State private var confirmForget = false
+    /// 「用 Wi‑Fi 同步」的确认（true = 正在蓝牙同步，点了是把剩下的切过去）
+    @State private var confirmWifi: Bool?
 
     private var device: DeviceController { model.device }
     private var library: LibraryStore { model.library }
@@ -62,14 +64,21 @@ struct DeviceTab: View {
                 Section {
                     syncRow
                     Button("Sync") { Task { await library.syncAll() } }
-                        .disabled(!device.isReady || library.syncRunning || library.pendingDownloads().isEmpty)
+                        .disabled(!device.isReady || library.syncRunning || library.wifiRunning || library.pendingDownloads().isEmpty)
+                    Button("Sync over Wi‑Fi") { confirmWifi = false }
+                        .disabled(!device.isReady || library.syncRunning || library.wifiRunning || library.pendingDownloads().isEmpty)
                     Button("Refresh list") { Task { await library.refreshDeviceList() } }
                         .disabled(!device.isReady || device.activity != .idle)
                 } header: {
                     Text(DeviceWord.pick(heart, "On Heart bean", "On recorder"))
                 } footer: {
-                    if let s = library.pendingSyncSeconds {
-                        Text("About \(Self.minutes(s)) over Bluetooth. It keeps going in the background; if it's interrupted, it picks up where it stopped.")
+                    if let s = library.pendingSyncSeconds, !library.wifiRunning {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("About \(Self.minutes(s)) over Bluetooth. It keeps going in the background; if it's interrupted, it picks up where it stopped.")
+                            if let w = library.pendingWifiSeconds {
+                                Text("About \(Self.minutes(w)) over Wi‑Fi, with OpenBean kept open.")
+                            }
+                        }
                     }
                 }
                 Section {
@@ -99,6 +108,15 @@ struct DeviceTab: View {
             }
             .navigationTitle(DeviceWord.title(heart: heart))
             .refreshable { await device.refreshInfo() }
+            .alert("Sync over Wi‑Fi?", isPresented: Binding(get: { confirmWifi != nil }, set: { if !$0 { confirmWifi = nil } }),
+                   presenting: confirmWifi) { switching in
+                Button(switching ? "Switch to Wi‑Fi" : "Sync over Wi‑Fi") {
+                    Task { if switching { await library.switchToWifi() } else { await library.syncViaWifi(ids: library.pendingDownloads().map(\.id)) } }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: { _ in
+                Text(Self.wifiExplanation(seconds: library.pendingWifiSeconds ?? SyncPolicy.wifiOverhead, heart: heart))
+            }
             .confirmationDialog(DeviceWord.pick(heart, "Forget this Heart bean?", "Forget this recorder?"), isPresented: $confirmForget) {
                 Button("Forget", role: .destructive) { device.forget() }
             } message: {
@@ -122,12 +140,38 @@ struct DeviceTab: View {
                 }
                 Text(String(format: "%.1f KB/s", kbps)).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
             }
-        case .wifi, .paused:
-            // iOS 没有 Wi‑Fi 同步和语音输入：不会出现
+            wifiSuggestion
+        case let .wifi(msg):
+            Label(msg, systemImage: "wifi")
+        case .paused:
+            // iOS 没有语音输入：不会出现
             EmptyView()
         case let .failed(why):
             Text(why).foregroundStyle(.red).font(.caption)
         }
+    }
+
+    /// 蓝牙同步还要很久（WifiAdvice.suggestAfterIOS 以上、Wi‑Fi 至少快一倍）：提示可以把剩下的改用 Wi‑Fi
+    @ViewBuilder
+    private var wifiSuggestion: some View {
+        if let wifi = library.pendingWifiSeconds,
+           WifiAdvice.suggest(bluetoothSeconds: library.syncSecondsLeft, wifiSeconds: wifi) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("About \(Self.minutes(library.syncSecondsLeft ?? 0)) left over Bluetooth. Over Wi‑Fi the rest takes about \(Self.minutes(wifi)).")
+                    .font(.callout)
+                Button { confirmWifi = true } label: { Label("Switch to Wi‑Fi", systemImage: "wifi") }
+                    .buttonStyle(.bordered)
+            }
+            .padding(.vertical, 2)
+        }
+    }
+
+    /// 改用 Wi‑Fi 前说清楚：iPhone 的 Wi‑Fi 会暂时连到录音豆、大约多久、系统会问一次、要把 App 留在前台
+    static func wifiExplanation(seconds: Double, heart: Bool) -> String {
+        let t = minutes(seconds)
+        return heart
+            ? String(localized: "Your iPhone joins the Heart bean's own Wi‑Fi for about \(t), then goes back to your usual Wi‑Fi. iOS asks once to join the network. Meanwhile there's no internet over Wi‑Fi; mobile data may take over. Keep OpenBean open: if you leave it, what was received is kept and Bluetooth continues from there.")
+            : String(localized: "Your iPhone joins the recorder's own Wi‑Fi for about \(t), then goes back to your usual Wi‑Fi. iOS asks once to join the network. Meanwhile there's no internet over Wi‑Fi; mobile data may take over. Keep OpenBean open: if you leave it, what was received is kept and Bluetooth continues from there.")
     }
 
     private var stateText: String {

@@ -378,7 +378,7 @@ final class LibraryStore {
     /// 每一条边收边写进 `<id>/download.part`，收完校验（文件头 id、连续、结束包、片数）再原子换成 audio.ogg；
     /// 没下完的临时文件留着，下次接着用（收过的不再写）。下载期间不让 Mac 空闲睡眠。
     func syncAll(ids: [UInt32]? = nil) async {
-        guard case .idle = device.activity, !syncRunning else { return }
+        guard case .idle = device.activity, !syncRunning, !wifiRunning else { return }
         syncRunning = true
         lastFailure = nil
         defer {
@@ -657,7 +657,6 @@ final class LibraryStore {
 
     private var wifiSwitchRequested = false
 
-    #if os(macOS)
     /// 蓝牙预计要很久时可以改用 Wi‑Fi：正在下的停下（收过的留在临时文件里），剩下的经 Wi‑Fi 下
     func switchToWifi() async {
         let ids = pendingDownloads().map(\.id)
@@ -671,7 +670,12 @@ final class LibraryStore {
         }
         await syncViaWifi(ids: ids)
     }
-    #endif
+
+    /// 经 Wi‑Fi 下完还没下载的录音大约要多久（秒）；没有要下的返回 nil
+    var pendingWifiSeconds: Double? {
+        let p = pendingDownloads()
+        return p.isEmpty ? nil : WifiAdvice.estimate(durationsMs: p.map { Double($0.durationMs) }, bluetoothBytesPerSecond: bluetoothRate).wifi
+    }
 
     /// 录音豆上还没下载的录音（短的先下）
     func pendingDownloads(ids: [UInt32]? = nil) -> [Recording] {
@@ -942,42 +946,100 @@ final class LibraryStore {
 
     // MARK: Wi‑Fi 快速同步
 
-    #if os(macOS)
+    /// 正在经 Wi‑Fi 同步（加入热点到离开热点）：自动同步、手动蓝牙同步都不插进来
+    private(set) var wifiRunning = false
+    /// App 要停（iOS 切到后台、锁屏）：停在当前文件，已收的留着
+    @ObservationIgnored private var wifiCancel = false
 
-    /// 经录音豆的 Wi‑Fi 热点下载（Mac 会暂时断网约一分钟）。和蓝牙一样边收边落盘、按同样的规则校验完整性
+    /// 经录音豆的 Wi‑Fi 热点下载（流程两端共用：OpenBeanKit 的 WifiSyncFlow；加入 / 离开热点按平台：WifiPlatform）。
+    /// Mac 会暂时断网约一分钟；iPhone 的 Wi‑Fi 暂时连到录音豆。和蓝牙一样边收边落盘、按同样的规则校验完整性，
+    /// 每个文件下完马上保存；被打断时已收的片留在临时文件里，之后蓝牙或 Wi‑Fi 都从那里接着下
     func syncViaWifi(ids: [UInt32]) async {
+        guard !wifiRunning, !syncRunning else { return }
         let targets = recordings.filter { ids.contains($0.id) && $0.onDevice && !$0.downloaded }
         guard !targets.isEmpty, device.beginSync(), let s = device.session else { return }
+        // Mac 在这里查 Wi‑Fi 接口名（和拆分前一样，在请求开热点之前）
+        let joiner = WifiPlatform.makeJoiner()
+        wifiRunning = true
+        wifiCancel = false
         defer { device.endSync() }
         let tracked = settings.mode.heartMode
         if tracked { progress.begin(targets.map(\.id), options: runOptions) }
         defer { if tracked { progress.downloadEnded() } }
-        let activity = ProcessInfo.processInfo.beginActivity(options: [.idleSystemSleepDisabled, .userInitiated],
-                                                             reason: "Downloading recordings over Wi‑Fi")
-        defer { ProcessInfo.processInfo.endActivity(activity) }
+        let release = WifiPlatform.hold { [weak self] in self?.wifiCancel = true }
         Log.write("Wi‑Fi 同步 \(targets.count) 条")
-        do {
-            let done = try await WifiSync.run(session: s, link: device.link, files: targets.map {
-                RecordingFile(id: $0.id, endTime: nil, durationMs: $0.durationMs)
-            }, spool: { [weak self] id in
-                try await MainActor.run { () throws -> FrameSpool in
-                    guard let self else { throw CancellationError() }
-                    return try FrameSpool(url: self.partialURL(id), keepExisting: true)
-                }
-            }) { [weak self] msg in
-                await MainActor.run { self?.sync = .wifi(msg) }
+        let heart = settings.mode.callsDeviceHeartBean
+        let link = device.link
+        var flow = WifiSyncFlow(openHotspot: {
+            let ack = try await link.request(Cmd.openSoftAP(ssid: WifiSyncFlow.defaultSSID, password: WifiSyncFlow.defaultPassword),
+                                             timeout: 45, label: "Wi‑Fi") { $0.type == 0x1A && $0.id == 0x05 }
+            guard let ep = SoftAPEndpoint(frame: ack.raw) else { throw LinkError.missing("Wi‑Fi address") }
+            return ep
+        }, joiner: joiner, makeTransport: { ep in
+            let w = WifiExport(endpoint: ep, crypto: s.crypto)
+            w.connectAttempts = WifiPlatform.connectAttempts
+            w.log = { Log.write("Wi‑Fi: \($0)") }
+            return w
+        }, ssid: WifiSyncFlow.defaultSSID, password: WifiSyncFlow.defaultPassword)
+        flow.log = { Log.write("Wi‑Fi 同步：\($0)") }
+        let report = await flow.run(files: targets.map { RecordingFile(id: $0.id, endTime: nil, durationMs: $0.durationMs) },
+                                    spool: { [weak self] id in
+            try await MainActor.run { () throws -> FrameSpool in
+                guard let self else { throw CancellationError() }
+                return try FrameSpool(url: self.partialURL(id), keepExisting: true)
             }
-            for (id, result, spool) in done {
-                Log.write("Wi‑Fi 下载 \(id)：\(result.summary)")
-                _ = await finishDownload(result, spool: spool, id: id, via: "Wi‑Fi")
-            }
+        }, shouldCancel: { [weak self] in
+            await MainActor.run { self?.wifiCancel ?? true }
+        }, step: { [weak self] st in
+            await MainActor.run { self?.sync = .wifi(WifiPlatform.text(st, heart: heart)) }
+        }, fileDone: { [weak self] id, result, spool in
+            _ = await self?.finishDownload(result, spool: spool, id: id, via: "Wi‑Fi")
+        })
+        release()
+        wifiRunning = false
+        let leftAt = Date()
+        if let failure = report.failure {
+            Log.write("Wi‑Fi 同步没走完（停在 \(report.stage)）：\(failure)")
+            sync = .failed(WifiPlatform.failureText(failure, heart: heart))
+        } else {
             sync = .idle
             Task { await self.afterSyncHousekeeping() }
-        } catch {
-            sync = .failed("\(error)")
+        }
+        // 录音豆关了热点以后蓝牙会自己连回来（之后没下完的由自动同步经蓝牙续传）；记下用了多久
+        if report.endpoint != nil {
+            if WifiPlatform.waitsForBluetooth {
+                let shown = sync
+                if !syncRunning, report.failure == nil { sync = .wifi(WifiPlatform.text(.waitingForBluetooth, heart: heart)) }
+                await logBluetoothReturn(since: leftAt)
+                if case .wifi = sync, !syncRunning { sync = shown }
+                // 蓝牙可能在 Wi‑Fi 还没收完尾时就连回来了（那时自动同步看到「正在同步」没跑）：剩下的现在交给它
+                let left = pendingDownloads(ids: targets.map(\.id))
+                if !left.isEmpty, device.isReady {
+                    Log.write("Wi‑Fi 同步：还有 \(left.count) 条没下完，交给蓝牙自动同步（从临时文件接着下）")
+                    onListRefreshed()
+                }
+            } else {
+                Task { await self.logBluetoothReturn(since: leftAt) }
+            }
         }
     }
-    #endif
+
+    /// 等蓝牙连回来（最多 60 秒）并写日志
+    private func logBluetoothReturn(since t0: Date) async {
+        Log.write("Wi‑Fi 同步：等蓝牙重连")
+        // 刚离开热点时蓝牙多半还没断开（DeviceController 还没发现），先等它断开过
+        var sawDrop = !device.isReady
+        while Date().timeIntervalSince(t0) < 60 {
+            if !device.isReady { sawDrop = true }
+            if sawDrop, device.isReady {
+                Log.write(String(format: "Wi‑Fi 同步：蓝牙重连用了 %.1f 秒（从离开热点算）", Date().timeIntervalSince(t0)))
+                return
+            }
+            try? await Task.sleep(nanoseconds: 500_000_000)
+        }
+        Log.write(sawDrop ? "Wi‑Fi 同步：离开热点 60 秒蓝牙还没连回来（连接循环会接着重连）"
+                          : "Wi‑Fi 同步：离开热点 60 秒蓝牙一直显示已连接（没看到断开）")
+    }
 
     // MARK: 转写
 

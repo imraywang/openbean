@@ -81,6 +81,7 @@ struct HeartSyncSection: View {
                 if let left = library.syncSecondsLeft { s += " · " + String(localized: "about \(DeviceTab.minutes(left)) left") }
                 return s
             }
+            if case let .wifi(msg) = library.sync { return msg }
             if run.progress(.cleanUp).note == .deviceBusy { return SyncRunText.status(run.progress(.cleanUp)) }
             return SyncRunText.cleanUpSummary(run)
         case .transcribe:

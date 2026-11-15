@@ -32,6 +32,7 @@ final class MobileModel {
         if Flavor.isDemo {
             models.demoSet(.ready)
             device.demoApply(state: .ready, info: DemoData.info(), activity: .idle)
+            demoWifi()
             return
         }
         models.check()
@@ -103,6 +104,20 @@ final class MobileModel {
         }
     }
 
+    /// 截图用：启动参数 -demoSync bluetooth（蓝牙同步要很久，出现「改用 Wi‑Fi」提示）| wifi（Wi‑Fi 下载中）| firstSync（第一次同步的询问，带 Wi‑Fi 选项）
+    private func demoWifi() {
+        switch UserDefaults.standard.string(forKey: "demoSync") {
+        case "bluetooth":
+            library.demoSet(sync: .downloading(id: 0, done: 0, total: 4, fraction: 0.18, kbps: 35.6), secondsLeft: 2.6 * 3600)
+        case "wifi":
+            library.demoSet(sync: .wifi(WifiPlatform.text(.downloading(index: 1, count: 4, percent: 42), heart: settings.mode.callsDeviceHeartBean)))
+        case "firstSync":
+            MobileRouter.shared.firstSync = FirstSyncOffer(count: 6, audioSeconds: 9.5 * 3600, bluetoothSeconds: 2.6 * 3600, wifiSeconds: 4 * 60)
+        default:
+            break
+        }
+    }
+
     /// 录音豆页的「连接」：开始连接循环（之后每次启动自动连）
     func connect() {
         Flavor.defaults.set(true, forKey: Self.connectKey)
@@ -149,20 +164,28 @@ final class MobileModel {
             guard !pending.isEmpty else { return }
             if MobileRouter.shared.firstSync == nil {
                 let seconds = pending.reduce(0.0) { $0 + Double($1.durationMs) / 1000 }
-                Log.write("第一次同步：录音豆上有 \(pending.count) 条、\(Int(seconds)) 秒，先问用户")
-                MobileRouter.shared.firstSync = FirstSyncOffer(count: pending.count, audioSeconds: seconds)
+                let offer = FirstSyncOffer(count: pending.count, audioSeconds: seconds,
+                                           bluetoothSeconds: library.pendingSyncSeconds ?? 0, wifiSeconds: library.pendingWifiSeconds ?? 0)
+                Log.write("第一次同步：录音豆上有 \(pending.count) 条、\(Int(seconds)) 秒，先问用户"
+                          + "（预计蓝牙 \(Int(offer.bluetoothSeconds)) 秒、Wi‑Fi \(Int(offer.wifiSeconds)) 秒\(offer.offersWifi ? "，提供 Wi‑Fi" : "")）")
+                MobileRouter.shared.firstSync = offer
             }
             return
         }
         autoSync.listRefreshed()
     }
 
-    /// 用户对「第一次同步」的回答。同步：以后照常自动同步；先不：关掉自动同步（设置里能再打开，录音豆页能手动同步）
-    func answerFirstSync(syncNow: Bool) {
+    /// 用户对「第一次同步」的回答。同步：以后照常自动同步；先不：关掉自动同步（设置里能再打开，录音豆页能手动同步）。
+    /// 用 Wi‑Fi：这一批经 Wi‑Fi 下（App 在前台），以后照常经蓝牙自动同步；Wi‑Fi 没下完的由蓝牙接着下
+    func answerFirstSync(syncNow: Bool, wifi: Bool = false) {
         Flavor.defaults.set(true, forKey: Self.firstSyncAskedKey)
         MobileRouter.shared.firstSync = nil
-        Log.write("第一次同步：用户选了\(syncNow ? "现在同步" : "先不同步，自动同步关掉")")
-        if syncNow { autoSync.listRefreshed() } else { settings.autoSync = false }
+        Log.write("第一次同步：用户选了\(wifi ? "用 Wi‑Fi 同步" : syncNow ? "现在同步" : "先不同步，自动同步关掉")")
+        guard !Flavor.isDemo else { return }
+        if wifi {
+            let ids = library.pendingDownloads().map(\.id)
+            Task { await library.syncViaWifi(ids: ids) }
+        } else if syncNow { autoSync.listRefreshed() } else { settings.autoSync = false }
     }
 }
 
@@ -170,9 +193,14 @@ final class MobileModel {
 struct FirstSyncOffer: Equatable {
     let count: Int
     let audioSeconds: Double
-    /// 蓝牙传完大约要多久：实测约为实时的 4 倍
-    var transferMinutes: Int { max(1, Int((audioSeconds / 4 / 60).rounded(.up))) }
+    /// 经蓝牙 / Wi‑Fi 传完大约要多久（LibraryStore.pendingSyncSeconds / pendingWifiSeconds：记住的蓝牙速度、Wi‑Fi 实测速度加固定开销）
+    let bluetoothSeconds: Double
+    let wifiSeconds: Double
+    /// 量大（蓝牙要 10 分钟以上、Wi‑Fi 至少快一倍）时多给一个「用 Wi‑Fi 同步」
+    var offersWifi: Bool { WifiAdvice.suggest(bluetoothSeconds: bluetoothSeconds, wifiSeconds: wifiSeconds) }
     var audioText: String { Duration.seconds(audioSeconds).formatted(.units(allowed: [.hours, .minutes], width: .abbreviated)) }
+    var bluetoothText: String { DeviceTab.minutes(bluetoothSeconds) }
+    var wifiText: String { DeviceTab.minutes(wifiSeconds) }
 }
 
 @main
@@ -215,11 +243,20 @@ struct RootView: View {
             }
         }
         .alert("Sync the recordings on your recorder?", isPresented: Binding(get: { router.firstSync != nil }, set: { _ in }),
-               presenting: router.firstSync) { _ in
-            Button("Sync now") { model.answerFirstSync(syncNow: true) }
+               presenting: router.firstSync) { offer in
+            if offer.offersWifi {
+                Button("Sync over Wi‑Fi") { model.answerFirstSync(syncNow: true, wifi: true) }
+                Button("Sync over Bluetooth") { model.answerFirstSync(syncNow: true) }
+            } else {
+                Button("Sync now") { model.answerFirstSync(syncNow: true) }
+            }
             Button("Not now", role: .cancel) { model.answerFirstSync(syncNow: false) }
         } message: { offer in
-            Text("There are \(offer.count) recordings (\(offer.audioText)) on it. Over Bluetooth this takes about \(offer.transferMinutes) minutes and continues in the background. If you choose Not now, automatic sync is turned off; you can turn it on in Settings or sync from the recorder page.")
+            if offer.offersWifi {
+                Text("There are \(offer.count) recordings (\(offer.audioText)) on it. Over Bluetooth this takes about \(offer.bluetoothText) and continues in the background. Over Wi‑Fi it takes about \(offer.wifiText): your iPhone joins the recorder's own Wi‑Fi meanwhile (iOS asks once), and OpenBean needs to stay open. If you choose Not now, automatic sync is turned off; you can turn it on in Settings or sync from the recorder page.")
+            } else {
+                Text("There are \(offer.count) recordings (\(offer.audioText)) on it. Over Bluetooth this takes about \(offer.bluetoothText) and continues in the background. If you choose Not now, automatic sync is turned off; you can turn it on in Settings or sync from the recorder page.")
+            }
         }
     }
 }
