@@ -113,7 +113,9 @@ final class IOSHotspotJoiner: HotspotJoining, @unchecked Sendable {
     /// 等系统的「加入网络」弹窗和加入结果最多多久（用户要读弹窗）
     static let applyTimeout: Double = 90
     /// apply 成功后等 Wi‑Fi 接口拿到热点地址最多多久
-    static let addressTimeout: Double = 20
+    static let addressTimeout: Double = 12
+    /// 加入热点最多试几次
+    static let joinAttempts = 3
     /// 只走 Wi‑Fi 地连设备端口最多等多久（含「本地网络」权限弹窗）
     static let probeTimeout: Double = 60
 
@@ -122,43 +124,54 @@ final class IOSHotspotJoiner: HotspotJoining, @unchecked Sendable {
     func join(ssid: String, password: String, device: SoftAPEndpoint) async throws {
         let before = Self.wifiAddress()
         Log.write("Wi‑Fi 同步：加入热点前 Wi‑Fi 地址 \(before ?? "无")")
-        let config = NEHotspotConfiguration(ssid: ssid, passphrase: password, isWEP: false)
-        config.joinOnce = true
-        let t0 = Date()
-        do {
-            try await Self.withTimeout(Self.applyTimeout) {
-                try await NEHotspotConfigurationManager.shared.apply(config)
+        // 录音豆的热点刚起来时 iPhone 常常还扫不到（系统弹「无法加入网络」，接口却报成功）：最多试 3 次
+        var joined: String?
+        for attempt in 1...Self.joinAttempts {
+            let config = NEHotspotConfiguration(ssid: ssid, passphrase: password, isWEP: false)
+            config.joinOnce = true
+            let t0 = Date()
+            do {
+                try await Self.withTimeout(Self.applyTimeout) {
+                    try await NEHotspotConfigurationManager.shared.apply(config)
+                }
+                Log.write(String(format: "Wi‑Fi 同步：系统加入热点（第 %d 次）：成功（%.1f 秒）", attempt, Date().timeIntervalSince(t0)))
+            } catch let e as NSError where e.domain == NEHotspotConfigurationErrorDomain {
+                let code = NEHotspotConfigurationError(rawValue: e.code)
+                Log.write(String(format: "Wi‑Fi 同步：系统加入热点（第 %d 次）：错误 %d（%@，%.1f 秒）", attempt, e.code, e.localizedDescription, Date().timeIntervalSince(t0)))
+                switch code {
+                case .alreadyAssociated: break
+                case .userDenied: throw WifiSyncError.userDenied
+                case .applicationIsNotInForeground: throw WifiSyncError.cancelled
+                default:
+                    if attempt == Self.joinAttempts { throw WifiSyncError.joinFailed(e.localizedDescription) }
+                    try await Task.sleep(nanoseconds: 4_000_000_000)
+                    continue
+                }
+            } catch is TimeoutError {
+                Log.write(String(format: "Wi‑Fi 同步：系统加入热点 %.0f 秒没有结果", Self.applyTimeout))
+                throw WifiSyncError.joinFailed("timeout")
             }
-            Log.write(String(format: "Wi‑Fi 同步：系统加入热点：成功（%.1f 秒）", Date().timeIntervalSince(t0)))
-        } catch let e as NSError where e.domain == NEHotspotConfigurationErrorDomain {
-            let code = NEHotspotConfigurationError(rawValue: e.code)
-            Log.write(String(format: "Wi‑Fi 同步：系统加入热点：错误 %d（%@，%.1f 秒）", e.code, e.localizedDescription, Date().timeIntervalSince(t0)))
-            switch code {
-            case .alreadyAssociated: break
-            case .userDenied: throw WifiSyncError.userDenied
-            case .applicationIsNotInForeground: throw WifiSyncError.cancelled
-            default: throw WifiSyncError.joinFailed(e.localizedDescription)
-            }
-        } catch is TimeoutError {
-            Log.write(String(format: "Wi‑Fi 同步：系统加入热点 %.0f 秒没有结果", Self.applyTimeout))
-            throw WifiSyncError.joinFailed("timeout")
-        }
 
-        // apply 成功不等于连上了：等 Wi‑Fi 接口拿到和设备同网段的地址
-        let ta = Date()
-        var addr: String?
-        while Date().timeIntervalSince(ta) < Self.addressTimeout {
-            addr = Self.wifiAddress()
-            if let a = addr, Self.sameSubnet(a, device.ip) { break }
-            try await Task.sleep(nanoseconds: 500_000_000)
+            // apply 成功不等于连上了：等 Wi‑Fi 接口拿到和设备同网段的地址
+            let ta = Date()
+            var addr: String?
+            while Date().timeIntervalSince(ta) < Self.addressTimeout {
+                addr = Self.wifiAddress()
+                if let a = addr, Self.sameSubnet(a, device.ip) { break }
+                try await Task.sleep(nanoseconds: 500_000_000)
+            }
+            let current = await NEHotspotNetwork.fetchCurrent()
+            let ssidNow = current?.ssid ?? "（读不到）"
+            if let a = addr, Self.sameSubnet(a, device.ip) {
+                Log.write(String(format: "Wi‑Fi 同步：Wi‑Fi 地址 %@（%.1f 秒），当前网络 %@", a, Date().timeIntervalSince(ta), ssidNow))
+                joined = a
+                break
+            }
+            Log.write(String(format: "Wi‑Fi 同步：第 %d 次加入后 %.0f 秒内没拿到热点地址（Wi‑Fi 地址 %@，当前网络 %@）", attempt, Self.addressTimeout, addr ?? "无", ssidNow))
+            NEHotspotConfigurationManager.shared.removeConfiguration(forSSID: ssid)
+            if attempt < Self.joinAttempts { try await Task.sleep(nanoseconds: 4_000_000_000) }
         }
-        let current = await NEHotspotNetwork.fetchCurrent()
-        let ssidNow = current?.ssid ?? "（读不到）"
-        guard let a = addr, Self.sameSubnet(a, device.ip) else {
-            Log.write(String(format: "Wi‑Fi 同步：%.0f 秒内没拿到热点地址（Wi‑Fi 地址 %@，当前网络 %@）", Self.addressTimeout, addr ?? "无", ssidNow))
-            throw WifiSyncError.notOnHotspot
-        }
-        Log.write(String(format: "Wi‑Fi 同步：Wi‑Fi 地址 %@（%.1f 秒），当前网络 %@", a, Date().timeIntervalSince(ta), ssidNow))
+        guard joined != nil else { throw WifiSyncError.notOnHotspot }
         startMonitor()
         try await probe(device)
     }
