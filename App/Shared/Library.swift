@@ -975,9 +975,25 @@ final class LibraryStore {
         let heart = settings.mode.callsDeviceHeartBean
         let link = device.link
         var flow = WifiSyncFlow(openHotspot: {
-            let ack = try await link.request(Cmd.openSoftAP(ssid: WifiSyncFlow.defaultSSID, password: WifiSyncFlow.defaultPassword),
-                                             timeout: 45, label: "Wi‑Fi") { $0.type == 0x1A && $0.id == 0x05 }
-            guard let ep = SoftAPEndpoint(frame: ack.raw) else { throw LinkError.missing("Wi‑Fi address") }
+            let open = Cmd.openSoftAP(ssid: WifiSyncFlow.defaultSSID, password: WifiSyncFlow.defaultPassword)
+            let ack = try await link.request(open, timeout: 45, label: "Wi‑Fi") { $0.type == 0x1A && $0.id == 0x05 }
+            if let ep = SoftAPEndpoint(frame: ack.raw) { return ep }
+            // 回包里没有地址：真机上见过上一次 Wi‑Fi 没走完之后一直这样（热点多半还开着或卡在半路）。
+            // 记下原始回包，发一次「关热点」（1A/02）再开一次
+            let hex = { (b: [UInt8]) in b.map { String(format: "%02X", $0) }.joined(separator: " ") }
+            Log.write("Wi‑Fi 同步：开热点的回包里没有地址：\(hex(ack.raw))；先关热点再开一次")
+            do {
+                let closed = try await link.request(Cmd.closeSoftAP(), timeout: 8, label: "Wi‑Fi") { $0.type == 0x1A && $0.id == 0x02 }
+                Log.write("Wi‑Fi 同步：关热点的回包：\(hex(closed.raw))")
+            } catch {
+                Log.write("Wi‑Fi 同步：关热点没有回包：\(error)")
+            }
+            try await Task.sleep(nanoseconds: 3_000_000_000)
+            let again = try await link.request(open, timeout: 45, label: "Wi‑Fi") { $0.type == 0x1A && $0.id == 0x05 }
+            guard let ep = SoftAPEndpoint(frame: again.raw) else {
+                Log.write("Wi‑Fi 同步：再开一次的回包还是没有地址：\(hex(again.raw))")
+                throw LinkError.missing("Wi‑Fi address")
+            }
             return ep
         }, joiner: joiner, makeTransport: { ep in
             let w = WifiExport(endpoint: ep, crypto: s.crypto)
