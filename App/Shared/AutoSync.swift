@@ -76,7 +76,7 @@ final class AutoSync {
             return
         }
         // 触发了却没跑，写一行原因：排查时分得清是没触发、忙、还是没东西可下
-        if let busy = Self.busyReason(autoSync: settings.mode.autoSync, running: running, syncRunning: library.syncRunning,
+        if let busy = Self.busyReason(autoSync: settings.mode.autoSync, running: running, syncRunning: library.syncRunning || library.wifiRunning,
                                       ready: device.isReady, activity: device.activity) {
             Log.write("自动同步（\(reason)）：\(busy)，这次不同步")
             return
@@ -104,7 +104,7 @@ final class AutoSync {
             Log.write("自动同步（\(reason)）：没有要下载的录音")
             return
         }
-        if let busy = Self.busyReason(autoSync: true, running: false, syncRunning: library.syncRunning,
+        if let busy = Self.busyReason(autoSync: true, running: false, syncRunning: library.syncRunning || library.wifiRunning,
                                       ready: device.isReady, activity: device.activity) {
             Log.write("自动同步（\(reason)）：\(busy)，这次不同步")
             return

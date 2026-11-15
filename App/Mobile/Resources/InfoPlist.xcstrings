@@ -44,13 +44,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "OpenBean connects to the LLM service you set in Settings when it runs on your local network."
+            "value": "OpenBean connects to your recorder over its own Wi‑Fi to sync recordings faster, and to the LLM service you set in Settings when it runs on your local network."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "你在设置里填的大模型服务在局域网里时，OpenBean 要连接它来写摘要和日记。"
+            "value": "经 Wi‑Fi 同步时，OpenBean 要经录音豆自己的 Wi‑Fi 连接它来下载录音；你在设置里填的大模型服务在局域网里时，也要连接它来写摘要和日记。"
           }
         }
       }
