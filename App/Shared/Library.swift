@@ -968,6 +968,10 @@ final class LibraryStore {
         defer { if tracked { progress.downloadEnded() } }
         let release = WifiPlatform.hold { [weak self] in self?.wifiCancel = true }
         Log.write("Wi‑Fi 同步 \(targets.count) 条")
+        #if os(iOS)
+        device.pauseReconnect()
+        defer { device.resumeReconnect() }
+        #endif
         let heart = settings.mode.callsDeviceHeartBean
         let link = device.link
         var flow = WifiSyncFlow(openHotspot: {
@@ -997,6 +1001,9 @@ final class LibraryStore {
         })
         release()
         wifiRunning = false
+        #if os(iOS)
+        device.resumeReconnect()
+        #endif
         let leftAt = Date()
         if let failure = report.failure {
             Log.write("Wi‑Fi 同步没走完（停在 \(report.stage)）：\(failure)")

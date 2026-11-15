@@ -106,16 +106,33 @@ final class DeviceController {
             session = nil
             return
         }
-        Log.write("连接断开，准备重连")
+        Log.write(holdReconnect ? "连接断开（Wi‑Fi 传输中，先不重连）" : "连接断开，准备重连")
         if session != nil { Log.write("battery event=disconnect recorder=\(Self.field(battery))") }
         session = nil
         state = .searching
         activity = .idle
         loop?.cancel()
+        if holdReconnect { loop = nil; return }
         loop = Task {
             try? await Task.sleep(nanoseconds: 2_000_000_000)
             await connectLoop()
         }
+    }
+
+    /// Wi‑Fi 传输期间先不重连蓝牙（iOS）：录音豆开热点后蓝牙会断，这时连回去会重新握手、换会话密钥，
+    /// 真机上看到的结果是热点加入不了。传输收尾后调 `resumeReconnect()`。Mac 不用这个开关。
+    private(set) var holdReconnect = false
+
+    func pauseReconnect() {
+        holdReconnect = true
+    }
+
+    func resumeReconnect() {
+        guard holdReconnect else { return }
+        holdReconnect = false
+        guard session == nil, loop == nil else { return }
+        Log.write("Wi‑Fi 传输结束，重连蓝牙")
+        loop = Task { await connectLoop() }
     }
 
     private func connectLoop() async {
