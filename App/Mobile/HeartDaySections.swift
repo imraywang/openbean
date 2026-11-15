@@ -260,6 +260,11 @@ struct DiarySections: View {
                 } else if file?.status == .brief {
                     Text("Too little was said on this day for a diary; the conversations are listed below.")
                         .foregroundStyle(.secondary)
+                } else if let p = diaryService.problem(day) {
+                    // 没写成：说清楚原因和接下来会怎样，能手动重试
+                    Label(Self.problemText(p), systemImage: "exclamationmark.triangle")
+                        .foregroundStyle(.orange)
+                    Button(p.kind == .unreachable ? "Write the diary for this day" : "Try again now") { diaryService.requestDay(day) }
                 } else if !conversations.isEmpty {
                     Text("No diary for this day yet.").foregroundStyle(.secondary)
                     Button("Write the diary for this day") { diaryService.requestDay(day) }
@@ -267,6 +272,21 @@ struct DiarySections: View {
             }
             // 没有日记时，待办来自各段的段摘要（同一条录音切出的几段可能列了同一条，只留一次）
             todoSection(Self.segmentTodos(conversations))
+        }
+    }
+
+    /// 日记没写成的原因（心力模式页）
+    static func problemText(_ p: DiaryService.DayProblem) -> String {
+        let why = p.reason == "truncated" ? String(localized: "the model's reply was cut off")
+            : p.reason == "refused" ? String(localized: "the model declined to summarise this text")
+            : String(localized: "the model's reply couldn't be used")
+        switch p.kind {
+        case .unreachable:
+            return String(localized: "The diary wasn't written: the model service couldn't be reached. It will be tried again after the next sync.")
+        case let .retrying(at):
+            return String(localized: "The diary wasn't written: \(why). Trying again automatically after \(at.formatted(date: .omitted, time: .shortened)).")
+        case .gaveUp:
+            return String(localized: "The diary wasn't written: \(why), \(p.failures) times. OpenBean won't try again on its own until this day's recordings change.")
         }
     }
 

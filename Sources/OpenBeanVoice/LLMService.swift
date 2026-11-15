@@ -7,6 +7,31 @@ public struct LLMService: Sendable {
     public let endpoint: URL
     public let apiKey: String?
     public let model: String
+    /// 请求的方言：预置的云端服务各有一两个参数要改（见 Dialect）；Mac 上和自定义地址都是 standard，请求和以前一样
+    public var dialect: Dialect = .standard
+
+    /// 各家在 OpenAI 兼容接口上的差别（只在选了预置服务时用）
+    public enum Dialect: String, Sendable, Equatable {
+        case standard
+        /// DeepSeek：deepseek-flash 默认开思考（effort high），思考的输出也算在 max_tokens 里，整理用不着，
+        /// 发 `thinking: {"type": "disabled"}` 关掉（api-docs.deepseek.com/guides/thinking_mode）
+        case deepseek
+        /// OpenAI：新模型默认推理（gpt-6-luna 默认 medium），推理也算在输出上限里；max_tokens 已弃用，改发
+        /// max_completion_tokens；发 reasoning_effort = none 关掉推理（关掉后才能带 temperature）
+        case openai
+
+        /// 改请求体
+        func apply(_ body: inout [String: Any]) {
+            switch self {
+            case .standard: break
+            case .deepseek:
+                body["thinking"] = ["type": "disabled"]
+            case .openai:
+                if let m = body.removeValue(forKey: "max_tokens") { body["max_completion_tokens"] = m }
+                body["reasoning_effort"] = "none"
+            }
+        }
+    }
 
     /// - Parameters:
     ///   - endpoint: 服务的根地址，如 llama-server 的 `http://127.0.0.1:8092`，带不带 `/v1` 都行
@@ -67,6 +92,12 @@ public struct LLMService: Sendable {
     /// 发一次对话补全，返回模型的原始回复（不做任何清理）
     public func chat(system: String, user: String, maxTokens: Int, temperature: Double = 0,
                      extra: [String: Any] = [:], session: URLSession) async throws -> String {
+        try await chatReply(system: system, user: user, maxTokens: maxTokens, temperature: temperature, extra: extra, session: session).text
+    }
+
+    /// 同 chat，另外带回结束原因、推理字段的长度和用量（诊断用；正文照原样）
+    public func chatReply(system: String, user: String, maxTokens: Int, temperature: Double = 0,
+                          extra: [String: Any] = [:], session: URLSession) async throws -> LLMReply {
         var body: [String: Any] = [
             "messages": [
                 ["role": "system", "content": system],
@@ -75,6 +106,7 @@ public struct LLMService: Sendable {
             "model": model, "temperature": temperature, "max_tokens": maxTokens,
         ]
         for (k, v) in extra { body[k] = v }
+        dialect.apply(&body)
         var req = URLRequest(url: Self.url(endpoint, "chat/completions"))
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -83,11 +115,26 @@ public struct LLMService: Sendable {
         let (d, r) = try await session.data(for: req)
         let code = (r as? HTTPURLResponse)?.statusCode ?? 0
         guard code == 200 else { throw Failure.http(code) }
+        guard let reply = Self.reply(d, maxTokens: maxTokens) else { throw Failure.badResponse }
+        return reply
+    }
+
+    /// 解析补全的回复。content 为 null（推理把额度用光时有的服务这样回）算空正文，不算坏回复
+    static func reply(_ d: Data, maxTokens: Int) -> LLMReply? {
         guard let obj = try? JSONSerialization.jsonObject(with: d) as? [String: Any],
               let choice = (obj["choices"] as? [[String: Any]])?.first,
-              let msg = choice["message"] as? [String: Any],
-              let text = msg["content"] as? String else { throw Failure.badResponse }
-        return text
+              let msg = choice["message"] as? [String: Any] else { return nil }
+        let text: String
+        if let s = msg["content"] as? String { text = s }
+        else if let parts = msg["content"] as? [[String: Any]] { text = parts.compactMap { $0["text"] as? String }.joined() }
+        else if msg["content"] is NSNull || msg["content"] == nil, msg["reasoning_content"] != nil || msg["reasoning"] != nil { text = "" }
+        else { return nil }
+        let reasoning = (msg["reasoning_content"] as? String) ?? (msg["reasoning"] as? String) ?? ""
+        let usage = obj["usage"] as? [String: Any]
+        let details = usage?["completion_tokens_details"] as? [String: Any]
+        return LLMReply(text: text, finishReason: choice["finish_reason"] as? String, reasoningChars: reasoning.count,
+                        completionTokens: int(usage?["completion_tokens"]), reasoningTokens: int(details?["reasoning_tokens"]),
+                        maxTokens: maxTokens)
     }
 
     public enum Status: Equatable, Sendable {

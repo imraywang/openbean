@@ -13,6 +13,8 @@ import OpenBeanVoice
 ///   没变就不重算日记，所以过去的日子不会反复调用大模型。什么时候算：一条录音转写完 / 重新摘要 / 词表改了字之后，
 ///   算它涉及的那几天；App 启动和打开开关时算今天和昨天；「今天」页可以手动算某一天。
 /// - 失败（服务没开、超时、回复不可用）：已经写好的段摘要留着（每段是完整的），当天日记不写半成品，写日志，下次再试。
+///   「回复不可用」按 RetryLedger 退避（10 分钟、1 小时），同一份输入失败 3 次就不再自动试：那一段跳过（日记用其余的段写），
+///   那一天的日记标成没写成，等内容变了或用户手动重试。服务不通不算失败次数。
 @MainActor @Observable
 final class DiaryService {
     @ObservationIgnored weak var notes: NoteService?
@@ -23,6 +25,49 @@ final class DiaryService {
     private(set) var working: Set<String> = []
     @ObservationIgnored private var cache: [String: DayFile] = [:]
     @ObservationIgnored private var missing: Set<String> = []
+    /// 日记没写成的天 → 原因（心力模式页显示，能手动重试）
+    private(set) var problems: [String: DayProblem] = [:]
+    /// 自动重试的退避记录（存在录音库里，重启也记得）
+    @ObservationIgnored private lazy var ledger: RetryLedger = {
+        var l = (try? Data(contentsOf: Self.ledgerURL)).flatMap { try? JSONDecoder().decode(RetryLedger.self, from: $0) } ?? RetryLedger()
+        l.prune()
+        return l
+    }()
+    private static var ledgerURL: URL { AppPaths.library.appendingPathComponent("llm-retry.json") }
+
+    private func saveLedger() {
+        if let d = try? JSONEncoder().encode(ledger) { try? d.write(to: Self.ledgerURL, options: .atomic) }
+    }
+
+    /// 某一天的日记为什么没写成
+    struct DayProblem: Equatable {
+        enum Kind: Equatable {
+            /// 模型的回复不能用，等一会儿自动再试
+            case retrying(at: Date)
+            /// 试了几次都不行，不再自动试
+            case gaveUp
+            /// 服务不通（下次同步再试）
+            case unreachable
+        }
+        var kind: Kind
+        /// 失败次数
+        var failures: Int
+        /// RetryLedger 里的原因（unusable / truncated / refused）
+        var reason: String
+    }
+
+    func problem(_ day: Date) -> DayProblem? { problems[key(day)] }
+
+    private static func problem(_ st: RetryLedger.State) -> DayProblem? {
+        switch st {
+        case .allowed: return nil
+        case let .waiting(until, n, why): return DayProblem(kind: .retrying(at: until), failures: n, reason: why)
+        case let .gaveUp(n, why): return DayProblem(kind: .gaveUp, failures: n, reason: why)
+        }
+    }
+
+    private static func segKey(_ id: UInt32, _ index: Int) -> String { "seg:\(id)#\(index)" }
+    private static func dayKey(_ key: String) -> String { "day:\(key)" }
 
     init(settings: Settings) {
         self.settings = settings
@@ -53,10 +98,28 @@ final class DiaryService {
     @discardableResult
     func summarizeConversations(_ id: UInt32, force: Bool) async -> Bool {
         do { try await summarize(id, force: force); return true } catch {
-            Log.write("段摘要 \(id) 没写完：\(error)，下次再试")
+            if let deferred = error as? Deferred {
+                Log.write("段摘要 \(id)：上次的回复不能用，\(deferred.text)")
+            } else {
+                Log.write("段摘要 \(id) 没写完：\(error)，下次再试")
+            }
             return false
         }
     }
+
+    /// 段摘要在退避中，这次没有发请求
+    private struct Deferred: Error {
+        let state: RetryLedger.State
+        var text: String {
+            if case let .waiting(until, n, _) = state {
+                return "已失败 \(n) 次，\(until.formatted(date: .omitted, time: .shortened)) 之后再自动试"
+            }
+            return "不再自动试"
+        }
+    }
+
+    /// 最近一次段摘要没写完的退避状态（日记那一层用来给出原因）
+    @ObservationIgnored private var lastSegmentState: RetryLedger.State = .allowed
 
     private func summarize(_ id: UInt32, force: Bool) async throws {
         guard let library, let notes, let r = library.recordings.first(where: { $0.id == id }), r.transcribed, !r.isDictation else { return }
@@ -69,14 +132,41 @@ final class DiaryService {
         let t0 = Date()
         var calls = 0, dropped = 0
         let spans = segs.map { (start: $0.start, end: $0.end) }
+        lastSegmentState = .allowed
         for c in todo where c.to <= segs.count {
             // 用户在这段里做了重点标记的句子：送给模型的转写里注明（下标相对这段）
             // 录音豆在录时用语音输入说的句子（Conversation.voiceTyping）不送给模型
             let spoken = c.spokenLines
             guard !spoken.isEmpty else { continue }
+            let lk = Self.segKey(id, c.index)
+            if force { ledger.reset(lk) }
+            switch ledger.state(lk, signature: c.hash) {
+            case .allowed: break
+            case .gaveUp:
+                // 试够了：这段跳过，日记用其余的段写；内容变了或手动重试时再来
+                lastSegmentState = ledger.state(lk, signature: c.hash)
+                Log.write("段摘要 \(id)#\(c.index)：回复不能用已到 \(RetryLedger.maxFailures) 次，跳过这段")
+                continue
+            case let st:
+                lastSegmentState = st
+                throw Deferred(state: st)
+            }
             let markedLines = Set(c.marks.compactMap { MarkPlacement.line(for: $0, spans: spans) })
             let marked = Set(spoken.enumerated().filter { markedLines.contains($0.element) }.map(\.offset))
-            let res = try await summarizer.summarize(spoken.map { TimedLine(start: segs[$0].start, text: segs[$0].text) }, marked: marked)
+            let res: ConversationSummarizer.Result
+            do {
+                res = try await summarizer.summarize(spoken.map { TimedLine(start: segs[$0].start, text: segs[$0].text) }, marked: marked)
+            } catch {
+                if RetryLedger.counts(error) {
+                    ledger.failed(lk, signature: c.hash, reason: RetryLedger.reason(error))
+                    saveLedger()
+                    lastSegmentState = ledger.state(lk, signature: c.hash)
+                } else {
+                    lastSegmentState = .allowed
+                }
+                throw error
+            }
+            if ledger.entries[lk] != nil { ledger.succeeded(lk); saveLedger() }
             calls += res.calls
             dropped += res.droppedNames
             library.conversations.setSummary(id, index: c.index, hash: c.hash, kind: res.kind, summary: res.summary,
@@ -113,9 +203,16 @@ final class DiaryService {
         return .written
     }
 
-    /// 没写成时分清是服务不通还是别的原因
-    private func failure() async -> SyncRun.DiaryResult {
-        await notes?.serviceReachable() == true ? .failed : .serviceUnavailable
+    /// 没写成时分清是服务不通还是别的原因，并记下这天的问题（心力模式页显示）
+    private func failure(_ key: String, state: RetryLedger.State? = nil) async -> SyncRun.DiaryResult {
+        let reachable = await notes?.serviceReachable() == true
+        if !reachable {
+            problems[key] = DayProblem(kind: .unreachable, failures: 0, reason: "unreachable")
+            return .serviceUnavailable
+        }
+        let st = state ?? lastSegmentState
+        problems[key] = Self.problem(st) ?? DayProblem(kind: .retrying(at: Date()), failures: 0, reason: "unusable")
+        return .failed
     }
 
     /// 启动、打开开关时：今天和昨天（排进队列；先等切段补算跑完）
@@ -132,6 +229,11 @@ final class DiaryService {
     /// 「今天」页手动：重算某一天（排进队列）
     func requestDay(_ day: Date) {
         let k = key(day)
+        // 手动重试：清掉这天和这天各段的退避记录，马上再试一次
+        ledger.reset(Self.dayKey(k))
+        for (r, c) in gather(boundary.interval(of: day)) { ledger.reset(Self.segKey(r.id, c.index)) }
+        saveLedger()
+        problems[k] = nil
         notes?.enqueue { [weak self] in await self?.refreshDay(k, force: true) }
     }
 
@@ -192,7 +294,7 @@ final class DiaryService {
         for id in Set(included.filter { $0.1.kind == nil }.map(\.0.id)).sorted() {
             guard await summarizeConversations(id, force: false) else {
                 Log.write("日记 \(key)：段摘要没写完，下次再试")
-                return await failure()
+                return await failure(key)
             }
         }
         included = gather(boundary.interval(of: day0))
@@ -203,10 +305,21 @@ final class DiaryService {
         } + ["diary-v1", "start=\(settings.dayStartHour)", "tz=\(TimeZone.current.identifier)"])
         if !force, let old = DayFile.read(url), old.version == DayFile.currentVersion, old.signature == sig {
             if notes.notesFolder != nil, noteRecord(key) == nil { writeNote(old) }
+            problems[key] = nil
             return .written
+        }
+        let dk = Self.dayKey(key)
+        if force { ledger.reset(dk) }
+        let st = ledger.state(dk, signature: sig)
+        if st != .allowed {
+            // 同一份输入上次的回复不能用：退避中或已放弃，这次不发请求
+            Log.write("日记 \(key)：上次的回复不能用，\(Deferred(state: st).text)")
+            problems[key] = Self.problem(st)
+            return .failed
         }
         guard let backend = notes.backend, await backend.check() == .ok else {
             Log.write("日记 \(key)：服务不可用，下次再试")
+            problems[key] = DayProblem(kind: .unreachable, failures: 0, reason: "unreachable")
             return .serviceUnavailable
         }
         working.insert(key)
@@ -234,8 +347,15 @@ final class DiaryService {
             out = try await DiaryWriter(await notes.summarizer(backend)).write(inputs, languageSample: sample)
         } catch {
             Log.write("日记 \(key) 没写成：\(error)，下次再试")
-            return await failure()
+            if RetryLedger.counts(error) {
+                ledger.failed(dk, signature: sig, reason: RetryLedger.reason(error))
+                saveLedger()
+                return await failure(key, state: ledger.state(dk, signature: sig))
+            }
+            return await failure(key)
         }
+        if ledger.entries[dk] != nil { ledger.succeeded(dk); saveLedger() }
+        problems[key] = nil
         let secs = Date().timeIntervalSince(t0)
         let day = DayFile(date: key, timeZone: TimeZone.current.identifier, dayStartHour: settings.dayStartHour, signature: sig,
                           status: out.status,

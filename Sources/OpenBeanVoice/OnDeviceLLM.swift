@@ -90,12 +90,13 @@ public struct OnDeviceLLM: LLMBackend {
     struct Channel: LLMChannel {
         let timeout: TimeInterval
 
-        func complete(_ r: LLMRequest) async throws -> String {
+        func complete(_ r: LLMRequest) async throws -> LLMReply {
             #if canImport(FoundationModels)
             if #available(iOS 26.0, macOS 26.0, visionOS 26.0, *) {
                 let a = OnDeviceLLM.availability
                 guard a.isAvailable else { throw LLMBackendError.unavailable(a.rawValue) }
-                return try await withTimeout(timeout) { try await FM.run(r) }
+                let text = try await withTimeout(timeout) { try await FM.run(r) }
+                return LLMReply(text: text, maxTokens: r.maxTokens)
             }
             #endif
             throw LLMBackendError.unavailable(OnDeviceAvailability.unsupportedOS.rawValue)

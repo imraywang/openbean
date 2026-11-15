@@ -92,8 +92,8 @@ public struct DiaryWriter: Sendable {
     """
 
     public func write(_ inputs: [Input], languageSample: String) async throws -> Output {
-        do { return try await writeOnce(inputs, languageSample: languageSample) } catch LLMBackendError.contextExceeded {
-            guard let smaller = base.shrunk() else { throw LLMBackendError.contextExceeded }
+        do { return try await writeOnce(inputs, languageSample: languageSample) } catch let e as LLMBackendError where e.shrinkable {
+            guard let smaller = base.shrunk() else { throw e }
             return try await DiaryWriter(smaller, timeZone: timeZone).write(inputs, languageSample: languageSample)
         }
     }
@@ -110,11 +110,11 @@ public struct DiaryWriter: Sendable {
         let session = base.backend.open(timeout: base.timeout)
         var calls = 0
         func ask(_ system: String, _ user: String, shape: ReplyShape) async throws -> [String: Any] {
-            for _ in 0..<2 {
-                calls += 1
-                if let o = JSONReply.object(try await chat(system, user, session, shape)) { return o }
-            }
-            throw Summarizer.Failure.unusable
+            // 回复不可用时再试一次、截断时加大输出上限（LLMAsk）
+            let (o, n) = try await LLMAsk(channel: session, maxOutput: base.maxOutput, label: "日记")
+                .run(system, user, shape: shape, parse: JSONReply.object)
+            calls += n
+            return o
         }
 
         // 一次放不下就分组，各组各写一份，再把各组的概述合成一句话
@@ -164,10 +164,6 @@ public struct DiaryWriter: Sendable {
                           todos: Array(cleanTodos.prefix(Self.maxTodos)).map { Self.fix($0, c) },
                           people: Array(people.prefix(Self.maxPeople)), things: Array(things.prefix(Self.maxThings)))
         return Output(status: .diary, diary: diary, calls: calls, dropped: dropped, duplicates: duplicates, droppedOwners: droppedOwners)
-    }
-
-    private func chat(_ system: String, _ user: String, _ session: any LLMChannel, _ shape: ReplyShape) async throws -> String {
-        try await session.complete(LLMRequest(system: system, user: user, maxTokens: base.maxOutput, temperature: 0.2, shape: shape))
     }
 
     /// 回复的结构（端侧模型做结构化生成用；OpenAI 兼容服务不发）

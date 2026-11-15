@@ -34,8 +34,42 @@ public protocol LLMBackend: Sendable {
 
 /// 一次整理里发请求用的通道
 public protocol LLMChannel: Sendable {
-    /// 发一次请求，返回模型的原始回复（JSON 文本，调用方自己解析）
-    func complete(_ request: LLMRequest) async throws -> String
+    /// 发一次请求，返回模型的原始回复（JSON 文本，调用方自己解析）和诊断用的元数据
+    func complete(_ request: LLMRequest) async throws -> LLMReply
+}
+
+/// 模型的一次回复：正文，加上回复不能用时写日志用的元数据（不含正文以外的内容）
+public struct LLMReply: Sendable, Equatable {
+    public var text: String
+    /// OpenAI 兼容接口的 finish_reason（stop / length / content_filter…）；端侧模型没有
+    public var finishReason: String?
+    /// 推理内容（reasoning_content / reasoning）的字数；没有推理时 0
+    public var reasoningChars: Int
+    /// 用量里的输出 token 和其中推理的 token（服务给了才有）
+    public var completionTokens: Int?
+    public var reasoningTokens: Int?
+    /// 这次请求的输出上限
+    public var maxTokens: Int?
+
+    public init(text: String, finishReason: String? = nil, reasoningChars: Int = 0, completionTokens: Int? = nil,
+                reasoningTokens: Int? = nil, maxTokens: Int? = nil) {
+        self.text = text
+        self.finishReason = finishReason
+        self.reasoningChars = reasoningChars
+        self.completionTokens = completionTokens
+        self.reasoningTokens = reasoningTokens
+        self.maxTokens = maxTokens
+    }
+
+    /// 输出被上限截断了（服务明说 length，或输出 token 顶到了上限）
+    public var truncated: Bool {
+        if finishReason == "length" { return true }
+        if let c = completionTokens, let m = maxTokens, m > 0, c >= m { return true }
+        return false
+    }
+
+    /// 推理占用了输出额度
+    public var reasoned: Bool { reasoningChars > 0 || (reasoningTokens ?? 0) > 0 }
 }
 
 /// 一次请求
@@ -88,6 +122,8 @@ public enum LLMBackendError: Error, Equatable, LocalizedError, CustomStringConve
     case unavailable(String)
     /// 请求太频繁（端侧模型在后台时也会限流）
     case rateLimited
+    /// 输出上限加到最大也写不完（推理太长、或这一块要写的太多）：调用方缩小分块再试
+    case outputTruncated
 
     public var description: String {
         switch self {
@@ -96,10 +132,14 @@ public enum LLMBackendError: Error, Equatable, LocalizedError, CustomStringConve
         case .unsupportedLanguage: return "the model does not support this language"
         case let .unavailable(why): return "the model is not available (\(why))"
         case .rateLimited: return "the model is busy; try again later"
+        case .outputTruncated: return "the model's reply was cut off at the output limit"
         }
     }
 
     public var errorDescription: String? { description }
+
+    /// 缩小分块再来能解决的
+    public var shrinkable: Bool { self == .contextExceeded || self == .outputTruncated }
 }
 
 // MARK: OpenAI 兼容服务
@@ -120,10 +160,10 @@ extension LLMService: LLMBackend {
         let service: LLMService
         let session: URLSession
 
-        func complete(_ r: LLMRequest) async throws -> String {
+        func complete(_ r: LLMRequest) async throws -> LLMReply {
             // 本机服务（llama-server 等）关掉思考模式，免得思考把输出额度用光；云端不认识这个参数，不发
             let extra: [String: Any] = service.isLocal ? ["chat_template_kwargs": ["enable_thinking": false]] : [:]
-            return try await service.chat(system: r.system, user: r.user, maxTokens: r.maxTokens, temperature: r.temperature,
+            return try await service.chatReply(system: r.system, user: r.user, maxTokens: r.maxTokens, temperature: r.temperature,
                                           extra: extra, session: session)
         }
     }

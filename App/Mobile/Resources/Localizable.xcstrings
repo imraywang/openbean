@@ -3892,6 +3892,36 @@
         }
       }
     },
+    "The diary wasn't written: %@, %lld times. OpenBean won't try again on its own until this day's recordings change.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "日记没写成：%@，已经 %lld 次。这天的录音有变化之前，OpenBean 不会再自动重试。"
+          }
+        }
+      }
+    },
+    "The diary wasn't written: %@. Trying again automatically after %@.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "日记没写成：%@。%@ 之后会自动再试。"
+          }
+        }
+      }
+    },
+    "The diary wasn't written: the model service couldn't be reached. It will be tried again after the next sync.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "日记没写成：连不上大模型服务。下次同步后会再试。"
+          }
+        }
+      }
+    },
     "The key is kept in this iPhone's keychain. Model names change over time; Test connection checks the name with the service.": {
       "localizations": {
         "zh-Hans": {
@@ -4502,6 +4532,16 @@
         }
       }
     },
+    "Try again now": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "现在重试"
+          }
+        }
+      }
+    },
     "Try another source or status.": {
       "localizations": {
         "zh-Hans": {
@@ -4888,6 +4928,36 @@
           "stringUnit": {
             "state": "translated",
             "value": "从%@算起"
+          }
+        }
+      }
+    },
+    "the model declined to summarise this text": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "模型拒绝总结这段内容"
+          }
+        }
+      }
+    },
+    "the model's reply couldn't be used": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "模型的回复不能用"
+          }
+        }
+      }
+    },
+    "the model's reply was cut off": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "模型的回复被截断了"
           }
         }
       }

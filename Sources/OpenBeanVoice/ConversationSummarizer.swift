@@ -112,8 +112,8 @@ public struct ConversationSummarizer: Sendable {
 
     /// `marked`：用户在录音豆上做了重点标记的句子（`lines` 的下标，见 MarkPlacement）
     public func summarize(_ lines: [TimedLine], marked: Set<Int> = []) async throws -> Result {
-        do { return try await summarizeOnce(lines, marked: marked) } catch LLMBackendError.contextExceeded {
-            guard let smaller = base.shrunk() else { throw LLMBackendError.contextExceeded }
+        do { return try await summarizeOnce(lines, marked: marked) } catch let e as LLMBackendError where e.shrinkable {
+            guard let smaller = base.shrunk() else { throw e }
             return try await ConversationSummarizer(smaller).summarize(lines, marked: marked)
         }
     }
@@ -129,12 +129,11 @@ public struct ConversationSummarizer: Sendable {
         let session = base.backend.open(timeout: base.timeout)
         var calls = 0
         func ask(_ system: String, _ user: String) async throws -> Parsed {
-            // 回复不可用时再试一次；网络错误直接抛
-            calls += 1
-            if let p = try Self.parse(await chat(system, user, session)) { return p }
-            calls += 1
-            if let p = try Self.parse(await chat(system, user, session)) { return p }
-            throw Summarizer.Failure.unusable
+            // 回复不可用时再试一次、截断时加大输出上限（LLMAsk）；网络错误直接抛
+            let (p, n) = try await LLMAsk(channel: session, maxOutput: base.maxOutput, label: "段摘要")
+                .run(system, user, shape: Self.shape, parse: Self.parse)
+            calls += n
+            return p
         }
 
         var merged: Parsed
@@ -165,10 +164,6 @@ public struct ConversationSummarizer: Sendable {
             merged.things = Self.unique(parts.flatMap(\.things))
         }
         return finish(merged, transcript: text, calls: calls)
-    }
-
-    private func chat(_ system: String, _ user: String, _ session: any LLMChannel) async throws -> String {
-        try await session.complete(LLMRequest(system: system, user: user, maxTokens: base.maxOutput, temperature: 0.2, shape: Self.shape))
     }
 
     /// 回复的结构（端侧模型做结构化生成用；OpenAI 兼容服务不发）。上限比代码里的封顶宽一点，收尾时再封顶
@@ -285,7 +280,8 @@ enum JSONReply {
             .replacingOccurrences(of: "```", with: "")
         guard let a = text.firstIndex(of: "{"), let b = text.lastIndex(of: "}"), a < b,
               let d = String(text[a...b]).data(using: .utf8) else { return nil }
-        return (try? JSONSerialization.jsonObject(with: d)) as? [String: Any]
+        // 先按原来的办法；不行（前后有说明文字、多了逗号）再宽松地试
+        return ((try? JSONSerialization.jsonObject(with: d)) as? [String: Any]) ?? lenientObject(text)
     }
 
     static func string(_ obj: [String: Any], _ keys: String...) -> String {

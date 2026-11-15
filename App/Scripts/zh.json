@@ -963,5 +963,12 @@
 "Sync now": "现在同步",
 "Not now": "先不同步",
 "The Heart bean is still busy sending. Sync continues shortly from where it stopped.": "心力豆还在忙着发送，稍后从断开的地方接着同步。",
-"The recorder is still busy sending. Sync continues shortly from where it stopped.": "录音豆还在忙着发送，稍后从断开的地方接着同步。"
+"The recorder is still busy sending. Sync continues shortly from where it stopped.": "录音豆还在忙着发送，稍后从断开的地方接着同步。",
+"The diary wasn't written: %@, %lld times. OpenBean won't try again on its own until this day's recordings change.": "日记没写成：%@，已经 %lld 次。这天的录音有变化之前，OpenBean 不会再自动重试。",
+"The diary wasn't written: %@. Trying again automatically after %@.": "日记没写成：%@。%@ 之后会自动再试。",
+"The diary wasn't written: the model service couldn't be reached. It will be tried again after the next sync.": "日记没写成：连不上大模型服务。下次同步后会再试。",
+"Try again now": "现在重试",
+"the model declined to summarise this text": "模型拒绝总结这段内容",
+"the model's reply couldn't be used": "模型的回复不能用",
+"the model's reply was cut off": "模型的回复被截断了"
 }
