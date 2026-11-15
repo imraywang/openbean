@@ -174,6 +174,10 @@ struct ModelChoiceView: View {
         .onAppear {
             availability = OnDeviceLLM.availability
             if let id = confirmOnAppear, let p = CloudPreset.with(id: id) { pendingProvider = p }
+            // 已经选了云端服务却没确认过（旧版本跳过了确认）：补问一次
+            else if choice == .service, !settings.cloudConfirmed, let p = CloudPreset.with(id: settings.cloudProvider), !p.isCustom {
+                pendingProvider = p
+            }
         }
         .onChange(of: phase) { _, p in if p == .active { availability = OnDeviceLLM.availability } }
         .onChange(of: settings.polishAPIKey) { result = nil }
@@ -218,7 +222,9 @@ struct ModelChoiceView: View {
         let sendsOut = p.isCustom ? LLMChoiceRule.sendsTextOffDevice(.service, endpoint: Flavor.defaults.string(forKey: "cloudEndpoint.custom") ?? "")
             && !(Flavor.defaults.string(forKey: "cloudEndpoint.custom") ?? "").isEmpty
             : true
-        if LLMChoiceRule.needsCloudConfirmation(currentlySendsOut: settings.llmDisclosure.sendsTextOffDevice && choice == .service,
+        // 「现在已经在外发」只认真的能用的服务：刚选了「云端服务」、还没选哪家时地址是空的，不算（否则第一次选服务就跳过了确认，
+        // 而没确认过的服务又不会被使用，结果是选好了却一直提示没有设置服务）
+        if LLMChoiceRule.needsCloudConfirmation(currentlySendsOut: settings.llmBackend?.sendsTextOffDevice == true,
                                                 toSendsOut: sendsOut, alreadyConfirmed: settings.cloudConfirmed) {
             pendingProvider = p
         } else {
