@@ -63,7 +63,8 @@ libraries are separate for now.
 
 There is no App Store or TestFlight build yet; build it from source (see below). It has been tested on one iPhone
 with firmware 04.82. The recorder accepts one connection at a time, so quit OpenBean on the Mac while the iPhone
-uses the recorder, and the other way round.
+uses the recorder. To hand it back to the Mac, turn off Bluetooth on the iPhone: closing the app there may not
+release the connection.
 
 ## For agents (MCP)
 

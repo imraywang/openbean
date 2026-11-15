@@ -53,7 +53,8 @@ OpenBean 常驻菜单栏。左键点豆子图标打开主窗口，右键出菜�
 目前各管各的。
 
 还没有 App Store 或 TestFlight 版本，需要自己从源码编译（见下）。目前只在一台 iPhone、固件 04.82 上测过。
-录音豆同一时间只接受一个连接：iPhone 用的时候先退出 Mac 上的 OpenBean，反过来也一样。
+录音豆同一时间只接受一个连接：iPhone 用的时候先退出 Mac 上的 OpenBean；要换回 Mac，把 iPhone 的蓝牙关掉，
+只把 iPhone 上的 App 划掉不一定会放开连接。
 
 ## 给 agent 用（MCP）
 
