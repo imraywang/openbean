@@ -64,6 +64,8 @@ final class MobileModel {
         library.deferTranscription = { [models] in models.state != .ready || inBackground() }
         models.onReady = { [weak self] in Task { await self?.transcribeBacklog() } }
         if Flavor.defaults.bool(forKey: Self.connectKey) { downloadSpeechModelIfNeeded() }
+        // 模型已经在了、上次留下没转写的（下载时模型还没到位，或 App 中途被结束）：启动时补上
+        if models.state == .ready { Task { [weak self] in await self?.transcribeBacklog() } }
         // 心力模式录音的本机音频保留期：启动时和之后每小时看一遍（同步、转写完也会看）
         Task { [weak self] in
             while !Task.isCancelled {

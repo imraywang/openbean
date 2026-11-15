@@ -26,6 +26,12 @@ final class ModelStore: NSObject, URLSessionDownloadDelegate {
         Item(url: "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/silero_vad.onnx",
              path: "vad/silero_vad.onnx", bytes: 643_854),
     ]
+    /// 一个文件依次尝试的下载地址：原地址，然后是镜像（只有 HuggingFace 的文件有镜像）
+    nonisolated static func sources(for url: String) -> [String] {
+        let hf = "https://huggingface.co/"
+        return url.hasPrefix(hf) ? [url, "https://hf-mirror.com/" + url.dropFirst(hf.count)] : [url]
+    }
+
     /// 全部模型文件的大小（下载量）
     var totalBytes: Int64 { items.reduce(0) { $0 + $1.bytes } }
     /// 已经在磁盘上的大小
@@ -83,10 +89,22 @@ final class ModelStore: NSObject, URLSessionDownloadDelegate {
             for item in items {
                 let dest = AppPaths.models.appendingPathComponent(item.path)
                 if FileManager.default.fileExists(atPath: dest.path) { doneBytes += item.bytes; continue }
-                let tmp: URL = try await withCheckedThrowingContinuation { c in
-                    current = c
-                    session.downloadTask(with: URL(string: item.url)!).resume()
+                // HuggingFace 在有些网络下连不上或一直没有数据：主地址失败（含 60 秒没有数据超时）后换镜像再试
+                var tmp: URL?
+                var lastError: Error = URLError(.cannotConnectToHost)
+                for address in Self.sources(for: item.url) {
+                    do {
+                        tmp = try await withCheckedThrowingContinuation { c in
+                            current = c
+                            session.downloadTask(with: URL(string: address)!).resume()
+                        }
+                        break
+                    } catch {
+                        lastError = error
+                        Log.write("语音模型下载失败（\(URL(string: address)?.host ?? "")）：\(error.localizedDescription)")
+                    }
                 }
+                guard let tmp else { throw lastError }
                 try FileManager.default.createDirectory(at: dest.deletingLastPathComponent(), withIntermediateDirectories: true)
                 try? FileManager.default.removeItem(at: dest)
                 try FileManager.default.moveItem(at: tmp, to: dest)

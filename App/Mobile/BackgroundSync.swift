@@ -245,7 +245,8 @@ final class BackgroundSync {
         var done = 0
         for id in ids {
             if stopRequested { break }
-            await m.library.transcribe(id)
+            // 别处（启动时的补转写）可能已经转写了这条
+            if m.library.recordings.first(where: { $0.id == id })?.transcribed != true { await m.library.transcribe(id) }
             if m.library.recordings.first(where: { $0.id == id })?.transcribed == true { done += 1 }
         }
         if !stopRequested { await m.library.notes.drain() }
