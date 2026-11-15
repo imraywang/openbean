@@ -994,8 +994,16 @@ final class LibraryStore {
         #endif
         let heart = settings.mode.callsDeviceHeartBean
         let link = device.link
+        #if os(iOS)
+        // 和原厂 App 一样每次用新的网络名和密码（WiFi-<毫秒时间戳> / <毫秒时间戳>）。真机上固定的网络名
+        // 「WiFi-openbean」iPhone 三次都加入不了，同一台 iPhone 上原厂 App 用这种名字能加入
+        let stamp = String(Int(Date().timeIntervalSince1970 * 1000))
+        let hotspotSSID = "WiFi-" + stamp, hotspotPassword = stamp
+        #else
+        let hotspotSSID = WifiSyncFlow.defaultSSID, hotspotPassword = WifiSyncFlow.defaultPassword
+        #endif
         var flow = WifiSyncFlow(openHotspot: {
-            let open = Cmd.openSoftAP(ssid: WifiSyncFlow.defaultSSID, password: WifiSyncFlow.defaultPassword)
+            let open = Cmd.openSoftAP(ssid: hotspotSSID, password: hotspotPassword)
             let hex = { (b: [UInt8]) in b.map { String(format: "%02X", $0) }.joined(separator: " ") }
             // 录音豆有时先回一个不带地址的确认（09 FF 00 00 01 1A 05 0A 00 32），地址在后面的 1A/05 里，
             // 有时（热点已经开着）只回确认。所以只认带地址的那一包；等不到就按热点已经开着、用实测的固定地址去连
@@ -1018,7 +1026,7 @@ final class LibraryStore {
             w.connectAttempts = WifiPlatform.connectAttempts
             w.log = { Log.write("Wi‑Fi: \($0)") }
             return w
-        }, ssid: WifiSyncFlow.defaultSSID, password: WifiSyncFlow.defaultPassword)
+        }, ssid: hotspotSSID, password: hotspotPassword)
         flow.log = { Log.write("Wi‑Fi 同步：\($0)") }
         let report = await flow.run(files: targets.map { RecordingFile(id: $0.id, endTime: nil, durationMs: $0.durationMs) },
                                     spool: { [weak self] id in

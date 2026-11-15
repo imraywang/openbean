@@ -121,6 +121,16 @@ final class IOSHotspotJoiner: HotspotJoining, @unchecked Sendable {
 
     private var monitor: NWPathMonitor?
 
+    /// 启动时调用：上次 Wi‑Fi 传输中途 App 被结束的话，录音豆热点的配置还留在系统里，删掉
+    static func cleanUpLeftovers() {
+        NEHotspotConfigurationManager.shared.getConfiguredSSIDs { ssids in
+            for ssid in ssids where ssid.hasPrefix("WiFi-") {
+                NEHotspotConfigurationManager.shared.removeConfiguration(forSSID: ssid)
+                Log.write("Wi‑Fi 同步：清掉上次留下的热点配置 \(ssid)")
+            }
+        }
+    }
+
     func join(ssid: String, password: String, device: SoftAPEndpoint) async throws {
         let before = Self.wifiAddress()
         Log.write("Wi‑Fi 同步：加入热点前 Wi‑Fi 地址 \(before ?? "无")")
@@ -128,7 +138,9 @@ final class IOSHotspotJoiner: HotspotJoining, @unchecked Sendable {
         var joined: String?
         for attempt in 1...Self.joinAttempts {
             let config = NEHotspotConfiguration(ssid: ssid, passphrase: password, isWEP: false)
-            config.joinOnce = true
+            // 不用 joinOnce：原厂 App 在同一台 iPhone 上能加入，而 joinOnce 的三次都是「无法加入」。
+            // 配置在 leave() 里删掉；App 中途被结束的话，下次启动时清理（见 cleanUpLeftovers）
+            config.joinOnce = false
             let t0 = Date()
             do {
                 try await Self.withTimeout(Self.applyTimeout) {

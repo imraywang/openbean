@@ -55,6 +55,7 @@ final class MobileModel {
         device.link.verbose = Flavor.defaults.bool(forKey: LogView.verboseKey)
         if Flavor.defaults.bool(forKey: Self.connectKey) { device.start() }
         glossaryBackfill.start()
+        IOSHotspotJoiner.cleanUpLeftovers()
         // 已转写的录音补算对话段；开着心力模式时今天和昨天的日记补一遍（没变就不调用大模型）
         library.conversations.backfill()
         library.notes.diary.catchUp()
