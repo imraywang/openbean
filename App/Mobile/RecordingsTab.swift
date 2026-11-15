@@ -81,6 +81,8 @@ struct RecordingsTab: View {
             .onChange(of: path) { _, _ in
                 // 从详情回来时退出多选
                 if editMode.isEditing, !path.isEmpty { editMode = .inactive }
+                // 不在多选时，点进一条录音会被 List 记成选中；回来后不该还亮着
+                if !editMode.isEditing, !confirmDelete { selection = [] }
             }
             .task {
                 library.notes.preload(library.recordings.map(\.id))
