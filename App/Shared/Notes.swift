@@ -269,7 +269,8 @@ final class NoteService {
             guard let self else { return }
             await self.runSummary(id, manual: true)
             if self.settings.mode.writesRecordingNotes || self.noteRecord(id) != nil { _ = self.writeNote(id, mode: .auto) }
-            if self.settings.mode.writesDiary { await self.diary.refreshDays(touching: id) }
+            // 手动重做只动这一条：不顺带给同一天别的录音补段摘要、重写日记（那会把别的录音也发给大模型）。
+            // 日记下次同步时跟上，或在日记那里手动重写
         }
     }
 

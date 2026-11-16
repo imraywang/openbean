@@ -1113,7 +1113,8 @@ final class LibraryStore {
             transcripts[id] = segs
             if let d = try? JSONEncoder().encode(segs) { try? d.write(to: transcriptURL(id), options: .atomic) }
             update(id) { $0.transcribed = true }
-            Log.write("已转写 \(id)：\(segs.count) 句")
+            // 日志只记条数：转写的原文不进日志（日志会被贴出去排查问题）
+            Log.write("已转写 \(id)：\(segs.count) 句，词表纠正 \(segs.filter { $0.raw != nil }.count) 句")
             progress.transcribed(id, ok: true)
             // 先切段再写笔记：笔记按段分节
             conversations.refresh(id)
@@ -1198,7 +1199,6 @@ enum FileTranscriber {
     /// 每句先按个人词表纠正专有名词（转写模式，更保守）；改过的句子留下原文
     private static func seg(_ s: SentenceRecognizer.Sentence, _ glossary: GlossaryCorrector) -> TranscriptSegment {
         let l = TranscriptCorrection.apply(glossary, text: s.text, raw: nil)
-        if let raw = l.raw { Log.write("词表纠正：\(raw) → \(l.text)") }
         return TranscriptSegment(start: s.start, end: s.end, text: l.text, raw: l.raw)
     }
 }
