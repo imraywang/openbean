@@ -96,6 +96,17 @@ final class LLMReplyTests: XCTestCase {
         XCTAssertEqual(body["max_tokens"] as? Int, 1000)
     }
 
+    /// 手填 DeepSeek 的地址（Mac 的用法）也按 DeepSeek 的方言发；别家和本机服务不变
+    func testDialectIsInferredFromTheEndpoint() throws {
+        func dialect(_ s: String) throws -> LLMService.Dialect { LLMService(endpoint: try XCTUnwrap(URL(string: s))).dialect }
+        XCTAssertEqual(try dialect("https://api.deepseek.com"), .deepseek)
+        XCTAssertEqual(try dialect("https://API.DeepSeek.com/v1"), .deepseek)
+        XCTAssertEqual(try dialect("https://api.openai.com/v1"), .standard)
+        XCTAssertEqual(try dialect("https://openrouter.ai/api/v1"), .standard)
+        XCTAssertEqual(try dialect("http://127.0.0.1:8092"), .standard)
+        XCTAssertEqual(try dialect("https://notdeepseek.com"), .standard)
+    }
+
     /// 没推理、只是 JSON 写到一半被截断：上限翻倍再问
     func testTruncatedJSONIsRetriedWithDoubleTheLimit() async throws {
         let long = #"{"title":"会议","summary":""# + String(repeating: "讨论了很多事情。", count: 160) + #"","key_points":[],"action_items":[]}"#

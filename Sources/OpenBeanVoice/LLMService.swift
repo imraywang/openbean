@@ -7,7 +7,8 @@ public struct LLMService: Sendable {
     public let endpoint: URL
     public let apiKey: String?
     public let model: String
-    /// 请求的方言：预置的云端服务各有一两个参数要改（见 Dialect）；Mac 上和自定义地址都是 standard，请求和以前一样
+    /// 请求的方言：各家云端服务有一两个参数要改（见 Dialect）。建的时候按地址认（`Dialect.inferred`），
+    /// 选了预置服务的再按预置的设一次；认不出的都是 standard，请求和以前一样
     public var dialect: Dialect = .standard
 
     /// 各家在 OpenAI 兼容接口上的差别（只在选了预置服务时用）
@@ -19,6 +20,14 @@ public struct LLMService: Sendable {
         /// OpenAI：新模型默认推理（gpt-6-luna 默认 medium），推理也算在输出上限里；max_tokens 已弃用，改发
         /// max_completion_tokens；发 reasoning_effort = none 关掉推理（关掉后才能带 temperature）
         case openai
+
+        /// 按服务地址认方言：手填地址的（Mac 一直是手填）也要关掉思考，不然每次整理都先被截断一次再重试。
+        /// 只认 DeepSeek 自己的域名：它的 `thinking` 参数对它所有模型都能发。OpenAI 的不按地址认——
+        /// `reasoning_effort = none` 只有新模型收，手填的旧模型会报错
+        public static func inferred(from endpoint: URL) -> Dialect {
+            guard let host = endpoint.host?.lowercased() else { return .standard }
+            return host == "api.deepseek.com" || host.hasSuffix(".deepseek.com") ? .deepseek : .standard
+        }
 
         /// 改请求体
         func apply(_ body: inout [String: Any]) {
@@ -41,6 +50,7 @@ public struct LLMService: Sendable {
         self.endpoint = endpoint
         self.apiKey = apiKey.flatMap { $0.isEmpty ? nil : $0 }
         self.model = model
+        self.dialect = Dialect.inferred(from: endpoint)
     }
 
     public var isLocal: Bool { Self.isLocal(endpoint) }

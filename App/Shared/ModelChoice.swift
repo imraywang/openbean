@@ -50,7 +50,7 @@ extension Settings {
         let t = polishEndpoint.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !t.isEmpty, let u = URL(string: t), u.scheme != nil, u.host != nil else { return nil }
         var s = LLMService(endpoint: u, apiKey: polishAPIKey, model: polishModel)
-        // 选的是预置服务、地址也是它的：按那家的方言发（关掉整理用不着的思考）。Mac 不走这里
+        // 选的是预置服务、地址也是它的：按那家的方言发（关掉整理用不着的思考）。Mac 不走这里，靠 LLMService 按地址认
         if let p = CloudPreset.with(id: cloudProvider), !p.isCustom, p.endpoint == t { s.dialect = p.dialect }
         return s
     }
