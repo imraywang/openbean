@@ -102,7 +102,8 @@ process are described in [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md); the wire pr
 - After voice typing during a recording, OpenBean reconnects Bluetooth (about 5 s) to stop the live stream.
 - Bluetooth sync runs at roughly twice real time; for long recordings OpenBean offers Wi‑Fi, which takes your Mac
   offline for about a minute.
-- No speaker separation yet.
+- Speakers: with *Recognise my voice* on, OpenBean marks which sentences you (the wearer) said; it does not
+  tell other people apart, and sentences under a second are often left unmarked.
 - iPhone: a recording made in the normal mode is treated like a Heart mode recording; Wi‑Fi transfer asks you to
   join the recorder's network each time.
 

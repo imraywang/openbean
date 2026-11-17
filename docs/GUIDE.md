@@ -130,6 +130,39 @@ list); the Heart mode page has *Write the diary for this day* for older days. If
 kept and it is tried again later. Data: `<library>/<recording id>/segments.json` and
 `<library>/days/<yyyy-MM-dd>/day.json`.
 
+## Recognise my voice
+
+Off by default; turn it on in Heart mode settings. OpenBean then marks the sentences in a transcript that you, the
+wearer, said (a small dot before the sentence). Nothing is recorded or uploaded for it: the first time it downloads
+a 28 MB voice model (3D-Speaker CAM++, Apache-2.0), and everything after that runs on this Mac or iPhone.
+
+**How it learns your voice:** clipped to your collar, your voice is the loudest one. In each long Heart mode recording
+(15 minutes or more) OpenBean takes the loudest fifth of the speech, groups it by voice and keeps the biggest group as a
+guess. When guesses from **two different days** agree, that becomes your voiceprint — settings show *Learning your
+voice* until then, and *Ready since …* after. Later recordings whose loudest voice is clearly you nudge it slightly (at most 5%
+per recording). A recording whose loudest voice is someone else — the Heart bean was probably on a table — gets no
+marks and doesn't touch the voiceprint.
+
+**How a sentence is decided:** every sentence is cut into 1.5-second windows; a window counts as you when it is
+close enough to your voiceprint (cosine 0.5). A sentence is yours when at least half of its windows are. Sentences
+shorter than a second are too short to judge: they follow the sentences before and after when both agree, and are
+otherwise left unmarked — never counted as someone else. Other speakers are not told apart. In our tests (37
+sentences checked by ear) nothing marked as the wearer was wrong and 97% of sentences of 1.5 s or longer were right;
+the misses were mostly short replies.
+
+**Earlier recordings:** once it is on, recordings already transcribed are checked in the background, newest first
+(this decodes their audio again, about 35 s of CPU per hour of recording on an M-series Mac). Recordings whose audio
+was already deleted by Heart mode's retention setting can't be checked and stay unmarked. New recordings are checked
+while they are transcribed, from the audio the transcription already decoded.
+
+**Where things are:** the voiceprint is `voiceprint.json` in the app's data folder
+(`~/Library/Application Support/openbean/`, next to — not inside — `Library`), a list of 192 numbers with no audio
+and no text; on iPhone it is excluded from iCloud backup. It never goes into notes, exports, the MCP tools, logs or any
+network request. Each sentence in `<library>/<recording id>/transcript.json` gets `wearerShare` (the share of its windows
+that sound like you), `wearerScore` and `isWearer` (true, false, or absent when undecided). *Forget my voice*
+deletes the voiceprint and these marks and turns the setting off; turning the setting off alone keeps them but
+stops checking and hides the dots.
+
 ## Automation, history and logs
 
 **Automation:** `openbean://dictate/toggle` (also `dictate/start`, `dictate/stop`), `openbean://sync` and
