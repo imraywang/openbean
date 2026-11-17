@@ -65,7 +65,7 @@ final class DaysTests: XCTestCase {
         let r = ConversationRef(recording: 9, index: 1)
         let day = DayFile(date: "2026-11-13", timeZone: "Asia/Shanghai", dayStartHour: 4, signature: "s", status: .diary,
                           conversations: [DayConversation(ref: r, wallStart: at(13, 9), wallEnd: at(13, 10), title: "t")],
-                          diary: Diary(overview: "o", decisions: [DiaryItem(text: "d", refs: [r])],
+                          diary: Diary(overview: "o", highlights: [DiaryItem(text: "h", refs: [r])], decisions: [DiaryItem(text: "d", refs: [r])],
                                        people: [DiaryName(name: "甲", refs: [r])]),
                           model: "local", createdAt: at(13, 22), stats: DayStats(calls: 2, seconds: 3.5, dropped: 1))
         let data = try day.encoded()
@@ -84,5 +84,20 @@ final class DaysTests: XCTestCase {
         XCTAssertEqual(m.diary?.todos, [DiaryItem(text: "x", refs: [r])])
         XCTAssertEqual(m.diary?.people, [])
         XCTAssertEqual(m.dayStartHour, 4)
+    }
+
+    /// 有「要点」之前写的日文件照样能读：没有这一项就是空
+    func testOldDiaryWithoutHighlightsDecodes() throws {
+        let old = """
+        {"version": 1, "date": "2026-11-13", "status": "diary", "signature": "s", "conversations": [],
+         "diary": {"overview": "o", "decisions": [{"text": "d", "refs": ["9#1"]}], "todos": [], "people": [], "things": []}}
+        """
+        let m = try JSONDecoder().decode(DayFile.self, from: Data(old.utf8))
+        XCTAssertEqual(m.diary?.highlights, [])
+        XCTAssertEqual(m.diary?.decisions.map(\.text), ["d"])
+        XCTAssertEqual(m.diary?.overview, "o")
+        // 坏掉的要点跳过，好的留下
+        let messy = #"{"date": "2026-11-13", "diary": {"highlights": [{"text": "h", "refs": ["9#1"]}, {"refs": []}, 3]}}"#
+        XCTAssertEqual(try JSONDecoder().decode(DayFile.self, from: Data(messy.utf8)).diary?.highlights.map(\.text), ["h"])
     }
 }

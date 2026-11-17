@@ -12,6 +12,7 @@ public enum DiaryNote {
     /// 小节标题：跟着 App 的语言走（App 传入本地化的文字）；frontmatter 的键名不翻译
     public struct Labels: Sendable {
         public var overview = "Overview"
+        public var highlights = "Highlights"
         public var decisions = "Decisions"
         public var todos = "To-dos"
         public var peopleAndThings = "People and things"
@@ -24,7 +25,9 @@ public enum DiaryNote {
 
         public init() {}
         public init(overview: String, decisions: String, todos: String, peopleAndThings: String, people: String,
-                    things: String, conversations: String, transcript: String, media: String, marks: String = "Marked") {
+                    things: String, conversations: String, transcript: String, media: String, marks: String = "Marked",
+                    highlights: String = "Highlights") {
+            self.highlights = highlights
             self.marks = marks
             self.overview = overview
             self.decisions = decisions
@@ -83,6 +86,9 @@ public enum DiaryNote {
         """
         let L = v.labels
         if let o = v.day.diary?.overview, !o.isEmpty { s += "\n## \(L.overview)\n\n\(o)\n" }
+        if let h = v.day.diary?.highlights, !h.isEmpty {
+            s += "\n## \(L.highlights)\n\n" + h.map { "- \($0.text) (\(refLinks($0.refs)))" }.joined(separator: "\n") + "\n"
+        }
         // 标记：用户在录音豆上双击标出的时刻。每条：时刻、所在的那段对话（链接）、标记那句和前后各一句的原话
         if !v.day.marks.isEmpty {
             s += "\n## \(L.marks)\n\n" + v.day.marks.map { m in

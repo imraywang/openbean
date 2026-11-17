@@ -43,11 +43,13 @@ public struct ConversationSummarizer: Sendable {
 
     static let rules = """
     - key_points: up to 5 short points with the important facts, numbers and names. [] when there are none.
-    - decisions: at most 3 things the speakers clearly settled. Not suggestions, ideas, options under discussion, \
-    principles or open questions. [] when nothing was settled, which is common.
-    - todos: at most 2 concrete actions that someone committed to or was asked to do. Add the owner only when a \
-    person's name is said in the transcript, and the deadline when one is said. General advice is not a to-do. \
-    [] when there are none.
+    - decisions: at most 3 things the speakers clearly settled that still matter after this conversation ends. Not \
+    suggestions, ideas, options under discussion, principles or open questions. Not how this conversation itself runs \
+    (who speaks first, the agenda, taking turns), ordering food or drinks, who pays the bill, or "let's talk about it \
+    later". [] when nothing was settled, which is common.
+    - todos: at most 2 concrete actions that someone committed to or was asked to do after this conversation. Add the \
+    owner only when a person's name is said in the transcript, and the deadline when one is said. General advice and \
+    things done on the spot are not to-dos. [] when there are none.
     - Put each item in only one list: an action someone will do is a to-do, not also a decision.
     - people: names of people who speak or are mentioned, written exactly as in the transcript. Only real names: not \
     pronouns (I, you, he, 我, 你, 他), not roles or titles (manager, speaker, 店长, 督导, 员工, 发言人). \
@@ -94,7 +96,8 @@ public struct ConversationSummarizer: Sendable {
     - summary: 1 to 3 sentences covering the whole conversation.
     - kind: "conversation", "monologue", "media" or "fragment", for the conversation as a whole.
     - key_points: up to 5 of the most important points; merge duplicates.
-    - decisions: the decisions from the parts, merged; at most 3, only things that were really settled.
+    - decisions: the decisions from the parts, merged; at most 3, only things that were really settled and still matter \
+    after the conversation.
     - todos: the to-dos from the parts, merged and deduplicated; at most 2, the most concrete ones (an owner, a \
     deadline or a number). An item is either a to-do or a decision, never both.
     - people, things: write [] (they are collected from the parts).

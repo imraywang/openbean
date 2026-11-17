@@ -105,7 +105,8 @@ final class ConversationToolTests: XCTestCase {
         let a = ConversationRef(recording: longID, index: 0)
         let day = DayFile(date: "2026-11-12", timeZone: "Asia/Shanghai", dayStartHour: 4, signature: "s", status: .diary,
                           conversations: [DayConversation(ref: a, wallStart: longStart.addingTimeInterval(60), wallEnd: longStart.addingTimeInterval(70))],
-                          diary: Diary(overview: "晚上开了个会。", decisions: [DiaryItem(text: "按三万个报价", refs: [a])],
+                          diary: Diary(overview: "晚上开了个会。", highlights: [DiaryItem(text: "三万个起 0.72 元", refs: [a])],
+                                       decisions: [DiaryItem(text: "按三万个报价", refs: [a])],
                                        todos: [DiaryItem(text: "发报价", owner: "小王", refs: [a])],
                                        people: [DiaryName(name: "小王", refs: [a])]),
                           model: "local", createdAt: Fixture.now)
@@ -117,6 +118,8 @@ final class ConversationToolTests: XCTestCase {
         XCTAssertEqual(r.structured?["diary"]?["todos"]?.array?.first?["owner"], "小王")
         XCTAssertEqual(r.structured?["diary"]?["decisions"]?.array?.first?["sources"], [["recording_id": .int(Int(longID)), "conversation": 0]])
         XCTAssertTrue(r.text.contains("- 按三万个报价 (23:01 id \(longID) conversation 0)"), r.text)
+        XCTAssertEqual(r.structured?["diary"]?["highlights"]?.array?.first?["text"], "三万个起 0.72 元")
+        XCTAssertTrue(r.text.contains("Highlights:\n- 三万个起 0.72 元 (23:01 id \(longID) conversation 0)"), r.text)
         let diaryAt = try XCTUnwrap(r.text.range(of: "Diary ("))
         let firstRecording = try XCTUnwrap(r.text.range(of: "(id 1001)"))
         XCTAssertLessThan(diaryAt.lowerBound, firstRecording.lowerBound)

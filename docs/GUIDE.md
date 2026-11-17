@@ -108,11 +108,13 @@ days. This needs no LLM and is always on. The split is kept next to the recordin
 
 **Daily diary** (part of Heart mode): each conversation gets a short
 summary — a heading, two or three sentences, what was decided, to-dos, the people and things mentioned — and each
-day a diary built from them: an overview, decisions, to-dos and the people mentioned, every item pointing to the
-conversation it came from. Items whose source can't be found are dropped; so are names that don't appear in the
+day a diary built from them: an overview (one or two sentences for a short day, up to about six for a long one, the
+most important thing first), highlights (the day's most noteworthy facts, numbers and ideas, taken from the
+conversations' key points), decisions, to-dos and the people mentioned, every item pointing to the conversation it
+came from. Decisions and to-dos are only what still matters after the conversation, not how the meeting itself ran. Items whose source can't be found are dropped; so are names that don't appear in the
 transcript, pronouns and roles ("I", "the manager", "店长"), and an owner of a to-do unless a real name is given. The
 same thing is never listed both as a decision and as a to-do. Lists are kept short (at most 3 decisions and 2 to-dos
-per conversation, 5 and 6 per day; conversations of a few sentences get no to-dos), and people are listed as spelled,
+per conversation, 5 and 6 per day, up to 8 highlights; conversations of a few sentences get no to-dos), and people are listed as spelled,
 never merged, the ones in most conversations first. A day with too little said gets no overview, only the list of
 conversations. The diary appears at the top of the Heart mode page and, with a notes folder, as `<notes folder>/Diary/<yyyy-MM-dd>.md`
 with headings in the app's language (the Chinese app uses `日记`), linking to each recording's note. The folder can be

@@ -302,7 +302,7 @@ final class DiaryService {
             // 键要排序：不排序时 JSONEncoder 的键顺序每次可能不同，签名跟着变，内容没变也会重写日记
             let s = (try? Self.signatureEncoder.encode(c.summary)).map { String(decoding: $0, as: UTF8.self) } ?? ""
             return "\(r.id)#\(c.index)|\(c.hash)|\(c.kind ?? "")|\(s)|marks=\(c.marks)"
-        } + ["diary-v1", "start=\(settings.dayStartHour)", "tz=\(TimeZone.current.identifier)"])
+        } + ["diary-v2", "start=\(settings.dayStartHour)", "tz=\(TimeZone.current.identifier)"])
         if !force, let old = DayFile.read(url), old.version == DayFile.currentVersion, old.signature == sig {
             if notes.notesFolder != nil, noteRecord(key) == nil { writeNote(old) }
             problems[key] = nil
@@ -410,7 +410,8 @@ final class DiaryService {
                          todos: String(localized: "To-dos"), peopleAndThings: String(localized: "People and things mentioned"),
                          people: String(localized: "People"), things: String(localized: "Things"),
                          conversations: String(localized: "Conversations"), transcript: String(localized: "Transcript"),
-                         media: String(localized: "media"), marks: String(localized: "Marked moments"))
+                         media: String(localized: "media"), marks: String(localized: "Marked moments"),
+                         highlights: String(localized: "Highlights"))
     }
 
     /// 写（或重写）某天的日记笔记。规则同逐条笔记：没被改过就原地覆盖；用户改过就不动它，另写一份

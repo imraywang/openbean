@@ -41,7 +41,7 @@ public struct ConversationRef: Hashable, Sendable, Comparable, Codable, CustomSt
 ///
 /// - 一段对话归哪天按这段的开始时刻（墙上时间）和 DayBoundary 算，不按录音的开始时刻：跨过分界的长录音会分到两天。
 /// - `signature` 是当天所有输入（段的指纹和段摘要）的指纹：没变就不重算，过去的日子不会反复调用大模型。
-/// - 日记里每条「定了的事」「待办」「人」「事」都带出处（refs）。写的时候已经校验过出处存在，读的人还可以再查。
+/// - 日记里每条「要点」「定了的事」「待办」「人」「事」都带出处（refs）。写的时候已经校验过出处存在，读的人还可以再查。
 /// - 读的时候宽容：缺字段用默认值、多出来的字段忽略、坏掉的项跳过。
 public struct DayFile: Codable, Sendable, Hashable {
     public static let currentVersion = 1
@@ -214,29 +214,33 @@ public struct DayConversation: Codable, Sendable, Hashable {
 
 /// 当天的日记
 public struct Diary: Codable, Sendable, Hashable {
-    /// 当天概述（2–4 句）；内容太少时没有
+    /// 当天概述（长短跟着这天的大小，一到六句）；内容太少时没有
     public var overview: String?
+    /// 当天的要点：值得记住的事实、数字、想法和教训（来自各段的要点，合并去重）。旧的日文件没有这一项
+    public var highlights: [DiaryItem]
     public var decisions: [DiaryItem]
     public var todos: [DiaryItem]
     /// 提到的人：名字照转写写，不合并不同写法；refs 是出现在哪几段
     public var people: [DiaryName]
     public var things: [DiaryName]
 
-    public init(overview: String? = nil, decisions: [DiaryItem] = [], todos: [DiaryItem] = [], people: [DiaryName] = [],
-                things: [DiaryName] = []) {
+    public init(overview: String? = nil, highlights: [DiaryItem] = [], decisions: [DiaryItem] = [], todos: [DiaryItem] = [],
+                people: [DiaryName] = [], things: [DiaryName] = []) {
         self.overview = overview
+        self.highlights = highlights
         self.decisions = decisions
         self.todos = todos
         self.people = people
         self.things = things
     }
 
-    enum Keys: String, CodingKey { case overview, decisions, todos, people, things }
+    enum Keys: String, CodingKey { case overview, highlights, decisions, todos, people, things }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: Keys.self)
         func list<T: Decodable>(_ k: Keys) -> [T] { ((try? c.decodeIfPresent([Lenient<T>].self, forKey: k)) ?? []).compactMap(\.value) }
         overview = try? c.decodeIfPresent(String.self, forKey: .overview)
+        highlights = list(.highlights)
         decisions = list(.decisions)
         todos = list(.todos)
         people = list(.people)

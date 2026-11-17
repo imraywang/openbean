@@ -132,7 +132,7 @@ public final class LibraryTools: @unchecked Sendable {
                  + "plus all action items of the day together. Recordings without a summary show the start of their transcript instead. "
                  + "Long recordings are split into conversations at long pauses; each is listed with its time, title and summary, and "
                  + "get_transcript with that conversation index reads just that part. When the user has OpenBean's daily diary turned on, "
-                 + "the day's diary comes first: an overview, what was decided, to-dos and people mentioned, each pointing to the "
+                 + "the day's diary comes first: an overview, highlights, what was decided, to-dos and people mentioned, each pointing to the "
                  + "conversation it comes from (recording id and conversation index).",
                  ["date": ["type": "string", "description": .string("The day. " + dateHelp + " Default: today.")]]),
         ]
@@ -466,6 +466,7 @@ public final class LibraryTools: @unchecked Sendable {
         func refs(_ r: [ConversationRef]) -> String { r.map { refText($0, byRef) }.joined(separator: "; ") }
         var l = ["", "Diary (written by OpenBean from the conversation summaries; each item names where it comes from):"]
         if let o = d.overview, !o.isEmpty { l.append(o) }
+        if !d.highlights.isEmpty { l.append("Highlights:"); l += d.highlights.map { "- \($0.text) (\(refs($0.refs)))" } }
         if !d.decisions.isEmpty { l.append("Decided:"); l += d.decisions.map { "- \($0.text) (\(refs($0.refs)))" } }
         if !d.todos.isEmpty {
             l.append("To-dos:")
@@ -483,7 +484,7 @@ public final class LibraryTools: @unchecked Sendable {
         func items(_ xs: [DiaryItem]) -> JSON {
             .array(xs.map { x in ["text": .string(x.text), "owner": .from(x.owner), "sources": refs(x.refs)] })
         }
-        return ["overview": .from(d.overview), "decisions": items(d.decisions), "todos": items(d.todos),
+        return ["overview": .from(d.overview), "highlights": items(d.highlights), "decisions": items(d.decisions), "todos": items(d.todos),
                 "people": .array(d.people.map { ["name": .string($0.name), "sources": refs($0.refs)] }),
                 "things": .array(d.things.map { ["name": .string($0.name), "sources": refs($0.refs)] }),
                 "written_at": .string(iso(f.createdAt)), "model": .from(f.model)]

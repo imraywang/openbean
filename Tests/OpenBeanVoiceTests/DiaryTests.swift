@@ -84,10 +84,11 @@ final class DiaryWriterTests: XCTestCase {
     private let t0 = Date(timeIntervalSince1970: 1_794_550_000)
 
     private func input(_ rec: UInt32, _ i: Int, at minutes: Double, kind: String? = "conversation", chars: Int = 400,
-                       decisions: [String] = [], todos: [String] = [], people: [String] = []) -> DiaryWriter.Input {
+                       keyPoints: [String] = [], decisions: [String] = [], todos: [String] = [], people: [String] = []) -> DiaryWriter.Input {
         DiaryWriter.Input(ref: ConversationRef(recording: rec, index: i), wallStart: t0.addingTimeInterval(minutes * 60),
                           wallEnd: t0.addingTimeInterval(minutes * 60 + 600), kind: kind,
-                          summary: ConversationSummary(title: "段\(i)", summary: "摘要\(i)", decisions: decisions, todos: todos, people: people),
+                          summary: ConversationSummary(title: "段\(i)", summary: "摘要\(i)", keyPoints: keyPoints, decisions: decisions,
+                                                       todos: todos, people: people),
                           chars: chars)
     }
 
@@ -148,6 +149,96 @@ final class DiaryWriterTests: XCTestCase {
         XCTAssertGreaterThan(out.calls, 2)
     }
 
+    func testGroupedHighlightsAreMergedAndTheCombinedOverviewUsesTheWholeDay() async throws {
+        let stub = try StubServer { body in
+            if systemText(body).hasPrefix("You are given overviews") { return #"{"overview":"全天。"}"# }
+            return #"{"overview":"一部分。","highlights":[{"text":"同一个要点","refs":["S1"]}],"decisions":[],"todos":[]}"#
+        }
+        defer { stub.stop() }
+        let inputs = (0..<12).map { input(1, $0, at: Double($0) * 30, chars: 4000, keyPoints: ["点"]) }
+        let out = try await DiaryWriter(Summarizer(service: LLMService(endpoint: stub.url), budget: 200, timeout: 10))
+            .write(inputs, languageSample: "")
+        XCTAssertEqual(out.diary?.highlights.map(\.text), ["同一个要点"])
+        let combine = try XCTUnwrap(stub.requests.first { systemText($0).hasPrefix("You are given overviews") })
+        XCTAssertTrue(systemText(combine).contains("overview of 4 to 6 short sentences"))
+    }
+
+    func testHighlightsNeedKeyPointsInTheirSourceAndAreDeduplicated() async throws {
+        let stub = try StubServer { _ in
+            #"""
+            {"overview":"谈了报价。",
+             "highlights":[{"text":"三万个起每个 0.72 元","refs":["S1"]},{"text":"编出来的要点","refs":["S9"]},
+                           {"text":"出处没有要点","refs":["S2"]},{"text":"三万个起每个0.72元。","refs":["S1"]},
+                           {"text":"报价按三万个算","refs":["S1"]},{"text":"打样要一周","refs":"S1"},{"text":"没出处","refs":[]}],
+             "decisions":[{"text":"报价按三万个算","refs":["S1"]}],
+             "todos":[]}
+            """#
+        }
+        defer { stub.stop() }
+        let inputs = [input(1, 0, at: 0, keyPoints: ["3 万个 0.72 元", "打样 1 周"], decisions: ["按三万个算"]),
+                      input(1, 1, at: 60, todos: ["回电话"])]
+        let out = try await DiaryWriter(Summarizer(service: LLMService(endpoint: stub.url), timeout: 10))
+            .write(inputs, languageSample: "今天我们开会")
+        let d = try XCTUnwrap(out.diary)
+        // 出处不存在（S9）、出处那段没有要点（S2）、没写出处的丢掉；重复的合并；和定了的事重复的不列
+        XCTAssertEqual(d.highlights.map(\.text), ["三万个起每个 0.72 元", "打样要一周"])
+        XCTAssertEqual(d.highlights[0].refs, [ConversationRef(recording: 1, index: 0)])
+        XCTAssertNil(d.highlights[0].owner)
+        XCTAssertEqual(d.decisions.map(\.text), ["报价按三万个算"])
+        XCTAssertEqual(out.dropped, 3)
+        XCTAssertEqual(out.duplicates, 2)
+        // 段的要点进了提示，没有要点的段不写这一项
+        let user = userText(stub.requests[0])
+        XCTAssertTrue(user.contains("Key points:\n- 3 万个 0.72 元\n- 打样 1 周"), user)
+        XCTAssertEqual(user.components(separatedBy: "Key points:").count, 2)
+    }
+
+    func testHighlightsAreCappedByTheSizeOfTheDay() async throws {
+        let stub = try StubServer { _ in
+            let items = ["苹果", "香蕉", "橙子", "葡萄", "西瓜", "芒果"].map { #"{"text":"\#($0)","refs":["S1"]}"# }
+            return #"{"overview":"短。","highlights":[\#(items.joined(separator: ","))],"decisions":[],"todos":[]}"#
+        }
+        defer { stub.stop() }
+        let inputs = [input(1, 0, at: 0, chars: 600, keyPoints: ["要点"])]
+        let out = try await DiaryWriter(Summarizer(service: LLMService(endpoint: stub.url), timeout: 10)).write(inputs, languageSample: "")
+        XCTAssertEqual(DiaryWriter.target(DiaryWriter.usable(inputs)), .short)
+        XCTAssertEqual(out.diary?.highlights.count, DiaryWriter.Target.short.maxHighlights)
+        XCTAssertEqual(out.diary?.highlights.first?.text, "苹果")
+        XCTAssertTrue(systemText(stub.requests[0]).contains("highlights: at most 3 "))
+    }
+
+    func testOverviewLengthFollowsTheDay() async throws {
+        // 两段、不到三千字：一两句；八段、几万字：四到六句短句；一段很长的会：中间
+        let small = (0..<2).map { input(1, $0, at: Double($0) * 30, chars: 800) }
+        let big = (0..<8).map { input(1, $0, at: Double($0) * 30, chars: 5000) }
+        let oneLong = [input(1, 0, at: 0, chars: 40000)]
+        XCTAssertEqual(DiaryWriter.target(small), .short)
+        XCTAssertEqual(DiaryWriter.target(big), .long)
+        XCTAssertEqual(DiaryWriter.target(oneLong).level, 2)
+        XCTAssertEqual(DiaryWriter.Target.short.sentences, 1...2)
+        XCTAssertEqual(DiaryWriter.Target.long.sentences, 4...6)
+        XCTAssertEqual(DiaryWriter.Target.long.maxHighlights, 8)
+
+        let stub = try StubServer { _ in #"{"overview":"o","highlights":[],"decisions":[],"todos":[]}"# }
+        defer { stub.stop() }
+        let w = DiaryWriter(Summarizer(service: LLMService(endpoint: stub.url), timeout: 10))
+        _ = try await w.write(small, languageSample: "")
+        _ = try await w.write(big, languageSample: "")
+        let p0 = systemText(stub.requests[0]), p1 = systemText(stub.requests[1])
+        XCTAssertTrue(p0.contains("overview: 1 or 2 sentences"), p0)
+        XCTAssertTrue(p1.contains("overview: 4 to 6 short sentences"), p1)
+        XCTAssertTrue(p1.contains("most important thing"))
+    }
+
+    func testPromptKeepsOnlyDecisionsThatMatterAfterwards() {
+        let p = DiaryWriter.prompt
+        XCTAssertTrue(p.contains("still matter after that conversation ended"))
+        XCTAssertTrue(p.contains("who pays the bill"))
+        XCTAssertTrue(p.contains("never leave refs empty"))
+        XCTAssertTrue(ConversationSummarizer.rules.contains("still matter after this conversation ends"))
+        XCTAssertTrue(ConversationSummarizer.rules.contains("Never invent people, numbers, dates, decisions or to-dos"))
+    }
+
     func testRefLabels() {
         XCTAssertEqual(DiaryWriter.refLabels("S1, s2，S3"), ["S1", "S2", "S3"])
         XCTAssertEqual(DiaryWriter.refLabels([1, "S4"]), ["S1", "S4"])
@@ -156,7 +247,7 @@ final class DiaryWriterTests: XCTestCase {
 }
 
 final class DiaryNoteTests: XCTestCase {
-    func testRendersSectionsAndLinks() {
+    func testRendersSectionsAndLinks() throws {
         var cal = Calendar(identifier: .gregorian)
         cal.timeZone = TimeZone(identifier: "Asia/Shanghai")!
         let t = cal.date(from: DateComponents(year: 2026, month: 11, day: 13, hour: 9, minute: 12))!
@@ -164,7 +255,8 @@ final class DiaryNoteTests: XCTestCase {
         let day = DayFile(date: "2026-11-13", timeZone: "Asia/Shanghai", dayStartHour: 4, signature: "x", status: .diary,
                           conversations: [DayConversation(ref: a, wallStart: t, wallEnd: t.addingTimeInterval(1680), title: "周会", summary: "过了进度。"),
                                           DayConversation(ref: b, wallStart: t.addingTimeInterval(7200), wallEnd: t.addingTimeInterval(7260), kind: "fragment")],
-                          diary: Diary(overview: "开了周会。", decisions: [DiaryItem(text: "周五发布", refs: [a])],
+                          diary: Diary(overview: "开了周会。", highlights: [DiaryItem(text: "转化 4.1%", refs: [a])],
+                                       decisions: [DiaryItem(text: "周五发布", refs: [a])],
                                        todos: [DiaryItem(text: "写文档", owner: "小王", refs: [a])],
                                        people: [DiaryName(name: "小王", refs: [a])]),
                           model: "m", createdAt: t)
@@ -175,6 +267,10 @@ final class DiaryNoteTests: XCTestCase {
         XCTAssertTrue(md.contains("recorded: \"1:01:40\""))
         XCTAssertTrue(md.contains("conversations: 1\n")) // 碎片不列
         XCTAssertTrue(md.contains("- 周五发布 ([09:12](../2026-11-13-周会%20%281%29.md))"))
+        XCTAssertTrue(md.contains("## Highlights\n\n- 转化 4.1% ([09:12](../"), md)
+        // 要点紧跟概述
+        XCTAssertLessThan(try XCTUnwrap(md.range(of: "## Overview")).lowerBound, try XCTUnwrap(md.range(of: "## Highlights")).lowerBound)
+        XCTAssertLessThan(try XCTUnwrap(md.range(of: "## Highlights")).lowerBound, try XCTUnwrap(md.range(of: "## Decisions")).lowerBound)
         XCTAssertTrue(md.contains("- [ ] 写文档 — 小王 ([09:12]("))
         XCTAssertTrue(md.contains("- **People**: 小王 ([09:12]("))
         XCTAssertTrue(md.contains("### 09:12–09:40 周会\n\n过了进度。 [Transcript](../"))
@@ -189,6 +285,7 @@ final class DiaryNoteTests: XCTestCase {
                           diary: nil, model: nil, createdAt: t)
         let md = DiaryNote.render(.init(day: day, recordedSeconds: 30, recordings: [1], timeZone: TimeZone(identifier: "UTC")!) { _ in "x" })
         XCTAssertFalse(md.contains("## Overview"))
+        XCTAssertFalse(md.contains("## Highlights"))
         XCTAssertTrue(md.contains("### ~"))
     }
 }
