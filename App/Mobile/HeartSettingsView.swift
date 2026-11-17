@@ -86,6 +86,8 @@ struct HeartSettingsView: View {
                     Text("Transcripts, summaries and the diary are kept. Applies to recordings synced in Heart mode.")
                 }
 
+                MyVoiceSection(speakers: model.library.speakers, wifiOnly: settings.modelWifiOnly)
+
                 Section {
                     notificationRow
                 } header: {

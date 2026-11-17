@@ -91,6 +91,8 @@ struct HeartSettings: View {
                 } header: {
                     Text("Privacy")
                 }
+
+                if let speakers = notes.library?.speakers { MyVoiceSection(speakers: speakers) }
             }
             .disabled(!on)
         }

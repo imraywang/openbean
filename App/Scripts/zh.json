@@ -971,5 +971,22 @@
 "Try again now": "现在重试",
 "the model declined to summarise this text": "模型拒绝总结这段内容",
 "the model's reply couldn't be used": "模型的回复不能用",
-"the model's reply was cut off": "模型的回复被截断了"
+"the model's reply was cut off": "模型的回复被截断了",
+"Checking earlier recordings… %lld of %lld": "正在检查以前的录音…… 第 %1$lld 条，共 %2$lld 条",
+"Connect to Wi‑Fi to download the voice model, or turn off Wi‑Fi only.": "连上 Wi‑Fi 才能下载声纹模型，或者关掉「仅 Wi‑Fi 下载」。",
+"Couldn't download the voice model: %@": "声纹模型没下载成功：%@",
+"Deletes the voiceprint and the marks on every sentence, and turns this off. It can learn your voice again later.": "删掉声纹和每句话上的标记，并关掉这个功能。以后可以重新学。",
+"Downloading the voice model…": "正在下载声纹模型……",
+"Forget my voice": "忘掉我的声音",
+"Forget your voice?": "忘掉你的声音？",
+"In transcripts, %@ marks a sentence that sounds like you.": "转写里带 %@ 的句子听起来是你说的。",
+"It needs long Heart mode recordings from two different days, with the Heart bean clipped on.": "需要两天里各有一段较长的心力模式录音，而且心力豆别在身上。",
+"Learning your voice": "正在学习你的声音",
+"Marks the sentences you said in transcripts. Your voiceprint is computed and kept on this Mac and never leaves it.": "在转写里标出你说的句子。声纹在这台 Mac 上计算、只存在这台 Mac 上，不会离开它。",
+"Marks the sentences you said in transcripts. Your voiceprint is computed and kept on this iPhone and never leaves it.": "在转写里标出你说的句子。声纹在这台 iPhone 上计算、只存在这台 iPhone 上，不会离开它。",
+"My voice": "我的声音",
+"Needs the voice model (28 MB).": "需要声纹模型（28 MB）。",
+"Ready since %@, learned from %lld recordings": "%1$@ 起可用，从 %2$lld 段录音学到",
+"Recognise my voice": "认出我的声音",
+"So far: %lld recordings from %lld days.": "目前：%1$lld 段录音，来自 %2$lld 天。"
 }

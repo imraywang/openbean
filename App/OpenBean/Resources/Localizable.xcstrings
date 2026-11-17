@@ -802,6 +802,16 @@
         }
       }
     },
+    "Checking earlier recordings… %lld of %lld": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在检查以前的录音…… 第 %1$lld 条，共 %2$lld 条"
+          }
+        }
+      }
+    },
     "Checking the LLM service…": {
       "localizations": {
         "zh-Hans": {
@@ -1032,6 +1042,16 @@
         }
       }
     },
+    "Connect to Wi‑Fi to download the voice model, or turn off Wi‑Fi only.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连上 Wi‑Fi 才能下载声纹模型，或者关掉「仅 Wi‑Fi 下载」。"
+          }
+        }
+      }
+    },
     "Connect your Heart bean": {
       "localizations": {
         "zh-Hans": {
@@ -1248,6 +1268,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "没能从录音豆删除"
+          }
+        }
+      }
+    },
+    "Couldn't download the voice model: %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "声纹模型没下载成功：%@"
           }
         }
       }
@@ -1502,6 +1532,16 @@
         }
       }
     },
+    "Deletes the voiceprint and the marks on every sentence, and turns this off. It can learn your voice again later.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删掉声纹和每句话上的标记，并关掉这个功能。以后可以重新学。"
+          }
+        }
+      }
+    },
     "Deleting from the device": {
       "localizations": {
         "zh-Hans": {
@@ -1732,6 +1772,16 @@
         }
       }
     },
+    "Downloading the voice model…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在下载声纹模型……"
+          }
+        }
+      }
+    },
     "Each day": {
       "localizations": {
         "zh-Hans": {
@@ -1862,6 +1912,16 @@
         }
       }
     },
+    "Forget my voice": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "忘掉我的声音"
+          }
+        }
+      }
+    },
     "Forget this Heart bean?": {
       "localizations": {
         "zh-Hans": {
@@ -1898,6 +1958,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "忘记这颗录音豆…"
+          }
+        }
+      }
+    },
+    "Forget your voice?": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "忘掉你的声音？"
           }
         }
       }
@@ -2132,6 +2202,26 @@
         }
       }
     },
+    "In transcripts, %@ marks a sentence that sounds like you.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "转写里带 %@ 的句子听起来是你说的。"
+          }
+        }
+      }
+    },
+    "It needs long Heart mode recordings from two different days, with the Heart bean clipped on.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "需要两天里各有一段较长的心力模式录音，而且心力豆别在身上。"
+          }
+        }
+      }
+    },
     "Joining the recorder's Wi‑Fi (your Mac is offline for a moment)…": {
       "localizations": {
         "zh-Hans": {
@@ -2272,6 +2362,16 @@
         }
       }
     },
+    "Learning your voice": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在学习你的声音"
+          }
+        }
+      }
+    },
     "Let agents (MCP) read the transcripts of Heart mode recordings": {
       "localizations": {
         "zh-Hans": {
@@ -2352,6 +2452,16 @@
         }
       }
     },
+    "Marks the sentences you said in transcripts. Your voiceprint is computed and kept on this Mac and never leaves it.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在转写里标出你说的句子。声纹在这台 Mac 上计算、只存在这台 Mac 上，不会离开它。"
+          }
+        }
+      }
+    },
     "Meet Heart mode": {
       "localizations": {
         "zh-Hans": {
@@ -2402,6 +2512,16 @@
         }
       }
     },
+    "My voice": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "我的声音"
+          }
+        }
+      }
+    },
     "Needs Accessibility permission": {
       "localizations": {
         "zh-Hans": {
@@ -2418,6 +2538,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "需要辅助功能权限；关掉则只拷贝到剪贴板。"
+          }
+        }
+      }
+    },
+    "Needs the voice model (28 MB).": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "需要声纹模型（28 MB）。"
           }
         }
       }
@@ -3272,12 +3402,32 @@
         }
       }
     },
+    "Ready since %@, learned from %lld recordings": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ 起可用，从 %2$lld 段录音学到"
+          }
+        }
+      }
+    },
     "Ready to turn on Heart mode": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "准备打开心力模式"
+          }
+        }
+      }
+    },
+    "Recognise my voice": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "认出我的声音"
           }
         }
       }
@@ -3848,6 +3998,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "跳过：大模型服务连不上"
+          }
+        }
+      }
+    },
+    "So far: %lld recordings from %lld days.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "目前：%1$lld 段录音，来自 %2$lld 天。"
           }
         }
       }
@@ -4908,6 +5068,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "触发"
+          }
+        }
+      }
+    },
+    "Try again": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重试"
           }
         }
       }

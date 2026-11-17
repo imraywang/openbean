@@ -455,7 +455,8 @@ struct RecordingDetail: View {
                             }
                             TranscriptParagraph(segments: Array(segs[r]), first: r.lowerBound,
                                                 current: current.flatMap { r.contains($0) ? $0 : nil },
-                                                marks: marks.filter { r.contains($0.key) }, heart: heart)
+                                                marks: marks.filter { r.contains($0.key) }, heart: heart,
+                                                wearer: library.speakers.showsMarks)
                                 .equatable()
                         }
                         .id(p)
@@ -544,9 +545,12 @@ struct TranscriptParagraph: View, Equatable {
     var marks: [Int: [Double]] = [:]
     /// 心力模式开着：设备叫「心力豆」
     var heart = false
+    /// 「认出我的声音」开着：佩戴者说的句子前面放一个小圆点（WearerMark）
+    var wearer = false
 
     static func == (a: Self, b: Self) -> Bool {
         a.first == b.first && a.current == b.current && a.segments == b.segments && a.marks == b.marks && a.heart == b.heart
+            && a.wearer == b.wearer
     }
 
     var body: some View {
@@ -578,6 +582,7 @@ struct TranscriptParagraph: View, Equatable {
                 flag.foregroundColor = .orange
                 out += flag
             }
+            if wearer, seg.isWearer == true { out += WearerMark.prefix }
             // 显示用 text（过了词表的），不用 raw
             var piece = AttributedString(seg.text)
             piece.link = URL(string: "openbean-seek://\(first + k)")

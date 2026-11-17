@@ -167,7 +167,8 @@ struct RecordingDetail: View {
                         if let c = sections.heading(before: k) { ConversationTitle(conversation: c) }
                         ParagraphText(segments: Array(segs[range]), first: range.lowerBound,
                                       current: current.flatMap { range.contains($0) ? $0 : nil },
-                                      marks: byLine.filter { range.contains($0.key) }, query: query)
+                                      marks: byLine.filter { range.contains($0.key) }, query: query,
+                                      wearer: library.speakers.showsMarks)
                             .equatable()
                     }
                     .id(ParagraphID(index: k))
@@ -345,6 +346,8 @@ struct ParagraphText: View, Equatable {
     let current: Int?
     let marks: [Int: [Double]]
     let query: String
+    /// 「认出我的声音」开着：佩戴者说的句子前面放一个小圆点（WearerMark）
+    var wearer = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
@@ -369,6 +372,7 @@ struct ParagraphText: View, Equatable {
                 flag.foregroundColor = .orange
                 out += flag
             }
+            if wearer, seg.isWearer == true { out += WearerMark.prefix }
             var piece = Highlight.text(seg.text, query)
             piece.link = URL(string: "openbean-seek://\(first + k)")
             if first + k == current {
