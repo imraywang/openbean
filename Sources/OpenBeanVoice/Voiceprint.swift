@@ -126,7 +126,7 @@ public struct Voiceprint: Codable, Equatable, Sendable {
 }
 
 /// 一段录音认佩戴者的结果（index.json 里每条录音记一份，不含声纹）
-public struct SpeakerScan: Codable, Equatable, Sendable {
+public struct SpeakerScan: Codable, Hashable, Sendable {
     public enum Outcome: String, Codable, Sendable {
         /// 每句都判定过了
         case labelled

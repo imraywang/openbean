@@ -68,6 +68,9 @@ final class AppModel {
         device.start()
         hud.start()
         glossaryBackfill.start()
+        // 「认出我的声音」：补算还没判定过的录音（开着才做）
+        library.speakers.models = models
+        library.speakers.start()
         // 已转写的录音补算对话段（后台，缺了或过时了才算）
         library.conversations.backfill()
         // 开着每日日记：今天和昨天的日记补一遍（等补算完；没变就不调用大模型）

@@ -2,6 +2,7 @@
 
 import Foundation
 import Observation
+import OpenBeanVoice
 #if os(macOS)
 import Speech
 #endif
@@ -17,7 +18,7 @@ final class ModelStore: NSObject, URLSessionDownloadDelegate {
     private(set) var state: State = .checking
     private(set) var appleReady = false
 
-    private struct Item { let url: String; let path: String; let bytes: Int64 }
+    struct Item { let url: String; let path: String; let bytes: Int64 }
     private let items = [
         Item(url: "https://huggingface.co/csukuangfj/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17/resolve/main/model.int8.onnx",
              path: "sensevoice/model.int8.onnx", bytes: 239_233_841),
@@ -59,6 +60,7 @@ final class ModelStore: NSObject, URLSessionDownloadDelegate {
         let fm = FileManager.default
         let ok = items.allSatisfy { fm.fileExists(atPath: AppPaths.models.appendingPathComponent($0.path).path) }
         state = ok ? .ready : .missing
+        checkSpeaker()
         Task { await checkApple() }
     }
 
@@ -76,6 +78,8 @@ final class ModelStore: NSObject, URLSessionDownloadDelegate {
     /// - wifiOnly：不用蜂窝网络（iOS 设置里「仅 Wi‑Fi 下载」）；Mac 不传
     func download(wifiOnly: Bool = false) async {
         guard state != .ready else { return }
+        // 两个下载共用一个会话代理：声纹模型正在下就等它
+        while fetchingSpeaker { try? await Task.sleep(nanoseconds: 500_000_000) }
         doneBytes = 0
         state = .downloading(0)
         let cfg = URLSessionConfiguration.default
@@ -87,34 +91,8 @@ final class ModelStore: NSObject, URLSessionDownloadDelegate {
         defer { session.finishTasksAndInvalidate() }
         do {
             for item in items {
-                let dest = AppPaths.models.appendingPathComponent(item.path)
-                if FileManager.default.fileExists(atPath: dest.path) { doneBytes += item.bytes; continue }
-                // HuggingFace 在有些网络下连不上或一直没有数据：主地址失败（含 60 秒没有数据超时）后换镜像再试
-                var tmp: URL?
-                var lastError: Error = URLError(.cannotConnectToHost)
-                for address in Self.sources(for: item.url) {
-                    do {
-                        tmp = try await withCheckedThrowingContinuation { c in
-                            current = c
-                            session.downloadTask(with: URL(string: address)!).resume()
-                        }
-                        break
-                    } catch {
-                        lastError = error
-                        Log.write("语音模型下载失败（\(URL(string: address)?.host ?? "")）：\(error.localizedDescription)")
-                    }
-                }
-                guard let tmp else { throw lastError }
-                try FileManager.default.createDirectory(at: dest.deletingLastPathComponent(), withIntermediateDirectories: true)
-                try? FileManager.default.removeItem(at: dest)
-                try FileManager.default.moveItem(at: tmp, to: dest)
-                #if os(iOS)
-                // 模型能重新下载：不进 iCloud 备份
-                var rv = URLResourceValues()
-                rv.isExcludedFromBackup = true
-                var d = dest
-                try? d.setResourceValues(rv)
-                #endif
+                if FileManager.default.fileExists(atPath: AppPaths.models.appendingPathComponent(item.path).path) { doneBytes += item.bytes; continue }
+                try await fetch(item, session: session)
                 doneBytes += item.bytes
             }
             await installApple()
@@ -125,6 +103,80 @@ final class ModelStore: NSObject, URLSessionDownloadDelegate {
                 state = .failed(String(localized: "Connect to Wi‑Fi to download the speech model, or turn off Wi‑Fi only."))
             } else {
                 state = .failed(error.localizedDescription)
+            }
+        }
+    }
+
+    /// 下载一个文件放到模型文件夹。HuggingFace 在有些网络下连不上或一直没有数据：主地址失败（含 60 秒没有数据超时）后换镜像再试
+    private func fetch(_ item: Item, session: URLSession) async throws {
+        let dest = AppPaths.models.appendingPathComponent(item.path)
+        var tmp: URL?
+        var lastError: Error = URLError(.cannotConnectToHost)
+        for address in Self.sources(for: item.url) {
+            do {
+                tmp = try await withCheckedThrowingContinuation { c in
+                    current = c
+                    session.downloadTask(with: URL(string: address)!).resume()
+                }
+                break
+            } catch {
+                lastError = error
+                Log.write("语音模型下载失败（\(URL(string: address)?.host ?? "")）：\(error.localizedDescription)")
+            }
+        }
+        guard let tmp else { throw lastError }
+        try FileManager.default.createDirectory(at: dest.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try? FileManager.default.removeItem(at: dest)
+        try FileManager.default.moveItem(at: tmp, to: dest)
+        #if os(iOS)
+        // 模型能重新下载：不进 iCloud 备份
+        var rv = URLResourceValues()
+        rv.isExcludedFromBackup = true
+        var d = dest
+        try? d.setResourceValues(rv)
+        #endif
+    }
+
+    // MARK: 声纹模型（「认出我的声音」才要，单独下载，不算进上面的语音模型）
+
+    /// 3D-Speaker CAM++ zh_en advanced（Apache-2.0）：sherpa-onnx 作者在 HuggingFace 上的副本，连不上换镜像
+    static let speakerItem = Item(
+        url: "https://huggingface.co/csukuangfj/speaker-embedding-models/resolve/main/3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx",
+        path: SpeakerEmbedder.modelPath, bytes: 28_281_164)
+    private(set) var speaker: State = .checking
+    /// 正在下的是声纹模型（进度回调按这个分给 speaker 还是 state）
+    private var fetchingSpeaker = false
+
+    var speakerReady: Bool { speaker == .ready }
+
+    func checkSpeaker() {
+        speaker = FileManager.default.fileExists(atPath: AppPaths.models.appendingPathComponent(Self.speakerItem.path).path) ? .ready : .missing
+    }
+
+    /// 下载声纹模型（打开「认出我的声音」时）。语音模型正在下就等它下完
+    func downloadSpeaker(wifiOnly: Bool = false) async {
+        checkSpeaker()
+        guard speaker != .ready, !fetchingSpeaker else { return }
+        while isDownloading { try? await Task.sleep(nanoseconds: 1_000_000_000) }
+        fetchingSpeaker = true
+        defer { fetchingSpeaker = false }
+        speaker = .downloading(0)
+        let cfg = URLSessionConfiguration.default
+        if wifiOnly {
+            cfg.allowsCellularAccess = false
+            cfg.allowsExpensiveNetworkAccess = false
+        }
+        let session = URLSession(configuration: cfg, delegate: self, delegateQueue: nil)
+        defer { session.finishTasksAndInvalidate() }
+        do {
+            try await fetch(Self.speakerItem, session: session)
+            speaker = .ready
+            Log.write("声纹模型已下载")
+        } catch {
+            if wifiOnly, let u = error as? URLError, u.networkUnavailableReason == .cellular || u.networkUnavailableReason == .expensive {
+                speaker = .failed(String(localized: "Connect to Wi‑Fi to download the voice model, or turn off Wi‑Fi only."))
+            } else {
+                speaker = .failed(error.localizedDescription)
             }
         }
     }
@@ -159,7 +211,11 @@ final class ModelStore: NSObject, URLSessionDownloadDelegate {
     nonisolated func urlSession(_ s: URLSession, downloadTask: URLSessionDownloadTask, didWriteData _: Int64,
                                 totalBytesWritten: Int64, totalBytesExpectedToWrite _: Int64) {
         Task { @MainActor in
-            state = .downloading(Double(doneBytes + totalBytesWritten) / Double(totalBytes))
+            if fetchingSpeaker {
+                speaker = .downloading(Double(totalBytesWritten) / Double(Self.speakerItem.bytes))
+            } else {
+                state = .downloading(Double(doneBytes + totalBytesWritten) / Double(totalBytes))
+            }
         }
     }
 

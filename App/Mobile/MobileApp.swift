@@ -55,6 +55,9 @@ final class MobileModel {
         device.link.verbose = Flavor.defaults.bool(forKey: LogView.verboseKey)
         if Flavor.defaults.bool(forKey: Self.connectKey) { device.start() }
         glossaryBackfill.start()
+        // 「认出我的声音」：补算还没判定过的录音（开着才做）
+        library.speakers.models = models
+        library.speakers.start()
         IOSHotspotJoiner.cleanUpLeftovers()
         // 已转写的录音补算对话段；开着心力模式时今天和昨天的日记补一遍（没变就不调用大模型）
         library.conversations.backfill()

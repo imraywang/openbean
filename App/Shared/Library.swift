@@ -29,6 +29,8 @@ struct Recording: Codable, Identifiable, Hashable {
     var syncedAt: Date?
     /// 本机音频按心力模式的保留设置删掉的时刻（转写、摘要还在）
     var audioDeletedAt: Date?
+    /// 「认出我的声音」扫过这条没有、结果如何（没开过这个功能的录音没有）
+    var speakerScan: SpeakerScan?
 
     var recordingSource: RecordingSource { source ?? .normal }
     var audioRemoved: Bool { audioDeletedAt != nil }
@@ -114,6 +116,8 @@ final class LibraryStore {
     let conversations = ConversationStore()
     /// 心力模式下一次同步的进度（心力模式页顶上的四步条、结束时的通知）
     let progress = SyncProgress()
+    /// 「认出我的声音」：每句是不是佩戴者说的
+    let speakers = SpeakerIdentity()
     /// 这次同步按开始时的设置算：转写、写日记、从设备删除、本机音频保留
     private var runOptions: SyncRun.Options {
         let m = settings.mode
@@ -154,6 +158,7 @@ final class LibraryStore {
         load()
         notes.library = self
         conversations.library = self
+        speakers.library = self
         notes.onDiaryResult = { [weak self] id, r in self?.progress.diary(id, r) }
         #if os(iOS)
         loadSynced()
@@ -297,6 +302,25 @@ final class LibraryStore {
         transcripts[id] = nil
         conversations.refresh(id)
         notes.transcriptChanged(id)
+    }
+
+    /// 认佩戴者的结果：写回转写（只多了每句的三个字段，文字和起止不变，所以不用重新切段、不刷新笔记），记下这条扫过了
+    func storeSpeakerResult(_ id: UInt32, segments: [TranscriptSegment]?, scan: SpeakerScan) {
+        if let segments {
+            guard (try? JSONEncoder().encode(segments).write(to: transcriptURL(id), options: .atomic)) != nil else {
+                Log.write("认出我的声音：写 \(id) 的转写失败")
+                return
+            }
+            transcripts[id] = segments
+        }
+        update(id) { $0.speakerScan = scan }
+    }
+
+    /// 「忘掉我的声音」之后：这些录音的转写已经清掉了标签，丢掉缓存；所有录音的扫描记录都清掉
+    func clearSpeakerScans(_ rewritten: [UInt32]) {
+        for id in rewritten { transcripts[id] = nil }
+        for i in recordings.indices where recordings[i].speakerScan != nil { recordings[i].speakerScan = nil }
+        save()
     }
 
     /// 删除本机副本（不动设备上的录音）
@@ -1098,10 +1122,13 @@ final class LibraryStore {
         let url = audioURL(id)
         let models = AppPaths.models
         let glossary = GlossaryCorrector(terms: AppPaths.readGlossary())
-        let result: Result<[TranscriptSegment], Error> = await withCheckedContinuation { c in
+        // 「认出我的声音」开着：转写时顺手算每句的声纹窗口（用转写已经解码好的采样）
+        let speaker = recordings.first(where: { $0.id == id }).map(speakers.wantsWindows) ?? false
+        let result: Result<FileTranscriber.Output, Error> = await withCheckedContinuation { c in
             work.async {
                 c.resume(returning: Result {
-                    try FileTranscriber.transcribe(url: url, models: models, glossary: glossary) { p in
+                    let scanner = speaker ? SpeakerIdentity.makeScanner(models: models) : nil
+                    return try FileTranscriber.transcribe(url: url, models: models, glossary: glossary, speaker: scanner) { p in
                         DispatchQueue.main.async { [weak self] in self?.transcribing[id] = p }
                     }
                 })
@@ -1109,10 +1136,19 @@ final class LibraryStore {
         }
         transcribing[id] = nil
         switch result {
-        case let .success(segs):
+        case let .success(output):
+            var segs = output.segments
+            // 先判定说话人，再写转写、切段（切段以后会用到）
+            var scan: SpeakerScan?
+            if let w = output.speaker, let r = recordings.first(where: { $0.id == id }) {
+                scan = speakers.finish(r, windows: w.windows, candidate: w.candidate, segments: &segs, seconds: w.seconds)
+            }
             transcripts[id] = segs
             if let d = try? JSONEncoder().encode(segs) { try? d.write(to: transcriptURL(id), options: .atomic) }
-            update(id) { $0.transcribed = true }
+            update(id) {
+                $0.transcribed = true
+                if let scan { $0.speakerScan = scan }
+            }
             // 日志只记条数：转写的原文不进日志（日志会被贴出去排查问题）
             Log.write("已转写 \(id)：\(segs.count) 句，词表纠正 \(segs.filter { $0.raw != nil }.count) 句")
             progress.transcribed(id, ok: true)
@@ -1176,9 +1212,21 @@ final class LibraryStore {
 
 /// 离线转写一个音频文件：解码 → 16 kHz → 测音量定增益 → VAD 切句 → SenseVoice
 enum FileTranscriber {
-    static func transcribe(url: URL, models: URL, glossary: GlossaryCorrector,
-                           progress: (Double) -> Void) throws -> [TranscriptSegment] {
+    /// 转写结果；speaker：顺手算的声纹窗口和这段的主声音（没开「认出我的声音」时为 nil）
+    struct Output {
+        var segments: [TranscriptSegment]
+        var speaker: (windows: SpeakerWindows, candidate: SpeakerID.Candidate?, seconds: Double)?
+    }
+
+    static func transcribe(url: URL, models: URL, glossary: GlossaryCorrector, progress: (Double) -> Void) throws -> [TranscriptSegment] {
+        try transcribe(url: url, models: models, glossary: glossary, speaker: nil, progress: progress).segments
+    }
+
+    /// - speaker：给了就每句交给它算窗口（句子的原始采样，转写已经解码好的）
+    static func transcribe(url: URL, models: URL, glossary: GlossaryCorrector, speaker: SpeakerScanner?,
+                           progress: (Double) -> Void) throws -> Output {
         let recognizer = try SentenceRecognizer(modelsDir: models, minSilence: 0.6)
+        recognizer.keepSamples = speaker != nil
         // 整个文件都在手里：先走一遍测音量，小声的录音给 VAD 一个固定增益（不然整段会被当成静音）
         let level = try AudioFile16k.stats(url)
         recognizer.vadGainDb = level.gain
@@ -1187,13 +1235,25 @@ enum FileTranscriber {
                              level.speech, level.noise, level.gain))
         }
         var out: [TranscriptSegment] = []
+        // 空句不进转写；声纹窗口的句号就是这句在转写里的下标
+        func add(_ sentences: [SentenceRecognizer.Sentence]) {
+            for s in sentences {
+                let t = seg(s, glossary)
+                guard !t.text.isEmpty else { continue }
+                if let speaker, let pcm = s.samples { speaker.add(sentence: out.count, samples: pcm[...]) }
+                out.append(t)
+            }
+        }
         try AudioFile16k.read(url) { samples, p in
-            out += recognizer.accept(samples).map { seg($0, glossary) }
+            add(recognizer.accept(samples))
             progress(p)
         }
-        out += recognizer.flush().map { seg($0, glossary) }
+        add(recognizer.flush())
         if recognizer.usedFallback { Log.write("转写没切出句子，整段直接识别") }
-        return out.filter { !$0.text.isEmpty }
+        guard let speaker else { return Output(segments: out) }
+        let t0 = Date()
+        let candidate = SpeakerID.loudCandidate(speaker.windows)
+        return Output(segments: out, speaker: (speaker.windows, candidate, speaker.seconds + Date().timeIntervalSince(t0)))
     }
 
     /// 每句先按个人词表纠正专有名词（转写模式，更保守）；改过的句子留下原文
