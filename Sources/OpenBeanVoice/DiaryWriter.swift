@@ -51,6 +51,8 @@ public struct DiaryWriter: Sendable {
         public var duplicates: Int = 0
         /// 不认的负责人（泛称、或出处那几段里找不到）
         public var droppedOwners: Int = 0
+        /// 丢掉的条目按「哪一栏:原因」计数，如 "highlights:noRefs"（排查用，只有条数）
+        public var dropReasons: [String: Int] = [:]
     }
 
     /// 当天进日记的转写至少要这么多字，才写概述
@@ -151,9 +153,12 @@ public struct DiaryWriter: Sendable {
         let lang = Summarizer.languageLine(for: languageSample)
         let session = base.backend.open(timeout: base.timeout)
         var calls = 0
+        // 日记比一段的摘要长（概述 + 要点 + 决定 + 待办，长的一天有二十来条）：1000 token 常常不够，第一次就被截断再重试。
+        // 接服务时起步给 3000；端侧模型有自己的上限（preferredMaxOutput），照它的来
+        let maxOutput = base.backend.preferredMaxOutput == nil ? max(base.maxOutput, 3000) : base.maxOutput
         func ask(_ system: String, _ user: String, shape: ReplyShape) async throws -> [String: Any] {
             // 回复不可用时再试一次、截断时加大输出上限（LLMAsk）
-            let (o, n) = try await LLMAsk(channel: session, maxOutput: base.maxOutput, label: "日记")
+            let (o, n) = try await LLMAsk(channel: session, maxOutput: maxOutput, label: "日记")
                 .run(system, user, shape: shape, parse: JSONReply.object)
             calls += n
             return o
@@ -172,7 +177,7 @@ public struct DiaryWriter: Sendable {
         let day = Self.target(use)
 
         var overviews: [String] = [], highlights: [DiaryItem] = [], decisions: [DiaryItem] = [], todos: [DiaryItem] = []
-        var dropped = 0
+        var dropped = 0, dropReasons: [String: Int] = [:]
         for g in groups {
             // 每组按这组自己的大小定长度；只有一组时就是全天
             let t = groups.count == 1 ? day : Self.target(g.map(\.input))
@@ -188,6 +193,9 @@ public struct DiaryWriter: Sendable {
             decisions += d.kept
             todos += td.kept
             dropped += h.dropped + d.dropped + td.dropped
+            for (name, r) in [("highlights", h.why), ("decisions", d.why), ("todos", td.why)] {
+                for (k, n) in r { dropReasons["\(name):\(k)", default: 0] += n }
+            }
         }
         var overview = overviews.first
         if overviews.count > 1 {
@@ -218,7 +226,8 @@ public struct DiaryWriter: Sendable {
                           decisions: Array(cleanDecisions.prefix(Self.maxDecisions)).map { Self.fix($0, c) },
                           todos: Array(cleanTodos.prefix(Self.maxTodos)).map { Self.fix($0, c) },
                           people: Array(people.prefix(Self.maxPeople)), things: Array(things.prefix(Self.maxThings)))
-        return Output(status: .diary, diary: diary, calls: calls, dropped: dropped, duplicates: duplicates, droppedOwners: droppedOwners)
+        return Output(status: .diary, diary: diary, calls: calls, dropped: dropped, duplicates: duplicates, droppedOwners: droppedOwners,
+                      dropReasons: dropReasons)
     }
 
     /// 回复的结构（端侧模型做结构化生成用；OpenAI 兼容服务不发）
@@ -267,22 +276,30 @@ public struct DiaryWriter: Sendable {
     // MARK: 校验出处
 
     /// 解析模型给的条目，只留下出处存在、而且出处那一段确实有这类内容的；返回留下的和丢掉的条数
-    static func items(_ v: Any?, labels: [String: Input], allowed: (Input) -> Bool) -> (kept: [DiaryItem], dropped: Int) {
-        guard let arr = v as? [Any] else { return ([], 0) }
-        var kept: [DiaryItem] = [], dropped = 0
+    static func items(_ v: Any?, labels: [String: Input], allowed: (Input) -> Bool)
+        -> (kept: [DiaryItem], dropped: Int, why: [String: Int]) {
+        guard let arr = v as? [Any] else { return ([], 0, [:]) }
+        var kept: [DiaryItem] = [], dropped = 0, why: [String: Int] = [:]
         for e in arr {
-            guard let o = e as? [String: Any] else { dropped += 1; continue }
+            guard let o = e as? [String: Any] else { dropped += 1; why["notObject", default: 0] += 1; continue }
             let text = Summarizer.stripBullet(Summarizer.clean((o["text"] ?? o["item"] ?? o["task"]) as? String ?? ""))
             guard !text.isEmpty, !Summarizer.isNone(text) else { continue }
             var refs: [ConversationRef] = []
-            for l in refLabels(o["refs"] ?? o["ref"] ?? o["sources"]) {
+            let given = refLabels(o["refs"] ?? o["ref"] ?? o["sources"])
+            for l in given {
                 if let i = labels[l], allowed(i), !refs.contains(i.ref) { refs.append(i.ref) }
             }
-            guard !refs.isEmpty else { dropped += 1; continue }
+            guard !refs.isEmpty else {
+                dropped += 1
+                // 为什么丢：没写出处、出处的编号不存在、还是出处那段没有这类内容（只记原因和条数，不记内容）
+                let reason = given.isEmpty ? "noRefs" : given.contains { labels[$0] != nil } ? "sourceHasNone" : "unknownRef"
+                why[reason, default: 0] += 1
+                continue
+            }
             let owner = Summarizer.clean(o["owner"] as? String ?? "")
             kept.append(DiaryItem(text: text, owner: owner.isEmpty || Summarizer.isNone(owner) ? nil : owner, refs: refs))
         }
-        return (kept, dropped)
+        return (kept, dropped, why)
     }
 
     /// "S3"、["S1", "S2"]、"S1, S2"、[1, 2] 都认

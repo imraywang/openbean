@@ -378,6 +378,10 @@ final class DiaryService {
         revision += 1
         Log.write(String(format: "已写日记 %@：%d 段，%@，%d 次调用，%.0f 秒，丢掉出处对不上的 %d 条、重复的 %d 条、不认的负责人 %d 个",
                          key, included.count, out.status.rawValue, out.calls, secs, out.dropped, out.duplicates, out.droppedOwners))
+        if !out.dropReasons.isEmpty {
+            Log.write("日记 \(key) 丢掉的条目：" + out.dropReasons.sorted { $0.key < $1.key }.map { "\($0.key) \($0.value)" }.joined(separator: "，")
+                      + "，要点 \(out.diary?.highlights.count ?? 0) 条")
+        }
         writeNote(day)
         return .written
     }

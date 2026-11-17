@@ -129,6 +129,11 @@ final class AppModel {
                 Log.write("打字测试：焦点 \(f.kind)（\(f.role)）")
                 if f.kind != .notEditable { Typist.type("OpenBean 打字测试 OK。") }
             }
+        case let p where p.hasPrefix("diary/"):
+            // openbean://diary/<yyyy-MM-dd>：重写这一天的日记（和当天页面上的按钮一样）
+            if let day = DayFile.day(String(p.dropFirst(6)), calendar: library.notes.diary.boundary.calendar) {
+                library.notes.diary.requestDay(day)
+            }
         case "glossary/apply":
             // 手动把词表重新应用到录音库的所有转写（平时词表一变就会自动做）
             glossaryBackfill.check(force: true)
