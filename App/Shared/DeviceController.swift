@@ -266,7 +266,21 @@ final class DeviceController {
                       + (quiet ? " intentional=1" : ""))
         }
         step("握手")
+        #if os(iOS)
+        // 系统在后台连上、交还的连接，MTU 可能还是默认的（写入上限 20 字节）。真机上这样的连接握手每次都报
+        // 「ECDH 共享密钥对不上」（2026-11-17：连续 5 小时，上限 20；上限 509 的那次一次就成）。
+        // 先等一会儿协商；握手还是不成就放掉这条连接，下一次重试从头连，而不是在同一条连接上一直试
+        let limit = await link.waitForWriteLimit()
+        do {
+            try await s.handshake()
+        } catch {
+            Log.write("握手没成功（写入上限 \(limit.map(String.init) ?? "?") 字节）：放掉这条连接，下次从头连")
+            link.dropConnection()
+            throw error
+        }
+        #else
         try await s.handshake()
+        #endif
         step("握手完成，校时")
         try? await s.syncTime()
         step("就绪")

@@ -390,6 +390,33 @@ public final class Link: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         }
     }
 
+    /// 现在一次能写多少字节（没连着为 nil）。刚连上、MTU 还没协商完时是 20
+    public var writeLimit: Int? {
+        q.sync {
+            guard let p = peripheral, let ch = writeChar, p.state == .connected else { return nil }
+            return p.maximumWriteValueLength(for: ch.properties.contains(.writeWithoutResponse) ? .withoutResponse : .withResponse)
+        }
+    }
+
+    /// 等写入上限超过 20 字节（MTU 协商完），最多等 `timeout` 秒；返回最后看到的上限
+    public func waitForWriteLimit(timeout: Double = 3) async -> Int? {
+        let deadline = Date().addingTimeInterval(timeout)
+        while true {
+            let n = writeLimit
+            if n == nil || n! > 20 || Date() >= deadline { return n }
+            try? await Task.sleep(nanoseconds: 100_000_000)
+        }
+    }
+
+    /// 放掉这条连接，不回调 `onDisconnect`（连接还没建立好、握手没成功时用：调用方自己的重试会重新连，
+    /// 不该再被当成一次掉线）
+    public func dropConnection() {
+        q.sync {
+            established = false
+            if let p = peripheral { central.cancelPeripheralConnection(p) }
+        }
+    }
+
     /// 在 BLE 队列上执行一段代码（给 onPacket 回调之外的状态读写用）。
     public func sync<T>(_ body: () throws -> T) rethrows -> T { try q.sync(execute: body) }
 
