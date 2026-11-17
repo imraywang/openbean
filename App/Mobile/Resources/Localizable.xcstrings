@@ -1852,6 +1852,16 @@
         }
       }
     },
+    "Highlights": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "要点"
+          }
+        }
+      }
+    },
     "Internet services must use https://. Plain http:// only works on your local network.": {
       "localizations": {
         "zh-Hans": {

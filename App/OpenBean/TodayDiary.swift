@@ -91,7 +91,7 @@ struct TodayConversationBlock: View {
 
 // MARK: - 当天的日记
 
-/// 「今天」顶上的日记：概述、定了的事（带出处时刻，点了去那条录音）、提到的人。
+/// 「今天」顶上的日记：概述、要点、定了的事（带出处时刻，点了去那条录音）、提到的人。
 /// 没开「每天写一篇日记」、或这天还没有日记时什么都不显示（开着时给一个「写这天的日记」按钮）
 struct TodayDiarySection: View {
     let model: AppModel
@@ -125,6 +125,18 @@ struct TodayDiarySection: View {
         return VStack(alignment: .leading, spacing: 14) {
             if let o = d.overview, !o.isEmpty {
                 Text(o).font(.title3).lineSpacing(3).fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
+            }
+            if !d.highlights.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Highlights").font(.headline)
+                    ForEach(Array(d.highlights.enumerated()), id: \.offset) { _, item in
+                        HStack(alignment: .firstTextBaseline, spacing: 8) {
+                            Image(systemName: "lightbulb").foregroundStyle(.secondary).font(.callout)
+                            Text(item.text).fixedSize(horizontal: false, vertical: true)
+                            refs(item.refs, byRef)
+                        }
+                    }
+                }
             }
             if !d.decisions.isEmpty {
                 VStack(alignment: .leading, spacing: 6) {

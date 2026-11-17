@@ -300,6 +300,9 @@ enum DemoData {
         }
         write(0, .diary, Diary(
             overview: "上午过了 Q4 路线图，确定同步重写优先；午后看了激活率专项。傍晚连着三段：站会、和刘经理的咖啡袋报价电话，以及和 Priya 的 1:1，她会牵头团队版的权限管理。",
+            highlights: [DiaryItem(text: "定价页 B 版转化 4.1%，现版 3.2%", refs: ref(today, "Q4 路线图评审")),
+                         DiaryItem(text: "同步重写完成约 70%，剩冲突处理和离线队列", refs: ref(today, "Q4 路线图评审")),
+                         DiaryItem(text: "咖啡袋报价：1 万个 0.86 元，3 万个 0.72 元；打样 1 周加大货 20 天", refs: ref(today, "供应商电话：咖啡袋报价"))],
             decisions: [DiaryItem(text: "同步重写优先，批量导出顺延到一月", refs: ref(today, "Q4 路线图评审")),
                         DiaryItem(text: "定价页采用 B 版结构，团队版入口放回导航栏", refs: ref(today, "Q4 路线图评审")),
                         DiaryItem(text: "Priya 牵头团队版的权限管理", refs: ref(today, "1:1 · Priya"))],

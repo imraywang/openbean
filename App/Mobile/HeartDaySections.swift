@@ -208,7 +208,7 @@ private struct StepRow: View {
     }
 }
 
-// MARK: - 日记：概述、定了的事、待办、提到的人
+// MARK: - 日记：概述、要点、定了的事、待办、提到的人
 
 struct DiarySections: View {
     let model: MobileModel
@@ -225,6 +225,18 @@ struct DiarySections: View {
             if let o = d.overview, !o.isEmpty {
                 Section("Diary") {
                     Text(o).font(.body).lineSpacing(3).textSelection(.enabled)
+                }
+            }
+            if !d.highlights.isEmpty {
+                Section("Highlights") {
+                    ForEach(Array(d.highlights.enumerated()), id: \.offset) { _, item in
+                        Label {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(item.text)
+                                times(item.refs, byRef)
+                            }
+                        } icon: { Image(systemName: "lightbulb").foregroundStyle(.secondary) }
+                    }
                 }
             }
             if !d.decisions.isEmpty {

@@ -2102,6 +2102,16 @@
         }
       }
     },
+    "Highlights": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "要点"
+          }
+        }
+      }
+    },
     "History is off. New voice typing isn't kept here.": {
       "localizations": {
         "zh-Hans": {
