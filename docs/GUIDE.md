@@ -144,14 +144,15 @@ per recording). A recording whose loudest voice is someone else — the Heart be
 marks and doesn't touch the voiceprint.
 
 **How a sentence is decided:** every sentence is cut into 1.5-second windows; a window counts as you when it is
-close enough to your voiceprint (cosine 0.5). A sentence is yours when at least half of its windows are. Sentences
+close enough to your voiceprint (cosine 0.5). A sentence is yours when more than half of its windows are (at exactly
+half, when its typical window is). Sentences
 shorter than a second are too short to judge: they follow the sentences before and after when both agree, and are
 otherwise left unmarked — never counted as someone else. Other speakers are not told apart. In our tests (37
 sentences checked by ear) nothing marked as the wearer was wrong and 97% of sentences of 1.5 s or longer were right;
 the misses were mostly short replies.
 
 **Earlier recordings:** once it is on, recordings already transcribed are checked in the background, newest first
-(this decodes their audio again, about 35 s of CPU per hour of recording on an M-series Mac). Recordings whose audio
+(this decodes their audio again, about a minute of one CPU core per hour of recording on an M5 Max). Recordings whose audio
 was already deleted by Heart mode's retention setting can't be checked and stay unmarked. New recordings are checked
 while they are transcribed, from the audio the transcription already decoded.
 

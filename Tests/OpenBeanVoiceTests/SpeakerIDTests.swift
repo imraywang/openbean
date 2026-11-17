@@ -135,6 +135,13 @@ final class SpeakerIDTests: XCTestCase {
         XCTAssertEqual(l[6], true)
     }
 
+    func testHalfSplitDecidedByMedian() {
+        XCTAssertTrue(SpeakerID.isWearer(.init(share: 0.5, median: 0.55, windows: 4)))
+        XCTAssertFalse(SpeakerID.isWearer(.init(share: 0.5, median: 0.47, windows: 4)))
+        XCTAssertTrue(SpeakerID.isWearer(.init(share: 0.6, median: 0.3, windows: 5)))
+        XCTAssertFalse(SpeakerID.isWearer(.init(share: 0.4, median: 0.6, windows: 5)))
+    }
+
     func testShortSentenceAtEdgesIsUnknown() {
         let l = SpeakerID.labels(times: [(0, 0.5), (1, 3)], scores: [score(1), score(1)], worn: .unknown)
         XCTAssertNil(l[0])

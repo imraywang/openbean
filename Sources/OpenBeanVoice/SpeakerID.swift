@@ -7,7 +7,7 @@ import Foundation
 ///
 /// 做法（可行性实验见 docs/GUIDE.md「Recognise my voice」）：
 /// - 每句按 1.5 秒窗口（步长 0.75 秒）算声纹向量和响度，不给整句一个向量（一句里常有两个人）；
-/// - 窗口和声纹的余弦 ≥ 0.5 算佩戴者；一句存佩戴者窗口占比（≥ 0.5 = 他说的）和窗口得分的中位数；
+/// - 窗口和声纹的余弦 ≥ 0.5 算佩戴者；一句存佩戴者窗口占比（过半 = 他说的，正好一半看中位数）和窗口得分的中位数；
 /// - 不到 1 秒的句子不单独判定：前后两句都有标签且一致时跟着它们，否则是未知（nil），不默认成「别人」；
 /// - 自动登记：领口上最响的声音就是佩戴者。长的心力模式录音取最响 20% 的窗口聚类，最大簇的中心是这段的候选；
 ///   两段不同日子录音的候选相似（≥ 0.75）才认定为声纹；之后只用高置信窗口慢慢更新；
@@ -195,6 +195,11 @@ public enum SpeakerID {
         }
     }
 
+    /// 一句（够长）算不算佩戴者说的：佩戴者窗口过半；正好一半时看窗口得分的中位数到没到阈值
+    public static func isWearer(_ s: SentenceScore) -> Bool {
+        s.share > 0.5 || (s.share == 0.5 && s.median >= Double(windowThreshold))
+    }
+
     /// 这段录音戴没戴在身上
     public enum Worn: String, Codable, Sendable {
         /// 最响的声音就是声纹
@@ -217,7 +222,7 @@ public enum SpeakerID {
         guard worn != .notWorn else { return Array(repeating: nil, count: times.count) }
         let first: [Bool?] = zip(times, scores).map { t, s in
             guard let s, t.end - t.start >= minSentenceSeconds else { return nil }
-            return s.share >= 0.5
+            return isWearer(s)
         }
         return times.indices.map { i in
             if let l = first[i] { return l }
