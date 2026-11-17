@@ -52,6 +52,12 @@ let package = Package(
             dependencies: ["OpenBeanVoice"],
             linkerSettings: [.unsafeFlags(["-Xlinker", "-rpath", "-Xlinker", "\(Context.packageDirectory)/Vendor/sherpa-onnx/lib"])]
         ),
+        // 认佩戴者（评测用，只读录音库）：speaker-scan <模型目录> <Library> <输出文件夹> <录音号>...，见 Sources/speaker-scan/main.swift
+        .executableTarget(
+            name: "speaker-scan",
+            dependencies: ["OpenBeanVoice", "OpenBeanLibrary"],
+            linkerSettings: [.unsafeFlags(["-Xlinker", "-rpath", "-Xlinker", "\(Context.packageDirectory)/Vendor/sherpa-onnx/lib"])]
+        ),
         .testTarget(name: "OpenBeanKitTests", dependencies: ["OpenBeanKit"]),
         .testTarget(name: "OpenBeanLibraryTests", dependencies: ["OpenBeanLibrary"]),
         // 依赖可执行文件：swift test 会先编好 openbean-mcp，端到端测试直接起进程
