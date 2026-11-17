@@ -4,6 +4,7 @@
 #   ~/Library/Application Support/openbean/models
 #     sensevoice/             SenseVoice-Small int8（每句定稿）
 #     vad/silero_vad.onnx     Silero VAD（切句）
+#     speaker/…campplus…onnx  3D-Speaker CAM++ zh_en（认出佩戴者的声音，Apache-2.0，28 MB）
 #
 # Scripts/fetch-deps.sh --ios：只下 iOS 版要的静态 xcframework（bin/build-ios 会调用），不下模型：
 #   Vendor/sherpa-onnx-ios/sherpa-onnx.xcframework   sherpa-onnx C 接口静态库（SherpaOnnxC.framework）
@@ -66,4 +67,11 @@ if [[ ! -f "$M/sensevoice/model.int8.onnx" ]]; then
   rm -rf "$tmp"
 fi
 [[ -f "$M/vad/silero_vad.onnx" ]] || curl -sSL --fail -o "$M/vad/silero_vad.onnx" "$GH/asr-models/silero_vad.onnx"
+SPK=3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx
+if [[ ! -f "$M/speaker/$SPK" ]]; then
+  echo "下载声纹模型 CAM++（约 28 MB）"
+  mkdir -p "$M/speaker"
+  # sherpa-onnx 的 release 标签就叫 speaker-recongition-models（原文拼写）
+  curl -sSL --fail -o "$M/speaker/$SPK.part" "$GH/speaker-recongition-models/$SPK" && mv "$M/speaker/$SPK.part" "$M/speaker/$SPK"
+fi
 echo "依赖就绪：$ROOT/Vendor/sherpa-onnx，模型在 $M"

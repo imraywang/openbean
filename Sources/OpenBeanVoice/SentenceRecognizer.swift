@@ -17,6 +17,8 @@ public final class SentenceRecognizer {
         public let end: Double
         public let text: String
         public let decodeMs: Double
+        /// 这句的原始采样（起止就是 start…end，不含前后补的）；只有 keepSamples 时才有（认佩戴者用，见 SpeakerScanner）
+        public var samples: [Float]? = nil
     }
 
     public static let sampleRate = 16000
@@ -35,6 +37,8 @@ public final class SentenceRecognizer {
     public var vadGainDb: Float = 0
     /// 流式自动增益，只给 VAD：实时听写用；nil 表示不用。设了它就不看 vadGainDb
     public var adaptiveGain: AdaptiveGain?
+    /// 每句带上原始采样（Sentence.samples）：认佩戴者直接用转写已经解码好的音频，不用再解码一次
+    public var keepSamples = false
     /// 一句也没切出来时，flush 整段直接识别（见类注释）
     public var fallbackWhenEmpty = true
     /// 这次（reset 以来）是不是走了整段识别
@@ -185,7 +189,8 @@ public final class SentenceRecognizer {
         guard text.contains(where: { $0.isLetter || $0.isNumber }) else { return nil }
         usedFallback = true
         emitted += 1
-        return Sentence(start: 0, end: Double(fed) / 16000, text: text, decodeMs: Date().timeIntervalSince(t0) * 1000)
+        return Sentence(start: 0, end: Double(fed) / 16000, text: text, decodeMs: Date().timeIntervalSince(t0) * 1000,
+                        samples: keepSamples ? history : nil)
     }
 
     /// 整段识别要求的动态范围（dB）
@@ -213,8 +218,13 @@ public final class SentenceRecognizer {
             guard b > a else { continue }
             let t0 = Date()
             let text = recognize(Array(history[(a - historyStart)..<(b - historyStart)]))
+            var own: [Float]?
+            if keepSamples {
+                let x = max(start, historyStart), y = min(start + n, historyStart + history.count)
+                own = y > x ? Array(history[(x - historyStart)..<(y - historyStart)]) : []
+            }
             out.append(Sentence(start: Double(start) / 16000, end: Double(start + n) / 16000,
-                                text: text, decodeMs: Date().timeIntervalSince(t0) * 1000))
+                                text: text, decodeMs: Date().timeIntervalSince(t0) * 1000, samples: own))
             if text.contains(where: { $0.isLetter || $0.isNumber }) { emitted += 1 }
         }
         return out

@@ -11,12 +11,29 @@ public struct TranscriptSegment: Codable, Hashable, Sendable {
     public var text: String
     /// 识别器的原文，只有词表改过这句时才有；再次应用词表一律从它算
     public var raw: String?
+    /// 认佩戴者（「认出我的声音」开着才有，见 SpeakerID）：这句里佩戴者窗口的占比（0…1）
+    public var wearerShare: Double?
+    /// 这句窗口和声纹余弦的中位数
+    public var wearerScore: Double?
+    /// 是不是佩戴者说的：true / false；nil = 没判定（太短、录音豆没戴、没开这个功能）
+    public var isWearer: Bool?
 
-    public init(start: Double, end: Double, text: String, raw: String? = nil) {
+    public init(start: Double, end: Double, text: String, raw: String? = nil,
+                wearerShare: Double? = nil, wearerScore: Double? = nil, isWearer: Bool? = nil) {
         self.start = start
         self.end = end
         self.text = text
         self.raw = raw
+        self.wearerShare = wearerShare
+        self.wearerScore = wearerScore
+        self.isWearer = isWearer
+    }
+
+    /// 清掉认佩戴者的三个字段（「忘掉我的声音」、重新判定前）
+    public mutating func clearWearer() {
+        wearerShare = nil
+        wearerScore = nil
+        isWearer = nil
     }
 }
 
