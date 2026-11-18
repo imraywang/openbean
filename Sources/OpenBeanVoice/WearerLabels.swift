@@ -36,7 +36,7 @@ public enum WearerWord {
     public static func scrub(_ text: String) -> String {
         guard text.range(of: "wearer", options: .caseInsensitive) != nil || text.contains("佩戴者") else { return text }
         let cjk = text.unicodeScalars.contains { $0.value >= 0x4E00 && $0.value <= 0x9FFF }
-        var t = text.replacingOccurrences(of: #"(?i)\b(the )?wearer('s)?\b"#, with: cjk ? "你" : "you", options: .regularExpression)
+        var t = text.replacingOccurrences(of: #"(?i)(?<![A-Za-z])(the )?wearer('s)?(?![A-Za-z])"#, with: cjk ? "你" : "you", options: .regularExpression)
         t = t.replacingOccurrences(of: "佩戴者", with: "你")
         return t
     }
