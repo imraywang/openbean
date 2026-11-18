@@ -25,11 +25,17 @@ public enum DiaryNote {
         /// 带「认出我的声音」标签的日子：待办分成佩戴者自己的和别人的
         public var myTodos = "My to-dos"
         public var otherTodos = "Other people's to-dos"
+        /// 要点是谁说的（带标签的日子，代码核过的）
+        public var saidByMe = "said by you"
+        public var saidByOthers = "said by others"
 
         public init() {}
         public init(overview: String, decisions: String, todos: String, peopleAndThings: String, people: String,
                     things: String, conversations: String, transcript: String, media: String, marks: String = "Marked",
-                    highlights: String = "Highlights", myTodos: String = "My to-dos", otherTodos: String = "Other people's to-dos") {
+                    highlights: String = "Highlights", myTodos: String = "My to-dos", otherTodos: String = "Other people's to-dos",
+                    saidByMe: String = "said by you", saidByOthers: String = "said by others") {
+            self.saidByMe = saidByMe
+            self.saidByOthers = saidByOthers
             self.myTodos = myTodos
             self.otherTodos = otherTodos
             self.highlights = highlights
@@ -92,7 +98,10 @@ public enum DiaryNote {
         let L = v.labels
         if let o = v.day.diary?.overview, !o.isEmpty { s += "\n## \(L.overview)\n\n\(o)\n" }
         if let h = v.day.diary?.highlights, !h.isEmpty {
-            s += "\n## \(L.highlights)\n\n" + h.map { "- \($0.text) (\(refLinks($0.refs)))" }.joined(separator: "\n") + "\n"
+            s += "\n## \(L.highlights)\n\n" + h.map { item in
+                let who = item.mine.map { " *(\($0 ? L.saidByMe : L.saidByOthers))*" } ?? ""
+                return "- \(item.text)\(who) (\(refLinks(item.refs)))"
+            }.joined(separator: "\n") + "\n"
         }
         // 标记：用户在录音豆上双击标出的时刻。每条：时刻、所在的那段对话（链接）、标记那句和前后各一句的原话
         if !v.day.marks.isEmpty {

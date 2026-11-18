@@ -173,26 +173,37 @@ public struct DiaryWriter: Sendable {
     /// 最长那一档的提示
     static var prompt: String { prompt(.long) }
 
-    /// 带标签的一天的提示：这是佩戴者的日记
+    /// 带标签的一天的提示：这是佩戴者的日记。要点按「本人说的 / 别人说的」分好给模型，「你」只能用在本人说的事上
     static func labelledPrompt(_ t: Target, voice: WearerVoice) -> String {
         let who = voice == .you
-            ? "Write to the wearer as \"you\" (in Chinese 你): \"you agreed with Wang to…\". Use \"you\" for nobody else, and never write as \"I\"."
+            ? "Write \"you\" (in Chinese 你) only for what the wearer said, decided, promised or was asked to do. Write what other " +
+              "people said as \"Wang said…\", \"someone said…\" or \"you were told…\" — never as something \"you\" did, have, " +
+              "make or said. Never write as \"I\"."
             : "Describe what was recorded; do not write as \"I\" or \"you\", and do not call anyone \"the wearer\"."
         return """
         You write the daily diary of the person who wore a voice recorder all day (called "the wearer" below), from the \
-        conversations it picked up. You get a short summary of each conversation, labelled S1, S2, … with its time, in \
-        time order. "Wearer:" says how much of a conversation the wearer spoke; "did not speak" means it was only \
-        overheard. "Wearer's to-dos" are things the wearer committed to or was asked to do.
+        conversations it picked up. You get each conversation, labelled S1, S2, … with its time, in time order. \
+        "Wearer:" says how much of it the wearer spoke; "did not speak" means it was only overheard. Its key points are \
+        grouped by who said them: "Said by the wearer", "Said by others" (what other people said about themselves, \
+        their work, their products, or told the wearer), and "Speaker not known". "Wearer's to-dos" are things the \
+        wearer committed to or was asked to do.
         Reply with ONE JSON object and nothing else, no code fences:
-        {"overview": "...", "highlights": [{"text": "...", "refs": ["S1"]}], "decisions": [{"text": "...", "refs": ["S1"]}], \
-        "my_todos": [{"text": "...", "refs": ["S2"]}], "todos": [{"text": "...", "owner": "...", "refs": ["S2"]}]}
+        {"overview": "...", "highlights": [{"text": "...", "said_by": "me", "refs": ["S1"]}], \
+        "decisions": [{"text": "...", "refs": ["S1"]}], "my_todos": [{"text": "...", "refs": ["S2"]}], \
+        "todos": [{"text": "...", "owner": "...", "refs": ["S2"]}]}
+        - Who said what: something in "Said by others" is never the wearer's own statement, work, product or situation, \
+        even when the other person said it with "I" or "my". Something in "Speaker not known" is never written as the \
+        wearer's. For a promise or an offer between two people, keep the direction given in the conversation (who will do \
+        what for whom); when it is not clear, write it neutrally ("a trial class of up to 20 people was agreed").
         - overview: \(t.sentencesText) on the wearer's day. Start with the most important thing the wearer said, decided \
         or learned in conversations he or she took part in, rather than the earliest; do not go through the \
         conversations one by one. Mention overheard conversations last and briefly, if at all. \(who)
-        - highlights: at most \(t.maxHighlights) of the most noteworthy facts, numbers, ideas and lessons of the day, each \
-        one short line, merged and deduplicated across conversations, with what the wearer said, decided, promised or \
-        learned first; overheard conversations last. Each one must come from the Key points of the conversations it \
-        lists in refs. Do not repeat what is in decisions or todos. [] when there are none.
+        - highlights: at most \(t.maxHighlights) of the most noteworthy points of the day, each one short line, merged and \
+        deduplicated across conversations. Mix both kinds, about half each when there are both: what the wearer said, \
+        decided or promised (said_by "me", from "Said by the wearer"), and what others told the wearer — facts, numbers, \
+        advice (said_by "other", from "Said by others"). Use said_by "?" for "Speaker not known". Overheard \
+        conversations last. Each one must come from the key points of the conversations it lists in refs. Do not repeat \
+        what is in decisions or todos. [] when there are none.
         - decisions: at most 5 things that were really settled AND still matter after that conversation ended, such as \
         a choice about work, money, plans, people or a product. These are not decisions: how the conversation itself \
         runs (who speaks first, the agenda, taking turns), ordering food or drinks, who pays the bill, where to sit, \
@@ -208,7 +219,7 @@ public struct DiaryWriter: Sendable {
         same thing in both.
         - A conversation with "Marked by the user" has moments the user marked as important on the recorder. Mention \
         what was said there in the overview or the highlights.
-        Only use what is in the summaries. Never add an item that is not in them, and never leave refs empty.
+        Only use what is in the conversations given. Never add an item that is not in them, and never leave refs empty.
         """
     }
 
@@ -216,8 +227,9 @@ public struct DiaryWriter: Sendable {
         """
         You are given overviews of consecutive parts of the diary of the person who wore a voice recorder all day, in \
         order. Combine them into one overview of \(t.sentencesText). Start with the most important thing the wearer \
-        said, decided or learned rather than the earliest, and do not go through the parts one by one. \
-        \(voice == .you ? "Write to the wearer as \"you\" (in Chinese 你), and never write as \"I\"." : "Do not write as \"I\" or \"you\".")
+        said, decided or learned rather than the earliest, and do not go through the parts one by one. Keep who said \
+        what exactly as the parts say it: never turn something another person said, did or has into the wearer's. \
+        \(voice == .you ? "Write \"you\" (in Chinese 你) only for the wearer's own words and actions, and never write as \"I\"." : "Do not write as \"I\" or \"you\".")
         Reply with ONE JSON object and nothing else, no code fences: {"overview": "..."}
         """
     }
@@ -284,7 +296,7 @@ public struct DiaryWriter: Sendable {
                                   shape: labelled ? Self.labelledShape(t) : Self.shape(t))
             let ov = JSONReply.string(o, "overview", "summary")
             if !ov.isEmpty { overviews.append(ov) }
-            let h = Self.items(o["highlights"] ?? o["key_points"], labels: labels) { !($0.summary?.keyPoints.isEmpty ?? true) }
+            let h = Self.items(o["highlights"] ?? o["key_points"], labels: labels, saidBy: labelled) { !($0.summary?.keyPoints.isEmpty ?? true) }
             let d = Self.items(o["decisions"], labels: labels) { !($0.summary?.decisions.isEmpty ?? true) }
             var td = Self.items(o["todos"] ?? o["action_items"], labels: labels) { !($0.summary?.todos.isEmpty ?? true) }
             if labelled {
@@ -307,8 +319,19 @@ public struct DiaryWriter: Sendable {
                 for (k, n) in mt.why { why["mine.\(k)", default: 0] += n }
                 td = (mine + others, td.dropped + mt.dropped, why)
             }
-            // 要点没有负责人
-            highlights += h.kept.map { DiaryItem(text: $0.text, refs: $0.refs) }
+            // 要点没有负责人。带标签的一天：要点是谁说的由代码按出处那几段的要点核一遍，说错了人的丢掉
+            if labelled {
+                for item in h.kept {
+                    switch Self.verifySpeaker(item, byRef: byRef) {
+                    case let .keep(mine): highlights.append(DiaryItem(text: item.text, refs: item.refs, mine: mine))
+                    case .wrongSpeaker:
+                        dropped += 1
+                        dropReasons["highlights:wrongSpeaker", default: 0] += 1
+                    }
+                }
+            } else {
+                highlights += h.kept.map { DiaryItem(text: $0.text, refs: $0.refs) }
+            }
             decisions += d.kept
             todos += td.kept
             dropped += h.dropped + d.dropped + td.dropped
@@ -348,6 +371,10 @@ public struct DiaryWriter: Sendable {
             let n = cleanHighlights.count
             cleanHighlights = Self.ordered(cleanHighlights, byRef, overheardCap: Self.overheardHighlights(day))
             overheard = n - cleanHighlights.count
+            // 本人说的和别人告诉他的各占大约一半（两种都有时），别让本人的话把别人给的事实挤掉
+            let m = cleanHighlights.count
+            cleanHighlights = Self.mixed(cleanHighlights, cap: day.maxHighlights)
+            if m > cleanHighlights.count { dropReasons["highlights:mix", default: 0] += m - cleanHighlights.count }
             cleanDecisions = Self.ordered(cleanDecisions, byRef)
         }
         let diary = Diary(overview: overview.map { c.correct($0).text },
@@ -388,6 +415,7 @@ public struct DiaryWriter: Sendable {
             .init("overview", .text("\(t.sentencesText) on the wearer's day, the most important thing first")),
             .init("highlights", .list(.object("Highlight", [
                 .init("text", .text()),
+                .init("said_by", .choice(["me", "other", "?"])),
                 .init("refs", .list(.text("A conversation label such as S1"), max: 4)),
             ]), max: t.maxHighlights)),
             .init("decisions", .list(.object("Decision", [
@@ -409,6 +437,65 @@ public struct DiaryWriter: Sendable {
     /// 旁听段的要点最多几条（这天有他说过话的段时）
     static func overheardHighlights(_ t: Target) -> Int { max(1, t.maxHighlights / 3) }
 
+    // MARK: 要点是谁说的（带标签的一天）
+
+    enum Verdict: Equatable {
+        /// 留下；mine：本人说的 true、别人说的 false、不知道 nil
+        case keep(Bool?)
+        /// 写成了本人的事，出处却是别人说的：丢掉
+        case wrongSpeaker
+    }
+
+    /// 要点的说话人只认出处：在出处那几段的要点里找和它说的是同一件事的，看那条要点（代码核过的）是谁说的。
+    /// 模型写成本人的（said_by "me"，或以「你」「you/your」开头说事），出处却是别人说的，就丢掉——宁可少一条，
+    /// 不显示一个说错了人的「你」。找不到出处那条、或出处不知道是谁说的：留下，不标是谁的
+    static func verifySpeaker(_ item: DiaryItem, byRef: [ConversationRef: Input]) -> Verdict {
+        var sources: [(text: String, by: Speaker?)] = []
+        for r in item.refs {
+            guard let s = byRef[r]?.summary else { continue }
+            for (i, k) in s.keyPoints.enumerated() { sources.append((k, s.speaker(ofKeyPoint: i))) }
+        }
+        let close = sources.filter { TextSimilarity.similar($0.text, item.text, threshold: 0.5) }
+        let matched: [(text: String, by: Speaker?)]
+        if !close.isEmpty {
+            matched = close
+        } else {
+            // 改写得多、相似度不够时：字面重合最多的那条（至少两个相同的不常见两字词）
+            let scored = sources.map { ($0, ConversationSummarizer.overlapScore(item.text, $0.text)) }
+            let best = scored.map(\.1).max() ?? 0
+            matched = best >= 2 ? scored.filter { $0.1 == best }.map(\.0) : []
+        }
+        let bys = Set(matched.map { $0.by ?? .unknown })
+        let source: Speaker = bys.count == 1 ? bys.first! : .unknown
+        let claimsMe = item.mine == true || addressesWearer(item.text)
+        if source == .other, claimsMe { return .wrongSpeaker }
+        return .keep(source == .me ? true : source == .other ? false : nil)
+    }
+
+    /// 以「你」/「you」/「your」开头说事（「你被告知」「you were told」这类转述除外）
+    static func addressesWearer(_ text: String) -> Bool {
+        let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let l = t.lowercased()
+        let reported = ["你被告知", "你听说", "你听到", "你得知", "你了解到", "你被提醒", "你收到", "有人告诉你", "you were told", "you heard",
+                        "you learned", "you learnt", "you were reminded", "you got told"]
+        if reported.contains(where: { l.hasPrefix($0) }) { return false }
+        return t.hasPrefix("你") || l.hasPrefix("you ") || l.hasPrefix("your ") || l.hasPrefix("you'")
+    }
+
+    /// 两种都有时各留大约一半：本人的最多 max(⌈cap/2⌉, cap − 别人的条数) 条，其余给别人说的和不知道的；顺序不变
+    static func mixed(_ items: [DiaryItem], cap: Int) -> [DiaryItem] {
+        let mine = items.filter { $0.mine == true }.count, rest = items.count - mine
+        guard mine > 0, rest > 0 else { return items }
+        let keepMine = min(mine, max((cap + 1) / 2, cap - rest))
+        let keepRest = min(rest, cap - keepMine)
+        var m = 0, r = 0
+        return items.filter { i in
+            if i.mine == true { m += 1; return m <= keepMine }
+            r += 1
+            return r <= keepRest
+        }
+    }
+
     static func overviewShape(_ t: Target) -> ReplyShape {
         .object("DayOverview", [.init("overview", .text(t.sentencesText))])
     }
@@ -416,6 +503,7 @@ public struct DiaryWriter: Sendable {
     static var overviewShape: ReplyShape { overviewShape(.long) }
 
     func render(_ i: Input, label: String, labelled: Bool = false) -> String {
+        if labelled { return renderLabelled(i, label: label) }
         let f = DateFormatter()
         f.locale = Locale(identifier: "en_US_POSIX")
         f.timeZone = timeZone
@@ -424,21 +512,38 @@ public struct DiaryWriter: Sendable {
         var t = "[\(label) \(f.string(from: i.wallStart))–\(f.string(from: i.wallEnd))] \(s.title)\nSummary: \(s.summary)"
         if !s.keyPoints.isEmpty { t += "\nKey points:\n" + s.keyPoints.map { "- \($0)" }.joined(separator: "\n") }
         if !s.decisions.isEmpty { t += "\nDecisions:\n" + s.decisions.map { "- \($0)" }.joined(separator: "\n") }
-        if labelled {
-            // 他说了多少；他的待办和别人的分开列（不带标签写的段摘要：只有 To-dos）
-            if let share = i.wearerShare {
-                t += share > 0 ? "\nWearer: spoke about \(max(1, Int((share * 100).rounded())))% of the time" : "\nWearer: did not speak (overheard)"
-            }
-            if s.labelled {
-                if !s.myTodos.isEmpty { t += "\nWearer's to-dos:\n" + s.myTodos.map { "- \($0)" }.joined(separator: "\n") }
-                if !s.otherTodos.isEmpty { t += "\nOther to-dos:\n" + s.otherTodos.map { "- \($0)" }.joined(separator: "\n") }
-            } else if !s.todos.isEmpty {
-                t += "\nTo-dos:\n" + s.todos.map { "- \($0)" }.joined(separator: "\n")
-            }
-        } else if !s.todos.isEmpty {
-            t += "\nTo-dos:\n" + s.todos.map { "- \($0)" }.joined(separator: "\n")
-        }
+        if !s.todos.isEmpty { t += "\nTo-dos:\n" + s.todos.map { "- \($0)" }.joined(separator: "\n") }
         // 用户在这里做了重点标记：把标记处的原话一起给模型
+        if !i.marks.isEmpty { t += "\nMarked by the user as important:\n" + i.marks.map { "- \"\($0)\"" }.joined(separator: "\n") }
+        return t
+    }
+
+    /// 带标签的一天里的一段：他说了多少；要点按谁说的分组（代码核过的）；他的待办和别人的分开。
+    /// 段摘要那几句是模型自由写的、没核过是谁说的：要点有说话人时不给，只给分好组的要点
+    func renderLabelled(_ i: Input, label: String) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = timeZone
+        f.dateFormat = "HH:mm"
+        let s = i.summary ?? ConversationSummary()
+        func list(_ name: String, _ xs: [String]) -> String { xs.isEmpty ? "" : "\n\(name):\n" + xs.map { "- \($0)" }.joined(separator: "\n") }
+        var t = "[\(label) \(f.string(from: i.wallStart))–\(f.string(from: i.wallEnd))] \(s.title)"
+        if let share = i.wearerShare {
+            t += share > 0 ? "\nWearer: spoke about \(max(1, Int((share * 100).rounded())))% of the time" : "\nWearer: did not speak (overheard)"
+        }
+        if s.said == nil {
+            t += "\nSummary: \(s.summary)" + list("Key points (speaker not known)", s.keyPoints)
+        } else {
+            let by = s.keyPoints.indices.map { s.speaker(ofKeyPoint: $0) ?? .unknown }
+            func pick(_ w: Speaker) -> [String] { s.keyPoints.indices.filter { by[$0] == w }.map { s.keyPoints[$0] } }
+            t += list("Said by the wearer", pick(.me)) + list("Said by others", pick(.other)) + list("Speaker not known", pick(.unknown))
+        }
+        t += list("Decisions", s.decisions)
+        if s.labelled {
+            t += list("Wearer's to-dos", s.myTodos) + list("Other to-dos", s.otherTodos)
+        } else {
+            t += list("To-dos", s.todos)
+        }
         if !i.marks.isEmpty { t += "\nMarked by the user as important:\n" + i.marks.map { "- \"\($0)\"" }.joined(separator: "\n") }
         return t
     }
@@ -446,7 +551,8 @@ public struct DiaryWriter: Sendable {
     // MARK: 校验出处
 
     /// 解析模型给的条目，只留下出处存在、而且出处那一段确实有这类内容的；返回留下的和丢掉的条数
-    static func items(_ v: Any?, labels: [String: Input], allowed: (Input) -> Bool)
+    /// saidBy：读 said_by，记在 DiaryItem.mine 里（"me" → true，"other" → false），供 verifySpeaker 核
+    static func items(_ v: Any?, labels: [String: Input], saidBy: Bool = false, allowed: (Input) -> Bool)
         -> (kept: [DiaryItem], dropped: Int, why: [String: Int]) {
         guard let arr = v as? [Any] else { return ([], 0, [:]) }
         var kept: [DiaryItem] = [], dropped = 0, why: [String: Int] = [:]
@@ -467,7 +573,11 @@ public struct DiaryWriter: Sendable {
                 continue
             }
             let owner = Summarizer.clean(o["owner"] as? String ?? "")
-            kept.append(DiaryItem(text: text, owner: owner.isEmpty || Summarizer.isNone(owner) ? nil : owner, refs: refs))
+            var item = DiaryItem(text: text, owner: owner.isEmpty || Summarizer.isNone(owner) ? nil : owner, refs: refs)
+            if saidBy, let by = o["said_by"] as? String {
+                item.mine = ConversationSummarizer.claimsMe(by) ? true : ConversationSummarizer.claimsOther(by) ? false : nil
+            }
+            kept.append(item)
         }
         return (kept, dropped, why)
     }

@@ -76,7 +76,7 @@ final class WearerSummaryTests: XCTestCase {
         // 重点标记照常（标签在前，标记在后）
         XCTAssertTrue(user[4].hasPrefix("[00:15] [me] ") && user[4].hasSuffix(ConversationSummarizer.markNote))
         let sys = systemText(stub.requests[0])
-        XCTAssertTrue(sys.contains("Lines that start with [me]"))
+        XCTAssertTrue(sys.contains("Every line starts with who said it"))
         XCTAssertTrue(sys.contains("\"my_todos\""))
         XCTAssertTrue(sys.contains("\"you\"")) // 默认口吻：你
     }
@@ -96,7 +96,7 @@ final class WearerSummaryTests: XCTestCase {
         XCTAssertGreaterThan(parts.count, 1)
         for p in parts {
             XCTAssertTrue(userText(p).contains("[me] "))
-            XCTAssertTrue(systemText(p).contains("Lines that start with [me]"))
+            XCTAssertTrue(systemText(p).contains("Every line starts with who said it"))
         }
         let merges = stub.requests.filter { userText($0).hasPrefix("Part summaries") }
         XCTAssertFalse(merges.isEmpty)
