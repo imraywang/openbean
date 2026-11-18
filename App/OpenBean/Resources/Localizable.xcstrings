@@ -5582,6 +5582,26 @@
         }
       }
     },
+    "said by others": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "别人说的"
+          }
+        }
+      }
+    },
+    "said by you": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你说的"
+          }
+        }
+      }
+    },
     "starts at %@": {
       "localizations": {
         "zh-Hans": {

@@ -104,12 +104,14 @@ final class ConversationToolTests: XCTestCase {
     func testMineFlagsAreExposed() throws {
         // 段摘要带「认出我的声音」的标签：哪条待办是佩戴者的
         var f = try XCTUnwrap(ConversationFile.read(fx.folder.appendingPathComponent("\(longID)/segments.json")))
-        f.segments[0].summary = ConversationSummary(title: "报价", summary: "你答应发报价。", todos: ["发报价", "小王订会议室"], mine: [0])
+        f.segments[0].summary = ConversationSummary(title: "报价", summary: "你答应发报价。", keyPoints: ["报价三万个起"],
+                                                    todos: ["发报价", "小王订会议室"], mine: [0], said: [.other])
         try fx.write("segments.json", String(decoding: try f.encoded(), as: UTF8.self), id: longID)
         let a = ConversationRef(recording: longID, index: 0)
         let day = DayFile(date: "2026-11-12", timeZone: "Asia/Shanghai", dayStartHour: 4, signature: "s", status: .diary,
                           conversations: [DayConversation(ref: a, wallStart: longStart.addingTimeInterval(60), wallEnd: longStart.addingTimeInterval(70))],
                           diary: Diary(overview: "你和小王定了报价。",
+                                       highlights: [DiaryItem(text: "小王说三万个起订", refs: [a], mine: false)],
                                        todos: [DiaryItem(text: "发报价", refs: [a], mine: true),
                                                DiaryItem(text: "订会议室", owner: "小王", refs: [a], mine: false)]),
                           model: "local", createdAt: Fixture.now)
@@ -121,6 +123,9 @@ final class ConversationToolTests: XCTestCase {
         XCTAssertTrue(r.text.contains("- 订会议室 — 小王 ("), r.text)
         let conv = r.structured?["recordings"]?.array?.last?["conversations"]?.array?.first
         XCTAssertEqual(conv?["todos_mine"], [true, false])
+        XCTAssertEqual(conv?["key_points_said_by"], ["other"])
+        XCTAssertTrue(r.text.contains("- [others] 小王说三万个起订 ("), r.text)
+        XCTAssertEqual(r.structured?["diary"]?["highlights"]?.array?.first?["mine"], false)
         let g = try call("get_recording", ["id": .int(Int(longID))])
         XCTAssertEqual(g.structured?["conversations"]?.array?.first?["todos_mine"], [true, false])
         // 不带标签写的摘要：没有这一项

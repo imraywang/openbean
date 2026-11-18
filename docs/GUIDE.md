@@ -165,14 +165,19 @@ deletes the voiceprint and these marks and turns the setting off; turning the se
 stops checking and hides the dots.
 
 **In summaries and the diary:** with the setting on, the conversation summaries in Heart mode are written knowing which
-sentences are yours: the model sees your lines marked, key points lean towards what you said, decided, promised or were
-told, and to-dos are split into **My to-dos** (you agreed to do it, or were asked to) and **Other people's to-dos**. A
+sentences are yours: the model sees every line marked as yours, someone else's or unknown (so another person's "I" is
+never read as you), each key point records who said it — checked against the marked lines, and left as unknown rather
+than guessed — and to-dos are split into **My to-dos** (you agreed to do it, or were asked to) and **Other people's to-dos**. A
 to-do only counts as yours when its wording matches something you said, or the line just before or after; otherwise it
-stays as someone else's. The daily diary then writes to you ("you agreed with Wang to…"), leads with conversations you
-took part in, and puts conversations you only overheard last. Recordings scanned as *not worn*, still learning, or not
+stays as someone else's. The daily diary then writes to you ("you agreed with Wang to…") only for what you said or were
+asked to do; what others said is written as theirs ("Wang said…"), and a highlight that puts someone else's words in
+your mouth is dropped. Highlights mix what you said with what you were told, each with a small *said by you* /
+*said by others* marker. The diary leads with conversations you took part in and puts conversations you only overheard
+last. Recordings scanned as *not worn*, still learning, or not
 checked yet are summarised exactly as before. Old summaries are **not** redone automatically when marks arrive later
 (that would send old transcripts to your model service again): *Summarise again* on a recording, or *Write the diary
-for this day*, redoes the conversations of that recording or day whose marks are newer than their summary.
+for this day*, redoes the conversations of that recording or day whose marks are newer than their summary (or that were
+summarised by an older version of this feature).
 
 ## Automation, history and logs
 

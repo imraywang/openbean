@@ -78,7 +78,17 @@ struct ConversationDetailView: View {
                 }
                 if let s = c.summary, !s.keyPoints.isEmpty {
                     Section("Key points") {
-                        ForEach(Array(s.keyPoints.enumerated()), id: \.offset) { _, p in Text(p) }
+                        ForEach(Array(s.keyPoints.enumerated()), id: \.offset) { i, p in
+                            // 「认出我的声音」核过是谁说的：轻轻标一下
+                            if library.speakers.showsMarks, let by = s.speaker(ofKeyPoint: i), by != .unknown {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(p)
+                                    Text(by == .me ? "said by you" : "said by others").font(.caption).foregroundStyle(.secondary)
+                                }
+                            } else {
+                                Text(p)
+                            }
+                        }
                     }
                 }
                 if let s = c.summary, !s.todos.isEmpty {

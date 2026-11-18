@@ -990,5 +990,7 @@
 "Recognise my voice": "认出我的声音",
 "So far: %lld recordings from %lld days.": "目前：%1$lld 段录音，来自 %2$lld 天。",
 "My to-dos": "我的待办",
-"Other people's to-dos": "别人的待办"
+"Other people's to-dos": "别人的待办",
+"said by you": "你说的",
+"said by others": "别人说的"
 }

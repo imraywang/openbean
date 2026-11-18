@@ -451,6 +451,8 @@ public final class LibraryTools: @unchecked Sendable {
             o["summary"] = .string(s.summary)
             o["decisions"] = .array(s.decisions.map { .string($0) })
             o["todos"] = .array(s.todos.map { .string($0) })
+            // 「认出我的声音」：每条要点是谁说的（代码核过；不带说话人的摘要没有这一项）
+            if let said = s.said { o["key_points"] = .array(s.keyPoints.map { .string($0) }); o["key_points_said_by"] = .array(said.map { .string($0.rawValue) }) }
             // 「认出我的声音」：哪几条是佩戴者自己的（不带标签写的摘要没有这一项）
             if s.labelled { o["todos_mine"] = .array(s.todos.indices.map { .bool(s.isMine($0) == true) }) }
             o["people"] = .array(s.people.map { .string($0) })
@@ -468,7 +470,11 @@ public final class LibraryTools: @unchecked Sendable {
         func refs(_ r: [ConversationRef]) -> String { r.map { refText($0, byRef) }.joined(separator: "; ") }
         var l = ["", "Diary (written by OpenBean from the conversation summaries; each item names where it comes from):"]
         if let o = d.overview, !o.isEmpty { l.append(o) }
-        if !d.highlights.isEmpty { l.append("Highlights:"); l += d.highlights.map { "- \($0.text) (\(refs($0.refs)))" } }
+        if !d.highlights.isEmpty {
+            l.append("Highlights:")
+            // 带标签的日子：[mine] 是佩戴者说的，[others] 是别人说的
+            l += d.highlights.map { "- \($0.mine.map { $0 ? "[mine] " : "[others] " } ?? "")\($0.text) (\(refs($0.refs)))" }
+        }
         if !d.decisions.isEmpty { l.append("Decided:"); l += d.decisions.map { "- \($0.text) (\(refs($0.refs)))" } }
         if !d.todos.isEmpty {
             l.append("To-dos:")

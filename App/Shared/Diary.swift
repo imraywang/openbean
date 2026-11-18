@@ -145,7 +145,7 @@ final class DiaryService {
         let segs = library.transcript(id)
         let summarizer = ConversationSummarizer(await notes.summarizer(backend))
         let t0 = Date()
-        var calls = 0, dropped = 0, droppedMine = 0, labelled = 0
+        var calls = 0, dropped = 0, droppedMine = 0, labelled = 0, unverified = 0
         let spans = segs.map { (start: $0.start, end: $0.end) }
         lastSegmentState = .allowed
         for c in todo where c.to <= segs.count {
@@ -171,10 +171,12 @@ final class DiaryService {
             // 「认出我的声音」：佩戴者说的句子（下标相对这段）；标签不能用时 nil，提示词和以前一样
             let stats = wearerStats(r, c, segs)
             let wearer = stats.map { _ in Set(spoken.enumerated().filter { segs[$0.element].isWearer == true }.map(\.offset)) }
+            // 别人说的句子也标出来（[other]）；isWearer 为 nil 的是不知道（[?]），不当作别人
+            let other = stats == nil ? [] : Set(spoken.enumerated().filter { segs[$0.element].isWearer == false }.map(\.offset))
             let res: ConversationSummarizer.Result
             do {
                 res = try await summarizer.summarize(spoken.map { TimedLine(start: segs[$0].start, text: segs[$0].text) }, marked: marked,
-                                                     wearer: wearer)
+                                                     wearer: wearer, other: other)
             } catch {
                 if RetryLedger.counts(error) {
                     ledger.failed(lk, signature: c.hash, reason: RetryLedger.reason(error))
@@ -189,13 +191,14 @@ final class DiaryService {
             calls += res.calls
             dropped += res.droppedNames
             droppedMine += res.droppedMine
+            unverified += res.unverifiedMine
             if stats != nil { labelled += 1 }
             library.conversations.setSummary(id, index: c.index, hash: c.hash, kind: res.kind, summary: res.summary,
                                              model: backend.modelName, wearer: stats)
         }
         Log.write(String(format: "段摘要 %u：%d 段，%d 次调用，%.0f 秒，丢掉转写里找不到的名字 %d 个",
                          id, todo.count, calls, Date().timeIntervalSince(t0), dropped)
-                  + (labelled > 0 ? "；\(labelled) 段带本人标签，对不上本人原话、改成别人的待办 \(droppedMine) 条" : ""))
+                  + (labelled > 0 ? "；\(labelled) 段带本人标签，对不上本人原话、改成别人的待办 \(droppedMine) 条，说是本人说的、核不出来的要点 \(unverified) 条" : ""))
     }
 
     /// 开着日记时整条录音的摘要：以段摘要为准。一段直接用；多段时用合并提示词合成一份（一次调用）
@@ -330,13 +333,13 @@ final class DiaryService {
                 if let s = wearerStats(r, c, t)?.share { shares[ConversationRef(recording: id, index: c.index)] = s }
             }
         }
-        // 带标签的一天签名换一个版本（第一次带标签时重写一遍）；没有标签的日子签名和以前一样，不会重写
+        // 带标签的一天签名换一个版本（带标签的做法改了就换：v3 只标本人，v4 要点分说话人）；没有标签的日子签名和以前一样，不会重写
         let sig = DayFile.signature(included.map { r, c in
             // 键要排序：不排序时 JSONEncoder 的键顺序每次可能不同，签名跟着变，内容没变也会重写日记
             let s = (try? Self.signatureEncoder.encode(c.summary)).map { String(decoding: $0, as: UTF8.self) } ?? ""
             let share = shares[ConversationRef(recording: r.id, index: c.index)].map { String(format: "|wearer=%.2f", $0) } ?? ""
             return "\(r.id)#\(c.index)|\(c.hash)|\(c.kind ?? "")|\(s)|marks=\(c.marks)" + share
-        } + [shares.isEmpty ? "diary-v2" : "diary-v3-wearer", "start=\(settings.dayStartHour)", "tz=\(TimeZone.current.identifier)"])
+        } + [shares.isEmpty ? "diary-v2" : "diary-v4-speakers", "start=\(settings.dayStartHour)", "tz=\(TimeZone.current.identifier)"])
         if !force, let old = DayFile.read(url), old.version == DayFile.currentVersion, old.signature == sig {
             if notes.notesFolder != nil, noteRecord(key) == nil { writeNote(old) }
             problems[key] = nil
@@ -456,7 +459,8 @@ final class DiaryService {
                          conversations: String(localized: "Conversations"), transcript: String(localized: "Transcript"),
                          media: String(localized: "media"), marks: String(localized: "Marked moments"),
                          highlights: String(localized: "Highlights"), myTodos: String(localized: "My to-dos"),
-                         otherTodos: String(localized: "Other people's to-dos"))
+                         otherTodos: String(localized: "Other people's to-dos"), saidByMe: String(localized: "said by you"),
+                         saidByOthers: String(localized: "said by others"))
     }
 
     /// 写（或重写）某天的日记笔记。规则同逐条笔记：没被改过就原地覆盖；用户改过就不动它，另写一份

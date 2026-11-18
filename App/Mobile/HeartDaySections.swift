@@ -233,6 +233,10 @@ struct DiarySections: View {
                         Label {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(item.text)
+                                // 「认出我的声音」核过是谁说的：轻轻标一下
+                                if model.library.speakers.showsMarks, let mine = item.mine {
+                                    Text(mine ? "said by you" : "said by others").font(.caption).foregroundStyle(.secondary)
+                                }
                                 times(item.refs, byRef)
                             }
                         } icon: { Image(systemName: "lightbulb").foregroundStyle(.secondary) }
