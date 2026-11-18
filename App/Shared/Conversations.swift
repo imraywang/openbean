@@ -61,13 +61,15 @@ final class ConversationStore {
 
     /// 写回一段的段摘要。等大模型的时候转写可能变了：段号和这段的指纹都还对得上才写，返回写没写
     @discardableResult
-    func setSummary(_ id: UInt32, index: Int, hash: String, kind: String, summary: ConversationSummary?, model: String) -> Bool {
+    func setSummary(_ id: UInt32, index: Int, hash: String, kind: String, summary: ConversationSummary?, model: String,
+                    wearer: WearerStats? = nil) -> Bool {
         guard var f = cache[id] ?? ConversationFile.read(Self.url(id)),
               let i = f.segments.firstIndex(where: { $0.index == index && $0.hash == hash }) else { return false }
         f.segments[i].kind = kind
         f.segments[i].summary = summary
         f.segments[i].summaryModel = model
         f.segments[i].summarizedAt = Date()
+        f.segments[i].wearer = wearer
         store(f, id)
         return true
     }

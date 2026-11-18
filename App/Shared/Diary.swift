@@ -15,6 +15,9 @@ import OpenBeanVoice
 /// - 失败（服务没开、超时、回复不可用）：已经写好的段摘要留着（每段是完整的），当天日记不写半成品，写日志，下次再试。
 ///   「回复不可用」按 RetryLedger 退避（10 分钟、1 小时），同一份输入失败 3 次就不再自动试：那一段跳过（日记用其余的段写），
 ///   那一天的日记标成没写成，等内容变了或用户手动重试。服务不通不算失败次数。
+/// - 「认出我的声音」开着、录音扫过且有标签（SpeakerScan.outcome == .labelled）时，段摘要带着「哪句是佩戴者说的」写，
+///   日记按他说了多少排。标签后来才有（声纹学好以后补算的）时不自动重写旧的段摘要（那要把以前的转写都再发一遍）：
+///   只在手动「重新摘要」一条录音、手动「写这天的日记」时，把那几段标签比摘要新的重写。
 @MainActor @Observable
 final class DiaryService {
     @ObservationIgnored weak var notes: NoteService?
@@ -92,12 +95,23 @@ final class DiaryService {
         return f
     }
 
+    // MARK: 「认出我的声音」的标签
+
+    /// 规则见 WearerLabels（开关开着、这条按声纹判定过）
+    private func labelsNewer(_ r: Recording, _ c: Conversation) -> Bool {
+        WearerLabels.summaryIsStale(c, enabled: library?.speakers.enabled == true, scan: r.speakerScan)
+    }
+
+    private func wearerStats(_ r: Recording, _ c: Conversation, _ segs: [TranscriptSegment]) -> WearerStats? {
+        WearerLabels.stats(c, segments: segs, enabled: library?.speakers.enabled == true, scan: r.speakerScan)
+    }
+
     // MARK: 段摘要
 
     /// 给这条录音还没有段摘要的段写段摘要（force：全部重写）。全部写完返回 true；服务不可用或出错返回 false（写日志）
     @discardableResult
-    func summarizeConversations(_ id: UInt32, force: Bool) async -> Bool {
-        do { try await summarize(id, force: force); return true } catch {
+    func summarizeConversations(_ id: UInt32, force: Bool, labelsNewer: Bool = false) async -> Bool {
+        do { try await summarize(id, force: force, labelsNewer: labelsNewer); return true } catch {
             if let deferred = error as? Deferred {
                 Log.write("段摘要 \(id)：上次的回复不能用，\(deferred.text)")
             } else {
@@ -121,16 +135,17 @@ final class DiaryService {
     /// 最近一次段摘要没写完的退避状态（日记那一层用来给出原因）
     @ObservationIgnored private var lastSegmentState: RetryLedger.State = .allowed
 
-    private func summarize(_ id: UInt32, force: Bool) async throws {
+    /// labelsNewer：也重写标签比摘要新的段（只有手动写某天的日记时）
+    private func summarize(_ id: UInt32, force: Bool, labelsNewer: Bool = false) async throws {
         guard let library, let notes, let r = library.recordings.first(where: { $0.id == id }), r.transcribed, !r.isDictation else { return }
-        let todo = library.conversations.conversations(id).filter { force || $0.kind == nil }
+        let todo = library.conversations.conversations(id).filter { force || $0.kind == nil || (labelsNewer && self.labelsNewer(r, $0)) }
         guard !todo.isEmpty else { return }
         guard let backend = notes.backend else { throw URLError(.badURL) }
         guard await backend.check() == .ok else { throw URLError(.cannotConnectToHost) }
         let segs = library.transcript(id)
         let summarizer = ConversationSummarizer(await notes.summarizer(backend))
         let t0 = Date()
-        var calls = 0, dropped = 0
+        var calls = 0, dropped = 0, droppedMine = 0, labelled = 0
         let spans = segs.map { (start: $0.start, end: $0.end) }
         lastSegmentState = .allowed
         for c in todo where c.to <= segs.count {
@@ -153,9 +168,13 @@ final class DiaryService {
             }
             let markedLines = Set(c.marks.compactMap { MarkPlacement.line(for: $0, spans: spans) })
             let marked = Set(spoken.enumerated().filter { markedLines.contains($0.element) }.map(\.offset))
+            // 「认出我的声音」：佩戴者说的句子（下标相对这段）；标签不能用时 nil，提示词和以前一样
+            let stats = wearerStats(r, c, segs)
+            let wearer = stats.map { _ in Set(spoken.enumerated().filter { segs[$0.element].isWearer == true }.map(\.offset)) }
             let res: ConversationSummarizer.Result
             do {
-                res = try await summarizer.summarize(spoken.map { TimedLine(start: segs[$0].start, text: segs[$0].text) }, marked: marked)
+                res = try await summarizer.summarize(spoken.map { TimedLine(start: segs[$0].start, text: segs[$0].text) }, marked: marked,
+                                                     wearer: wearer)
             } catch {
                 if RetryLedger.counts(error) {
                     ledger.failed(lk, signature: c.hash, reason: RetryLedger.reason(error))
@@ -169,11 +188,14 @@ final class DiaryService {
             if ledger.entries[lk] != nil { ledger.succeeded(lk); saveLedger() }
             calls += res.calls
             dropped += res.droppedNames
+            droppedMine += res.droppedMine
+            if stats != nil { labelled += 1 }
             library.conversations.setSummary(id, index: c.index, hash: c.hash, kind: res.kind, summary: res.summary,
-                                             model: backend.modelName)
+                                             model: backend.modelName, wearer: stats)
         }
         Log.write(String(format: "段摘要 %u：%d 段，%d 次调用，%.0f 秒，丢掉转写里找不到的名字 %d 个",
-                         id, todo.count, calls, Date().timeIntervalSince(t0), dropped))
+                         id, todo.count, calls, Date().timeIntervalSince(t0), dropped)
+                  + (labelled > 0 ? "；\(labelled) 段带本人标签，对不上本人原话、改成别人的待办 \(droppedMine) 条" : ""))
     }
 
     /// 开着日记时整条录音的摘要：以段摘要为准。一段直接用；多段时用合并提示词合成一份（一次调用）
@@ -290,19 +312,31 @@ final class DiaryService {
             revision += 1
             return .written
         }
-        // 先把段摘要补齐；没补齐就不写（不写半成品）
-        for id in Set(included.filter { $0.1.kind == nil }.map(\.0.id)).sorted() {
-            guard await summarizeConversations(id, force: false) else {
+        // 先把段摘要补齐；没补齐就不写（不写半成品）。手动写这天时，标签比摘要新的段也重写（只这一天的段）
+        let stale = force ? Set(included.filter { labelsNewer($0.0, $0.1) }.map(\.0.id)) : []
+        if !stale.isEmpty { Log.write("日记 \(key)：\(stale.count) 条录音有段的本人标签比段摘要新，重写这些段") }
+        for id in Set(included.filter { $0.1.kind == nil }.map(\.0.id)).union(stale).sorted() {
+            guard await summarizeConversations(id, force: false, labelsNewer: stale.contains(id)) else {
                 Log.write("日记 \(key)：段摘要没写完，下次再试")
                 return await failure(key)
             }
         }
         included = gather(boundary.interval(of: day0))
+        // 每段佩戴者说了多少（按现在的标签算，代码算，不经大模型）；没有能用的标签时 nil
+        var shares: [ConversationRef: Double] = [:]
+        for (id, items) in Dictionary(grouping: included, by: { $0.0.id }) {
+            let t = library.transcript(id)
+            for (r, c) in items {
+                if let s = wearerStats(r, c, t)?.share { shares[ConversationRef(recording: id, index: c.index)] = s }
+            }
+        }
+        // 带标签的一天签名换一个版本（第一次带标签时重写一遍）；没有标签的日子签名和以前一样，不会重写
         let sig = DayFile.signature(included.map { r, c in
             // 键要排序：不排序时 JSONEncoder 的键顺序每次可能不同，签名跟着变，内容没变也会重写日记
             let s = (try? Self.signatureEncoder.encode(c.summary)).map { String(decoding: $0, as: UTF8.self) } ?? ""
-            return "\(r.id)#\(c.index)|\(c.hash)|\(c.kind ?? "")|\(s)|marks=\(c.marks)"
-        } + ["diary-v2", "start=\(settings.dayStartHour)", "tz=\(TimeZone.current.identifier)"])
+            let share = shares[ConversationRef(recording: r.id, index: c.index)].map { String(format: "|wearer=%.2f", $0) } ?? ""
+            return "\(r.id)#\(c.index)|\(c.hash)|\(c.kind ?? "")|\(s)|marks=\(c.marks)" + share
+        } + [shares.isEmpty ? "diary-v2" : "diary-v3-wearer", "start=\(settings.dayStartHour)", "tz=\(TimeZone.current.identifier)"])
         if !force, let old = DayFile.read(url), old.version == DayFile.currentVersion, old.signature == sig {
             if notes.notesFolder != nil, noteRecord(key) == nil { writeNote(old) }
             problems[key] = nil
@@ -336,7 +370,8 @@ final class DiaryService {
                               kind: c.kind, summary: c.summary,
                               chars: library.transcript(r.id)[c.lines.clamped(to: 0..<library.transcript(r.id).count)].reduce(0) { $0 + $1.text.count },
                               marks: marks.filter { $0.ref.recording == r.id && $0.ref.index == c.index }.map { $0.quote.joined(separator: " ") }
-                                  .filter { !$0.isEmpty })
+                                  .filter { !$0.isEmpty },
+                              wearerShare: shares[ConversationRef(recording: r.id, index: c.index)])
         }
         let sample = String(included.flatMap { r, c in
             let t = library.transcript(r.id)
@@ -362,7 +397,8 @@ final class DiaryService {
                           conversations: included.map { r, c in
                               DayConversation(ref: ConversationRef(recording: r.id, index: c.index), wallStart: c.wallStart,
                                               wallEnd: c.wallEnd, wallApprox: c.wallApprox, kind: c.kind,
-                                              title: c.summary?.title, summary: c.summary?.summary)
+                                              title: c.summary?.title, summary: c.summary?.summary,
+                                              wearerShare: shares[ConversationRef(recording: r.id, index: c.index)])
                           },
                           diary: out.diary, model: backend.modelName, createdAt: Date(),
                           stats: DayStats(calls: out.calls, seconds: secs, dropped: out.dropped), marks: marks)
@@ -378,6 +414,10 @@ final class DiaryService {
         revision += 1
         Log.write(String(format: "已写日记 %@：%d 段，%@，%d 次调用，%.0f 秒，丢掉出处对不上的 %d 条、重复的 %d 条、不认的负责人 %d 个",
                          key, included.count, out.status.rawValue, out.calls, secs, out.dropped, out.duplicates, out.droppedOwners))
+        if out.labelled {
+            Log.write("日记 \(key)：带本人标签，\(shares.count) 段知道本人说了多少（\(shares.values.filter { $0 == 0 }.count) 段没说话），"
+                      + "本人的待办 \(out.diary?.myTodos.count ?? 0) 条、别人的 \(out.diary?.otherTodos.count ?? 0) 条，改成别人的 \(out.droppedMine) 条")
+        }
         if !out.dropReasons.isEmpty {
             Log.write("日记 \(key) 丢掉的条目：" + out.dropReasons.sorted { $0.key < $1.key }.map { "\($0.key) \($0.value)" }.joined(separator: "，")
                       + "，要点 \(out.diary?.highlights.count ?? 0) 条")
@@ -415,7 +455,8 @@ final class DiaryService {
                          people: String(localized: "People"), things: String(localized: "Things"),
                          conversations: String(localized: "Conversations"), transcript: String(localized: "Transcript"),
                          media: String(localized: "media"), marks: String(localized: "Marked moments"),
-                         highlights: String(localized: "Highlights"))
+                         highlights: String(localized: "Highlights"), myTodos: String(localized: "My to-dos"),
+                         otherTodos: String(localized: "Other people's to-dos"))
     }
 
     /// 写（或重写）某天的日记笔记。规则同逐条笔记：没被改过就原地覆盖；用户改过就不动它，另写一份
