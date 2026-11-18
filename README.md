@@ -54,6 +54,19 @@ text is sent to it; audio never leaves your Mac.**
 Details — notes and templates, the word list, the diary, automation links, the MCP tools — are in the
 [user guide](docs/GUIDE.md).
 
+## On master, not in a release yet
+
+The download is 0.5.0. These are in the source and will be in the next release:
+
+- **The diary is about you.** Turn on *Recognise my voice* (Heart mode settings, off by default) and OpenBean
+  learns your voice from two days of recordings, marks the sentences you said, and writes the diary around them:
+  highlights say who said them, and to-dos are split into yours and other people's. The voiceprint is computed and
+  kept on your device and never leaves it.
+- **Highlights** in the diary: the facts, numbers and ideas worth keeping from a long day, each linked to its
+  conversation.
+- **Clean transcripts.** Filler sounds and stutters are removed for reading by fixed rules, on device; the original
+  text is kept and one click away.
+
 ## iPhone (preview)
 
 The same recordings library and Heart mode run on an iPhone (iOS 26): Bluetooth sync that continues in the
