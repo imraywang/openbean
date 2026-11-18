@@ -82,10 +82,12 @@ struct ConversationDetailView: View {
                     }
                 }
                 if let s = c.summary, !s.todos.isEmpty {
-                    Section("To-dos") {
-                        ForEach(Array(s.todos.enumerated()), id: \.offset) { _, t in
-                            Label(t, systemImage: "circle").labelStyle(BulletLabel())
-                        }
+                    // 「认出我的声音」标出了我的待办：我的在前，别人的另起一节（没有就不显示）
+                    if library.speakers.showsMarks, !s.myTodos.isEmpty {
+                        todoSection("My to-dos", s.myTodos)
+                        if !s.otherTodos.isEmpty { todoSection("Other people's to-dos", s.otherTodos) }
+                    } else {
+                        todoSection("To-dos", s.todos)
                     }
                 }
             }
@@ -103,6 +105,14 @@ struct ConversationDetailView: View {
             if Flavor.isDemo, UserDefaults.standard.bool(forKey: "heartPlay") {
                 let lines = library.transcript(r.id), range = c.lines.clamped(to: 0..<lines.count)
                 if range.count > 1 { play(from: lines[range.lowerBound + 1].start + 0.1, r) }
+            }
+        }
+    }
+
+    private func todoSection(_ title: LocalizedStringKey, _ items: [String]) -> some View {
+        Section(title) {
+            ForEach(Array(items.enumerated()), id: \.offset) { _, t in
+                Label(t, systemImage: "circle").labelStyle(BulletLabel())
             }
         }
     }

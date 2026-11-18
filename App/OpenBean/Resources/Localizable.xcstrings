@@ -2512,6 +2512,16 @@
         }
       }
     },
+    "My to-dos": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "我的待办"
+          }
+        }
+      }
+    },
     "My voice": {
       "localizations": {
         "zh-Hans": {
@@ -3128,6 +3138,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "OpenBean 不会对录音豆做配对、解绑、恢复出厂或固件升级；只在你要求、且录音已经完整保存在这台 Mac 上时删除录音豆上的录音，或在语音输入结束后删掉它为这次语音输入新建的文件（见上面）。"
+          }
+        }
+      }
+    },
+    "Other people's to-dos": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "别人的待办"
           }
         }
       }

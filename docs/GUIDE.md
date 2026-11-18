@@ -164,6 +164,16 @@ that sound like you), `wearerScore` and `isWearer` (true, false, or absent when 
 deletes the voiceprint and these marks and turns the setting off; turning the setting off alone keeps them but
 stops checking and hides the dots.
 
+**In summaries and the diary:** with the setting on, the conversation summaries in Heart mode are written knowing which
+sentences are yours: the model sees your lines marked, key points lean towards what you said, decided, promised or were
+told, and to-dos are split into **My to-dos** (you agreed to do it, or were asked to) and **Other people's to-dos**. A
+to-do only counts as yours when its wording matches something you said, or the line just before or after; otherwise it
+stays as someone else's. The daily diary then writes to you ("you agreed with Wang to…"), leads with conversations you
+took part in, and puts conversations you only overheard last. Recordings scanned as *not worn*, still learning, or not
+checked yet are summarised exactly as before. Old summaries are **not** redone automatically when marks arrive later
+(that would send old transcripts to your model service again): *Summarise again* on a recording, or *Write the diary
+for this day*, redoes the conversations of that recording or day whose marks are newer than their summary.
+
 ## Automation, history and logs
 
 **Automation:** `openbean://dictate/toggle` (also `dictate/start`, `dictate/stop`), `openbean://sync` and

@@ -195,21 +195,34 @@ struct TodayView: View {
         }
     }
 
-    /// 这天所有录音的待办汇总，能勾选；标出来自哪条录音（有段摘要的多段录音：来自哪段对话）
+    /// 这天所有录音的待办汇总，能勾选；标出来自哪条录音（有段摘要的多段录音：来自哪段对话）。
+    /// 「认出我的声音」标出了佩戴者自己的待办时分两组：我的在前，别人的在后（没有就不显示这一组）
     @ViewBuilder private func todos(_ d: DayDigest) -> some View {
         let items = TodayTodos.items(d, library: library)
+        let mine = library.speakers.showsMarks ? items.filter(\.mine) : []
+        if mine.isEmpty {
+            todoGroup("To-dos", items)
+        } else {
+            VStack(alignment: .leading, spacing: 16) {
+                todoGroup("My to-dos", mine)
+                todoGroup("Other people's to-dos", items.filter { !$0.mine })
+            }
+        }
+    }
+
+    @ViewBuilder private func todoGroup(_ title: LocalizedStringKey, _ items: [TodayTodos.Item]) -> some View {
         if !items.isEmpty {
-            let done = items.filter { library.notes.isDone($0.0.id, $0.1) }.count
+            let done = items.filter { library.notes.isDone($0.recording.id, $0.text) }.count
             VStack(alignment: .leading, spacing: 7) {
                 HStack(alignment: .firstTextBaseline) {
-                    Text("To-dos").font(.headline)
+                    Text(title).font(.headline)
                     Text("\(done) of \(items.count) done").font(.callout).foregroundStyle(.secondary).monospacedDigit()
                 }
                 ForEach(Array(items.enumerated()), id: \.offset) { _, it in
-                    let (r, t, source) = it
+                    let r = it.recording, t = it.text
                     TodoRow(text: t, done: Binding(get: { library.notes.isDone(r.id, t) },
                                                    set: { library.notes.setDone(r.id, t, $0) }),
-                            source: source)
+                            source: it.source)
                 }
             }
         }

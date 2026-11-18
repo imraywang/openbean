@@ -101,6 +101,32 @@ final class ConversationToolTests: XCTestCase {
         XCTAssertTrue(try call("get_transcript", ["id": .int(Int(longID)), "conversation": 0]).isError)
     }
 
+    func testMineFlagsAreExposed() throws {
+        // 段摘要带「认出我的声音」的标签：哪条待办是佩戴者的
+        var f = try XCTUnwrap(ConversationFile.read(fx.folder.appendingPathComponent("\(longID)/segments.json")))
+        f.segments[0].summary = ConversationSummary(title: "报价", summary: "你答应发报价。", todos: ["发报价", "小王订会议室"], mine: [0])
+        try fx.write("segments.json", String(decoding: try f.encoded(), as: UTF8.self), id: longID)
+        let a = ConversationRef(recording: longID, index: 0)
+        let day = DayFile(date: "2026-11-12", timeZone: "Asia/Shanghai", dayStartHour: 4, signature: "s", status: .diary,
+                          conversations: [DayConversation(ref: a, wallStart: longStart.addingTimeInterval(60), wallEnd: longStart.addingTimeInterval(70))],
+                          diary: Diary(overview: "你和小王定了报价。",
+                                       todos: [DiaryItem(text: "发报价", refs: [a], mine: true),
+                                               DiaryItem(text: "订会议室", owner: "小王", refs: [a], mine: false)]),
+                          model: "local", createdAt: Fixture.now)
+        try FileManager.default.createDirectory(at: DayFile.folder(library: fx.folder, date: "2026-11-12"), withIntermediateDirectories: true)
+        try day.encoded().write(to: DayFile.url(library: fx.folder, date: "2026-11-12"))
+        let r = try call("day_overview", ["date": "2026-11-12"])
+        XCTAssertEqual(r.structured?["diary"]?["todos"]?.array?.map { $0["mine"] }, [true, false])
+        XCTAssertTrue(r.text.contains("- [mine] 发报价 ("), r.text)
+        XCTAssertTrue(r.text.contains("- 订会议室 — 小王 ("), r.text)
+        let conv = r.structured?["recordings"]?.array?.last?["conversations"]?.array?.first
+        XCTAssertEqual(conv?["todos_mine"], [true, false])
+        let g = try call("get_recording", ["id": .int(Int(longID))])
+        XCTAssertEqual(g.structured?["conversations"]?.array?.first?["todos_mine"], [true, false])
+        // 不带标签写的摘要：没有这一项
+        XCTAssertNil(g.structured?["conversations"]?.array?.last?["todos_mine"])
+    }
+
     func testDiaryComesFirst() throws {
         let a = ConversationRef(recording: longID, index: 0)
         let day = DayFile(date: "2026-11-12", timeZone: "Asia/Shanghai", dayStartHour: 4, signature: "s", status: .diary,

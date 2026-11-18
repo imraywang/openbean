@@ -451,6 +451,8 @@ public final class LibraryTools: @unchecked Sendable {
             o["summary"] = .string(s.summary)
             o["decisions"] = .array(s.decisions.map { .string($0) })
             o["todos"] = .array(s.todos.map { .string($0) })
+            // 「认出我的声音」：哪几条是佩戴者自己的（不带标签写的摘要没有这一项）
+            if s.labelled { o["todos_mine"] = .array(s.todos.indices.map { .bool(s.isMine($0) == true) }) }
             o["people"] = .array(s.people.map { .string($0) })
         }
         return .object(o)
@@ -470,7 +472,8 @@ public final class LibraryTools: @unchecked Sendable {
         if !d.decisions.isEmpty { l.append("Decided:"); l += d.decisions.map { "- \($0.text) (\(refs($0.refs)))" } }
         if !d.todos.isEmpty {
             l.append("To-dos:")
-            l += d.todos.map { "- \($0.text)\($0.owner.map { " — " + $0 } ?? "") (\(refs($0.refs)))" }
+            // 带「认出我的声音」标签的日子：标出哪些是佩戴者自己的
+            l += d.todos.map { "- \($0.mine == true ? "[mine] " : "")\($0.text)\($0.owner.map { " — " + $0 } ?? "") (\(refs($0.refs)))" }
         }
         if !d.people.isEmpty {
             l.append("People mentioned (as spelled in the transcripts, not merged):")
@@ -482,7 +485,11 @@ public final class LibraryTools: @unchecked Sendable {
     func diaryJSON(_ f: DayFile, _ d: Diary) -> JSON {
         func refs(_ r: [ConversationRef]) -> JSON { .array(r.map { ["recording_id": .int(Int($0.recording)), "conversation": .int($0.index)] }) }
         func items(_ xs: [DiaryItem]) -> JSON {
-            .array(xs.map { x in ["text": .string(x.text), "owner": .from(x.owner), "sources": refs(x.refs)] })
+            .array(xs.map { x in
+                var o: [String: JSON] = ["text": .string(x.text), "owner": .from(x.owner), "sources": refs(x.refs)]
+                if let m = x.mine { o["mine"] = .bool(m) }
+                return .object(o)
+            })
         }
         return ["overview": .from(d.overview), "highlights": items(d.highlights), "decisions": items(d.decisions), "todos": items(d.todos),
                 "people": .array(d.people.map { ["name": .string($0.name), "sources": refs($0.refs)] }),

@@ -251,7 +251,7 @@ struct DiarySections: View {
                     }
                 }
             }
-            todoSection(d.todos)
+            todoSections(d.todos)
             if !d.people.isEmpty {
                 Section("People mentioned") {
                     // 名字照转写写，不合并不同写法；后面是出现在哪几段
@@ -283,7 +283,7 @@ struct DiarySections: View {
                 }
             }
             // 没有日记时，待办来自各段的段摘要（同一条录音切出的几段可能列了同一条，只留一次）
-            todoSection(Self.segmentTodos(conversations))
+            todoSections(Self.segmentTodos(conversations))
         }
     }
 
@@ -302,10 +302,22 @@ struct DiarySections: View {
         }
     }
 
-    @ViewBuilder private func todoSection(_ items: [DiaryItem]) -> some View {
+    /// 「认出我的声音」标出了佩戴者自己的待办时分两节：我的在前，别人的在后（没有就不显示这一节）
+    @ViewBuilder private func todoSections(_ items: [DiaryItem]) -> some View {
+        let mine = model.library.speakers.showsMarks ? items.filter { $0.mine == true } : []
+        if mine.isEmpty {
+            todoSection(items, title: "To-dos", all: items)
+        } else {
+            todoSection(mine, title: "My to-dos", all: items)
+            todoSection(items.filter { $0.mine != true }, title: "Other people's to-dos", all: items)
+        }
+    }
+
+    /// all：这天全部的待办（勾选状态按这天全部的待办记）
+    @ViewBuilder private func todoSection(_ items: [DiaryItem], title: LocalizedStringKey, all: [DiaryItem]) -> some View {
         if !items.isEmpty {
-            let current = items.map(\.text)
-            let done = current.filter(todos.isDone).count
+            let current = all.map(\.text)
+            let done = items.map(\.text).filter(todos.isDone).count
             Section {
                 ForEach(Array(items.enumerated()), id: \.offset) { _, t in
                     let on = todos.isDone(t.text)
@@ -330,7 +342,7 @@ struct DiarySections: View {
                 }
             } header: {
                 HStack {
-                    Text("To-dos")
+                    Text(title)
                     Spacer()
                     Text("\(done) of \(items.count) done").textCase(nil).monospacedDigit()
                 }
@@ -341,8 +353,10 @@ struct DiarySections: View {
     static func segmentTodos(_ items: [DayItem]) -> [DiaryItem] {
         var seen = Set<String>()
         return items.flatMap { item in
-            (item.conversation.summary?.todos ?? []).filter { seen.insert($0).inserted }.map {
-                DiaryItem(text: $0, refs: [ConversationRef(recording: item.key.recording, index: item.key.index)])
+            let s = item.conversation.summary
+            return (s?.todos ?? []).enumerated().filter { seen.insert($0.element).inserted }.map {
+                DiaryItem(text: $0.element, refs: [ConversationRef(recording: item.key.recording, index: item.key.index)],
+                          mine: s?.isMine($0.offset))
             }
         }
     }

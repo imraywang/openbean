@@ -988,5 +988,7 @@
 "Needs the voice model (28 MB).": "需要声纹模型（28 MB）。",
 "Ready since %@, learned from %lld recordings": "%1$@ 起可用，从 %2$lld 段录音学到",
 "Recognise my voice": "认出我的声音",
-"So far: %lld recordings from %lld days.": "目前：%1$lld 段录音，来自 %2$lld 天。"
+"So far: %lld recordings from %lld days.": "目前：%1$lld 段录音，来自 %2$lld 天。",
+"My to-dos": "我的待办",
+"Other people's to-dos": "别人的待办"
 }

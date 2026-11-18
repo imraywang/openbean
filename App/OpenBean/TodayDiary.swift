@@ -8,28 +8,39 @@ import SwiftUI
 // MARK: - 待办
 
 enum TodayTodos {
-    /// 这天的待办：(录音, 待办原文, 来源)。勾选状态按录音 + 原文记（沿用 todos.json），所以同一条只出现一次：
+    /// 一条待办：录音、原文、来源；mine：是佩戴者自己的（「认出我的声音」标出来的；不知道时 false）
+    struct Item {
+        var recording: Recording
+        var text: String
+        var source: String
+        var mine = false
+    }
+
+    /// 这天的待办。勾选状态按录音 + 原文记（沿用 todos.json），所以同一条只出现一次：
     /// - 多段录音、有段摘要：用落在这天的各段的待办，来源写段的时间和小标题；整条录音的待办（由段摘要合成）不再列；
     /// - 其他：整条录音摘要里的待办，来源写录音标题。
     @MainActor
-    static func items(_ d: DayDigest, library: LibraryStore) -> [(Recording, String, String)] {
-        var out: [(Recording, String, String)] = []
+    static func items(_ d: DayDigest, library: LibraryStore) -> [Item] {
+        var out: [Item] = []
         var seen = Set<String>()
         var recordingDone = Set<UInt32>()
         for b in d.blocks {
             switch b {
             case let .recording(r):
                 for t in library.notes.cachedSummary(r.id)?.actionItems ?? [] where seen.insert("\(r.id)|\(t)").inserted {
-                    out.append((r, t, r.displayTitle))
+                    out.append(Item(recording: r, text: t, source: r.displayTitle))
                 }
             case let .conversation(r, c):
                 let segmented = library.conversations.conversations(r.id).contains { $0.summary != nil }
                 if segmented {
                     let source = c.summary?.title.isEmpty == false ? c.summary!.title : c.clockRange
-                    for t in c.summary?.todos ?? [] where seen.insert("\(r.id)|\(t)").inserted { out.append((r, t, source)) }
+                    let s = c.summary
+                    for (i, t) in (s?.todos ?? []).enumerated() where seen.insert("\(r.id)|\(t)").inserted {
+                        out.append(Item(recording: r, text: t, source: source, mine: s?.isMine(i) == true))
+                    }
                 } else if recordingDone.insert(r.id).inserted {
                     for t in library.notes.cachedSummary(r.id)?.actionItems ?? [] where seen.insert("\(r.id)|\(t)").inserted {
-                        out.append((r, t, r.displayTitle))
+                        out.append(Item(recording: r, text: t, source: r.displayTitle))
                     }
                 }
             }
