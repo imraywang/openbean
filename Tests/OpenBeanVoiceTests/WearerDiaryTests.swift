@@ -144,6 +144,21 @@ final class WearerSummaryTests: XCTestCase {
         XCTAssertNil(old.summary?.mine)
     }
 
+    /// 本人确实参与的一段：别人交代给他的事不挨着他的话也算他的；只说了一两句时要和他的话对得上
+    func testTodoAskedByOthersCountsWhenTheWearerTookPart() {
+        let base = ConversationSummarizer(Summarizer(service: LLMService(endpoint: URL(string: "http://127.0.0.1:1")!), timeout: 1))
+        var p = ConversationSummarizer.Parsed()
+        p.summary = "s"
+        p.myTodos = ["月底之前盘点仓库库存", "去火星采购咖啡豆"]
+        let transcript = "张伟：另外仓库那边的库存也要盘点一下，月底之前。" + String(repeating: "大家接着聊了很久别的事情。", count: 20)
+        let took = base.finish(p, transcript: transcript, calls: 1, wearerText: "好的。\n行。\n嗯我知道了。", wearerLines: 3)
+        XCTAssertEqual(took.summary?.mine, [0])
+        XCTAssertEqual(took.summary?.todos.first, "月底之前盘点仓库库存")
+        XCTAssertEqual(took.droppedMine, 1, "转写里找不到的那条还是不算他的")
+        let thin = base.finish(p, transcript: transcript, calls: 1, wearerText: "好的。", wearerLines: 1)
+        XCTAssertEqual(thin.summary?.mine, [])
+    }
+
     func testOldFilesDecodeWithoutFlags() throws {
         let seg = #"""
         {"index":0,"from":0,"to":3,"start":0,"end":30,"wallStart":"2026-11-16T09:00:00+08:00","wallEnd":"2026-11-16T09:00:30+08:00",

@@ -291,7 +291,7 @@ public struct ConversationSummarizer: Sendable {
         // 核对「是他的待办」用：本人说的句子和紧挨着的前后句（别人让他做的事常在他前后那句说）
         let near = wearer == nil ? nil : Set(mine.flatMap { [$0 - 1, $0, $0 + 1] }).filter { lines.indices.contains($0) }.sorted()
             .map { lines[$0].text }.joined(separator: "\n")
-        return finish(merged, transcript: text, calls: calls, wearerText: near)
+        return finish(merged, transcript: text, calls: calls, wearerText: near, wearerLines: mine.count)
     }
 
     /// 回复的结构（端侧模型做结构化生成用；OpenAI 兼容服务不发）。上限比代码里的封顶宽一点，收尾时再封顶
@@ -321,9 +321,12 @@ public struct ConversationSummarizer: Sendable {
 
     /// 收尾：词表纠正；人名去掉代词和泛称、和专有名词一样要在转写里找得到；待办去掉泛称的负责人；
     /// 和待办相近的决定去掉（同一件事只归一类，有动作的算待办）；短段不出待办；封顶。
-    /// `wearerText`：本人说的句子和前后句（nil = 没有标签）。模型说是他的待办，要和这些话有字面上的重合才算他的；
-    /// 对不上的待办留着，只是不算他的。他的待办排在前面
-    func finish(_ p: Parsed, transcript: String, calls: Int, wearerText: String? = nil) -> Result {
+    /// `wearerText`：本人说的句子和前后句（nil = 没有标签）；`wearerLines`：这段里本人说了几句。
+    /// 模型说是他的待办，代码再核一遍，对不上的待办留着，只是不算他的；他的待办排在前面。核法分两种：
+    /// - 他确实参与了这段（说了 `minWearerLines` 句以上）：待办在整段转写里找得到就算。别人交代给他的事（教练让他练什么、
+    ///   朋友请他帮什么）是别人说的，常常不挨着他的话；真机上按「要和他自己的话重合」核，9 条里错降了 6 条（2026-11-18）。
+    /// - 他只说了一两句：要和他自己的话或前后句有重合才算，免得把旁人之间的事算给他。
+    func finish(_ p: Parsed, transcript: String, calls: Int, wearerText: String? = nil, wearerLines: Int = 0) -> Result {
         let c = GlossaryCorrector(terms: base.glossary)
         func fix(_ s: String) -> String { c.correct(s).text }
         let haystack = Self.normalized(c.correct(transcript).text + transcript)
@@ -337,7 +340,8 @@ public struct ConversationSummarizer: Sendable {
         func clean(_ xs: [String]) -> [String] { xs.map { NameFilter.stripGenericOwner(fix($0)) }.filter { !$0.isEmpty } }
         var mineKept: [String] = [], demoted: [String] = []
         if let wearerText {
-            let hay = c.correct(wearerText).text + "\n" + wearerText
+            let took = wearerLines >= Self.minWearerLines
+            let hay = took ? c.correct(transcript).text + "\n" + transcript : c.correct(wearerText).text + "\n" + wearerText
             for t in TextSimilarity.dedupe(clean(p.myTodos)) {
                 if !wearerText.isEmpty, Self.overlaps(t, hay) { mineKept.append(t) } else { demoted.append(t) }
             }
@@ -356,6 +360,9 @@ public struct ConversationSummarizer: Sendable {
         return Result(summary: s, kind: kind, calls: calls, droppedNames: max(dropped, 0),
                       droppedGeneric: rawPeople.count - named.count, droppedMine: demoted.count)
     }
+
+    /// 本人在一段里至少说这么多句，才算他参与了这段
+    static let minWearerLines = 3
 
     /// 很常见、说明不了是同一件事的两字词
     static let commonBigrams: Set<String> = ["我们", "你们", "他们", "这个", "那个", "一下", "就是", "然后", "什么", "没有", "可以",
