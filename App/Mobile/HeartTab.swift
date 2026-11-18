@@ -332,8 +332,9 @@ struct ConversationRow: View {
     /// 段的标题；还没有段摘要时用这段的第一句
     static func title(_ c: Conversation, library: LibraryStore, recording r: Recording) -> String {
         if let t = c.summary?.title, !t.isEmpty { return t }
-        let lines = library.transcript(r.id)
-        if let first = c.spokenLines.first, first < lines.count { return lines[first].text }
+        // 读的时候显示的那份（干净版里整句是语气词的跳过）
+        let shown = library.readingLines(r.id)
+        if let i = c.spokenLines.first(where: { $0 < shown.count && !shown[$0].isEmpty }) { return shown[i] }
         return String(localized: "Conversation")
     }
 }
