@@ -120,7 +120,7 @@ final class SpeakerIdentity {
             save()
         }
         let s = result.scan
-        Log.write(String(format: "认出我的声音 %u：%d 窗口，%@，%@，判定 %d 句中的 %d 句为本人，用时 %.1f 秒",
+        Log.write(String(format: "认出我的声音 %u：%d 窗口，%@，%@，%d 句中 %d 句为本人，用时 %.1f 秒",
                          r.id, windows.count, candidate.map { "主声音 \($0.windows) 窗口" } ?? "没有明显的主声音",
                          Self.describe(result), s.lines ?? 0, s.wearerLines ?? 0, seconds))
         if !wasReady, v.isReady {
@@ -136,7 +136,7 @@ final class SpeakerIdentity {
         case .confirmed?: return "声纹确认"
         case .agrees?: return "主声音是本人，慢更新"
         case .differs?: return "主声音不是本人，不更新"
-        case nil: return r.scan.outcome == .learning ? "学习中（这段不登记）" : (r.worn == .notWorn ? "录音豆没戴" : "判定")
+        case nil: return r.scan.outcome == .learning ? "学习中（这段不登记）" : (r.worn == .notWorn ? "录音豆没戴" : "按声纹判定")
         }
     }
 
