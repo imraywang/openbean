@@ -100,6 +100,7 @@ public struct ConversationFile: Codable, Sendable, Hashable {
                 c.summary = o.summary
                 c.summaryModel = o.summaryModel
                 c.summarizedAt = o.summarizedAt
+                c.wearer = o.wearer
             }
             return c
         }
@@ -172,6 +173,8 @@ public struct Conversation: Codable, Sendable, Hashable, Identifiable {
     public var summary: ConversationSummary?
     public var summaryModel: String?
     public var summarizedAt: Date?
+    /// 写段摘要时这段的「认出我的声音」统计（那时这条录音有能用的标签才有）；没有 = 摘要是不带标签写的
+    public var wearer: WearerStats?
 
     public var id: Int { index }
     public var lines: Range<Int> { from..<max(from, to) }
@@ -186,7 +189,7 @@ public struct Conversation: Codable, Sendable, Hashable, Identifiable {
     public init(index: Int, from: Int, to: Int, start: Double, end: Double, wallStart: Date, wallEnd: Date,
                 wallApprox: Bool = false, cut: Segmenter.Cut = .recordingStart, candidates: [Int] = [], hash: String = "",
                 marks: [Double] = [], voiceTyping: [Int] = [], kind: String? = nil, summary: ConversationSummary? = nil,
-                summaryModel: String? = nil, summarizedAt: Date? = nil) {
+                summaryModel: String? = nil, summarizedAt: Date? = nil, wearer: WearerStats? = nil) {
         self.index = index
         self.from = from
         self.to = to
@@ -204,11 +207,12 @@ public struct Conversation: Codable, Sendable, Hashable, Identifiable {
         self.summary = summary
         self.summaryModel = summaryModel
         self.summarizedAt = summarizedAt
+        self.wearer = wearer
     }
 
     enum Keys: String, CodingKey {
         case index, from, to, start, end, wallStart, wallEnd, wallApprox, cut, candidates, hash, marks, voiceTyping, kind, summary,
-             summaryModel, summarizedAt
+             summaryModel, summarizedAt, wearer
     }
 
     public init(from decoder: Decoder) throws {
@@ -234,6 +238,7 @@ public struct Conversation: Codable, Sendable, Hashable, Identifiable {
         summary = try? c.decodeIfPresent(ConversationSummary.self, forKey: .summary)
         summaryModel = try? c.decodeIfPresent(String.self, forKey: .summaryModel)
         summarizedAt = ISODate.decode(c, .summarizedAt)
+        wearer = try? c.decodeIfPresent(WearerStats.self, forKey: .wearer)
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -256,6 +261,66 @@ public struct Conversation: Codable, Sendable, Hashable, Identifiable {
         try c.encode(summary, forKey: .summary)
         try c.encode(summaryModel, forKey: .summaryModel)
         try c.encode(summarizedAt.map(ISODate.string), forKey: .summarizedAt)
+        try c.encodeIfPresent(wearer, forKey: .wearer)
+    }
+}
+
+/// 一段对话里佩戴者说了多少（由每句的 isWearer 算出来，不含声纹和分数）。
+/// isWearer 为 nil 的句子是「不知道」（太短、或录音豆没戴），既不算本人也不算别人
+public struct WearerStats: Codable, Sendable, Hashable {
+    /// 句子数（不含语音输入）、其中判定过的句数、判定为本人的句数
+    public var lines: Int
+    public var labelled: Int
+    public var wearerLines: Int
+    /// 本人说话的时长占全部句子时长的比例；判定过的句子太少、又没有本人的句子时为 nil（不知道，不当作「没说话」）
+    public var share: Double?
+    /// 用的是哪一次扫描的标签（SpeakerScan.at）：标签比这新，摘要就是旧的
+    public var labelsAt: Date
+
+    /// 一句都没有本人、但判定过的句子不到这么多时，不说「本人没说话」
+    public static let minLabelledForSilence = 3
+
+    public init(lines: Int, labelled: Int, wearerLines: Int, share: Double?, labelsAt: Date) {
+        self.lines = lines
+        self.labelled = labelled
+        self.wearerLines = wearerLines
+        self.share = share
+        self.labelsAt = labelsAt
+    }
+
+    /// 由这段每句的起止和 isWearer 算
+    public static func measure(_ lines: [(start: Double, end: Double, isWearer: Bool?)], labelsAt: Date) -> WearerStats {
+        let total = lines.reduce(0.0) { $0 + max($1.end - $1.start, 0) }
+        let mine = lines.filter { $0.isWearer == true }
+        let labelled = lines.filter { $0.isWearer != nil }.count
+        let secs = mine.reduce(0.0) { $0 + max($1.end - $1.start, 0) }
+        var share: Double?
+        if !mine.isEmpty {
+            share = total > 0 ? (secs / total * 100).rounded() / 100 : Double(mine.count) / Double(lines.count)
+        } else if labelled >= minLabelledForSilence {
+            share = 0
+        }
+        return WearerStats(lines: lines.count, labelled: labelled, wearerLines: mine.count, share: share, labelsAt: labelsAt)
+    }
+
+    enum Keys: String, CodingKey { case lines, labelled, wearerLines, share, labelsAt }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: Keys.self)
+        lines = (try? c.decodeIfPresent(Int.self, forKey: .lines)) ?? 0
+        labelled = (try? c.decodeIfPresent(Int.self, forKey: .labelled)) ?? 0
+        wearerLines = (try? c.decodeIfPresent(Int.self, forKey: .wearerLines)) ?? 0
+        share = try? c.decodeIfPresent(Double.self, forKey: .share)
+        labelsAt = ISODate.decode(c, .labelsAt) ?? .distantPast
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: Keys.self)
+        try c.encode(lines, forKey: .lines)
+        try c.encode(labelled, forKey: .labelled)
+        try c.encode(wearerLines, forKey: .wearerLines)
+        try c.encodeIfPresent(share, forKey: .share)
+        try c.encode(ISODate.string(labelsAt), forKey: .labelsAt)
     }
 }
 
@@ -269,9 +334,13 @@ public struct ConversationSummary: Codable, Sendable, Hashable {
     public var todos: [String]
     public var people: [String]
     public var things: [String]
+    /// 哪几条待办是佩戴者的（`todos` 的下标，佩戴者的排在前面）：他答应要做的、或别人让他做的。
+    /// nil = 这份摘要是不带「认出我的声音」标签写的（旧摘要、开关关着、录音豆没戴），不知道是谁的
+    public var mine: [Int]?
 
     public init(title: String = "", summary: String = "", keyPoints: [String] = [], decisions: [String] = [],
-                todos: [String] = [], people: [String] = [], things: [String] = []) {
+                todos: [String] = [], people: [String] = [], things: [String] = [], mine: [Int]? = nil) {
+        self.mine = mine
         self.title = title
         self.summary = summary
         self.keyPoints = keyPoints
@@ -281,7 +350,15 @@ public struct ConversationSummary: Codable, Sendable, Hashable {
         self.things = things
     }
 
-    enum Keys: String, CodingKey { case title, summary, keyPoints, decisions, todos, people, things }
+    enum Keys: String, CodingKey { case title, summary, keyPoints, decisions, todos, people, things, mine }
+
+    /// 写的时候有没有「认出我的声音」的标签
+    public var labelled: Bool { mine != nil }
+    /// 这条待办是不是佩戴者的；不知道时为 nil
+    public func isMine(_ todo: Int) -> Bool? { mine.map { $0.contains(todo) } }
+    /// 佩戴者的待办 / 别人的待办（不带标签写的摘要：全算在 others 里）
+    public var myTodos: [String] { todos.indices.filter { isMine($0) == true }.map { todos[$0] } }
+    public var otherTodos: [String] { todos.indices.filter { isMine($0) != true }.map { todos[$0] } }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: Keys.self)
@@ -295,6 +372,20 @@ public struct ConversationSummary: Codable, Sendable, Hashable {
         todos = strings(.todos)
         people = strings(.people)
         things = strings(.things)
+        mine = (try? c.decodeIfPresent([Int].self, forKey: .mine)).flatMap { $0 }.map { m in m.filter { todos.indices.contains($0) } }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: Keys.self)
+        try c.encode(title, forKey: .title)
+        try c.encode(summary, forKey: .summary)
+        try c.encode(keyPoints, forKey: .keyPoints)
+        try c.encode(decisions, forKey: .decisions)
+        try c.encode(todos, forKey: .todos)
+        try c.encode(people, forKey: .people)
+        try c.encode(things, forKey: .things)
+        // 不带标签写的摘要不写这一项：文件和日记的签名都和以前一样
+        try c.encodeIfPresent(mine, forKey: .mine)
     }
 }
 

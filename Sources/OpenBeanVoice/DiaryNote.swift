@@ -22,11 +22,16 @@ public enum DiaryNote {
         public var transcript = "Transcript"
         public var media = "media"
         public var marks = "Marked"
+        /// 带「认出我的声音」标签的日子：待办分成佩戴者自己的和别人的
+        public var myTodos = "My to-dos"
+        public var otherTodos = "Other people's to-dos"
 
         public init() {}
         public init(overview: String, decisions: String, todos: String, peopleAndThings: String, people: String,
                     things: String, conversations: String, transcript: String, media: String, marks: String = "Marked",
-                    highlights: String = "Highlights") {
+                    highlights: String = "Highlights", myTodos: String = "My to-dos", otherTodos: String = "Other people's to-dos") {
+            self.myTodos = myTodos
+            self.otherTodos = otherTodos
             self.highlights = highlights
             self.marks = marks
             self.overview = overview
@@ -108,11 +113,18 @@ public enum DiaryNote {
             if !d.decisions.isEmpty {
                 s += "\n## \(L.decisions)\n\n" + d.decisions.map { "- \($0.text) (\(refLinks($0.refs)))" }.joined(separator: "\n") + "\n"
             }
-            if !d.todos.isEmpty {
-                s += "\n## \(L.todos)\n\n" + d.todos.map { t in
+            func todoLines(_ items: [DiaryItem]) -> String {
+                items.map { t in
                     let who = t.owner.map { " — \($0)" } ?? ""
                     return "- [ ] \(t.text)\(who) (\(refLinks(t.refs)))"
                 }.joined(separator: "\n") + "\n"
+            }
+            if !d.myTodos.isEmpty {
+                // 带标签的日子：自己的在前，别人的另起一节（没有就不写这一节）
+                s += "\n## \(L.myTodos)\n\n" + todoLines(d.myTodos)
+                if !d.otherTodos.isEmpty { s += "\n## \(L.otherTodos)\n\n" + todoLines(d.otherTodos) }
+            } else if !d.todos.isEmpty {
+                s += "\n## \(L.todos)\n\n" + todoLines(d.todos)
             }
             if !d.people.isEmpty || !d.things.isEmpty {
                 s += "\n## \(L.peopleAndThings)\n\n"

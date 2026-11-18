@@ -175,9 +175,12 @@ public struct DayConversation: Codable, Sendable, Hashable {
     public var kind: String?
     public var title: String?
     public var summary: String?
+    /// 佩戴者说话的时长占比（「认出我的声音」开着、这段有能用的标签时才有；0 = 他没说话，是旁听到的）
+    public var wearerShare: Double?
 
     public init(ref: ConversationRef, wallStart: Date, wallEnd: Date, wallApprox: Bool = false, kind: String? = nil,
-                title: String? = nil, summary: String? = nil) {
+                title: String? = nil, summary: String? = nil, wearerShare: Double? = nil) {
+        self.wearerShare = wearerShare
         self.ref = ref
         self.wallStart = wallStart
         self.wallEnd = wallEnd
@@ -187,7 +190,7 @@ public struct DayConversation: Codable, Sendable, Hashable {
         self.summary = summary
     }
 
-    enum Keys: String, CodingKey { case ref, wallStart, wallEnd, wallApprox, kind, title, summary }
+    enum Keys: String, CodingKey { case ref, wallStart, wallEnd, wallApprox, kind, title, summary, wearerShare }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: Keys.self)
@@ -198,6 +201,7 @@ public struct DayConversation: Codable, Sendable, Hashable {
         kind = try? c.decodeIfPresent(String.self, forKey: .kind)
         title = try? c.decodeIfPresent(String.self, forKey: .title)
         summary = try? c.decodeIfPresent(String.self, forKey: .summary)
+        wearerShare = try? c.decodeIfPresent(Double.self, forKey: .wearerShare)
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -209,6 +213,7 @@ public struct DayConversation: Codable, Sendable, Hashable {
         try c.encodeIfPresent(kind, forKey: .kind)
         try c.encodeIfPresent(title, forKey: .title)
         try c.encodeIfPresent(summary, forKey: .summary)
+        try c.encodeIfPresent(wearerShare, forKey: .wearerShare)
     }
 }
 
@@ -223,6 +228,10 @@ public struct Diary: Codable, Sendable, Hashable {
     /// 提到的人：名字照转写写，不合并不同写法；refs 是出现在哪几段
     public var people: [DiaryName]
     public var things: [DiaryName]
+
+    /// 佩戴者自己的待办 / 别人的（和不知道是谁的）待办
+    public var myTodos: [DiaryItem] { todos.filter { $0.mine == true } }
+    public var otherTodos: [DiaryItem] { todos.filter { $0.mine != true } }
 
     public init(overview: String? = nil, highlights: [DiaryItem] = [], decisions: [DiaryItem] = [], todos: [DiaryItem] = [],
                 people: [DiaryName] = [], things: [DiaryName] = []) {
@@ -254,20 +263,32 @@ public struct DiaryItem: Codable, Sendable, Hashable {
     /// 待办的负责人（模型给的，可能没有）
     public var owner: String?
     public var refs: [ConversationRef]
+    /// 待办：是佩戴者自己的（true）还是别人的（false）。没有「认出我的声音」标签的日子、和旧的日文件都是 nil
+    public var mine: Bool?
 
-    public init(text: String, owner: String? = nil, refs: [ConversationRef]) {
+    public init(text: String, owner: String? = nil, refs: [ConversationRef], mine: Bool? = nil) {
         self.text = text
         self.owner = owner
         self.refs = refs
+        self.mine = mine
     }
 
-    enum Keys: String, CodingKey { case text, owner, refs }
+    enum Keys: String, CodingKey { case text, owner, refs, mine }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: Keys.self)
         text = try c.decode(String.self, forKey: .text)
         owner = try? c.decodeIfPresent(String.self, forKey: .owner)
         refs = ((try? c.decodeIfPresent([Lenient<ConversationRef>].self, forKey: .refs)) ?? []).compactMap(\.value)
+        mine = try? c.decodeIfPresent(Bool.self, forKey: .mine)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: Keys.self)
+        try c.encode(text, forKey: .text)
+        try c.encodeIfPresent(owner, forKey: .owner)
+        try c.encode(refs, forKey: .refs)
+        try c.encodeIfPresent(mine, forKey: .mine)
     }
 }
 
