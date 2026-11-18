@@ -29,3 +29,15 @@ public enum WearerLabels {
         return WearerStats.measure(idx.map { (segments[$0].start, segments[$0].end, segments[$0].isWearer) }, labelsAt: scan.at)
     }
 }
+
+/// 提示词里把戴录音豆的人叫 "the wearer"，模型偶尔把这个词原样写进回复（真机上见过「给wearer做测试用户」）。
+/// 带标签的回复收尾时换掉：中文里换成「你」，别的换成 "you"
+public enum WearerWord {
+    public static func scrub(_ text: String) -> String {
+        guard text.range(of: "wearer", options: .caseInsensitive) != nil || text.contains("佩戴者") else { return text }
+        let cjk = text.unicodeScalars.contains { $0.value >= 0x4E00 && $0.value <= 0x9FFF }
+        var t = text.replacingOccurrences(of: #"(?i)\b(the )?wearer('s)?\b"#, with: cjk ? "你" : "you", options: .regularExpression)
+        t = t.replacingOccurrences(of: "佩戴者", with: "你")
+        return t
+    }
+}

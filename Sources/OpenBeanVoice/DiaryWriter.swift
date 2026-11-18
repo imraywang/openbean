@@ -377,10 +377,16 @@ public struct DiaryWriter: Sendable {
             if m > cleanHighlights.count { dropReasons["highlights:mix", default: 0] += m - cleanHighlights.count }
             cleanDecisions = Self.ordered(cleanDecisions, byRef)
         }
-        let diary = Diary(overview: overview.map { c.correct($0).text },
-                          highlights: Array(cleanHighlights.prefix(day.maxHighlights)).map { Self.fix($0, c) },
-                          decisions: Array(cleanDecisions.prefix(Self.maxDecisions)).map { Self.fix($0, c) },
-                          todos: Array(cleanTodos.prefix(Self.maxTodos)).map { Self.fix($0, c) },
+        // 带标签的回复里漏出来的 "wearer" 换成「你」
+        func tidy(_ i: DiaryItem) -> DiaryItem {
+            var f = Self.fix(i, c)
+            if labelled { f.text = WearerWord.scrub(f.text) }
+            return f
+        }
+        let diary = Diary(overview: overview.map { labelled ? WearerWord.scrub(c.correct($0).text) : c.correct($0).text },
+                          highlights: Array(cleanHighlights.prefix(day.maxHighlights)).map(tidy),
+                          decisions: Array(cleanDecisions.prefix(Self.maxDecisions)).map(tidy),
+                          todos: Array(cleanTodos.prefix(Self.maxTodos)).map(tidy),
                           people: Array(people.prefix(Self.maxPeople)), things: Array(things.prefix(Self.maxThings)))
         if overheard > 0 { dropReasons["highlights:overheard", default: 0] += overheard }
         return Output(status: .diary, diary: diary, calls: calls, dropped: dropped, duplicates: duplicates, droppedOwners: droppedOwners,

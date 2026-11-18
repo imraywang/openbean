@@ -192,4 +192,10 @@ final class SpeakerAttributionDiaryTests: XCTestCase {
         XCTAssertFalse(DiaryWriter.addressesWearer("You were told the fair closes at the end of the month"))
         XCTAssertFalse(DiaryWriter.addressesWearer("王经理说成本高三成"))
     }
+
+    func testWearerWordIsScrubbedFromReplies() {
+        XCTAssertEqual(WearerWord.scrub("介绍一位朋友给wearer做产品测试用户"), "介绍一位朋友给你做产品测试用户")
+        XCTAssertEqual(WearerWord.scrub("Send the wearer's notes to Zhang"), "Send you notes to Zhang")
+        XCTAssertEqual(WearerWord.scrub("没有这个词"), "没有这个词")
+    }
 }

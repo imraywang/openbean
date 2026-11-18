@@ -361,7 +361,7 @@ public struct ConversationSummarizer: Sendable {
     func finish(_ p: Parsed, transcript: String, calls: Int, wearerText: String? = nil, wearerLines: Int = 0,
                 speakers: (me: String, other: String)? = nil) -> Result {
         let c = GlossaryCorrector(terms: base.glossary)
-        func fix(_ s: String) -> String { c.correct(s).text }
+        func fix(_ s: String) -> String { let t = c.correct(s).text; return wearerText == nil ? t : WearerWord.scrub(t) }
         let haystack = Self.normalized(c.correct(transcript).text + transcript)
         let rawPeople = Self.unique(p.people.map(fix))
         let named = rawPeople.filter { !NameFilter.isGeneric($0) }
