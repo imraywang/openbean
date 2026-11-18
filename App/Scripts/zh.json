@@ -992,5 +992,13 @@
 "My to-dos": "我的待办",
 "Other people's to-dos": "别人的待办",
 "said by you": "你说的",
-"said by others": "别人说的"
+"said by others": "别人说的",
+"Clean": "干净",
+"Original": "原文",
+"Transcript text": "转写文字",
+"Transcripts": "转写",
+"Clean hides filler words, stutters and repeats. Original is the text as recognised.": "干净：去掉语气词、口吃和重复；原文：识别出来的原样文字。",
+"Clean up filler words in transcripts": "转写去掉语气词",
+"Hides filler words, stutters and repeats when you read, copy or export a transcript. The original text is kept; switch between Clean and Original above a transcript.": "阅读、拷贝、导出转写时去掉语气词、口吃和重复。原文照常保留，转写上方可以在「干净」和「原文」之间切换。",
+"Hides filler words, stutters and repeats when you read, copy or share a transcript. The original text is kept; switch between Clean and Original above a transcript.": "阅读、拷贝、分享转写时去掉语气词、口吃和重复。原文照常保留，转写上方可以在「干净」和「原文」之间切换。"
 }

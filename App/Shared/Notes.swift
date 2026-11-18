@@ -441,7 +441,9 @@ final class NoteService {
                                  title: $0.summary?.title)
         }
         let values = NoteTemplate.Values(title: r.displayTitle, start: r.start, duration: r.duration, recordingID: id,
-                                         summary: summary(id), lines: segs.map { TimedLine(start: $0.start, text: $0.text) },
+                                         summary: summary(id),
+                                         // 笔记里的转写跟着「去掉语气词」的设置（下标不变，干净版里空了的句子不写）
+                                         lines: zip(segs, library.readingLines(id)).map { TimedLine(start: $0.start, text: $1) },
                                          sections: sections,
                                          marks: MarkPlacement.byLine(library.marks(id), spans: segs.map { ($0.start, $0.end) }))
         let text = NoteTemplate.render(AppPaths.readNoteTemplate(), values)

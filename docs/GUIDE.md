@@ -75,6 +75,18 @@ ignoring case, spaces and hyphens (`cloud code`, `cloudcode`, `Cloud-Code`); ali
 match those characters exactly. Lines without `=` work as before, and only the left-hand terms are given to clean-up.
 Pick aliases you never say on purpose: a bare `cloud` would turn every real "cloud" into "Claude".
 
+## Clean transcripts
+
+Recording transcripts are shown clean by default: filler sounds (呃, 嗯, standalone 啊 / 哦, um, uh), stutters
+(我我觉得, 合合合作), words said twice in a row (我也我也, 然后然后) and a sentence-opening 然后， / 就是， / 那个， are hidden,
+and the punctuation left behind is tidied. It is plain rules on this device, no LLM: it only removes, never rewrites or
+reorders, and keeps anything it is unsure of — reduplicated words (看看, 刚刚, 谢谢, 认认真真), a repeat that spans two
+words (中国国家, 现在在哪), numbers, laughter, and "一个一个" or "研究研究". A sentence that is nothing but fillers is
+hidden. Switch between *Clean* and *Original* above a transcript, or turn off *Clean up filler words in transcripts*
+in Settings (Library on the Mac, Transcripts on the iPhone). Copy, Markdown export and notes follow the same setting;
+search finds a sentence by either text. The original is what is stored in `transcript.json` and what summaries, the
+diary, conversations, Recognise my voice, the word list and the MCP tools use.
+
 ## Summaries and notes
 
 - *Summarise recordings after transcription* — after a recording is transcribed, the LLM service from Clean-up

@@ -902,6 +902,26 @@
         }
       }
     },
+    "Clean": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "干净"
+          }
+        }
+      }
+    },
+    "Clean hides filler words, stutters and repeats. Original is the text as recognised.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "干净：去掉语气词、口吃和重复；原文：识别出来的原样文字。"
+          }
+        }
+      }
+    },
     "Clean up Heart bean": {
       "localizations": {
         "zh-Hans": {
@@ -918,6 +938,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "用大模型逐句润色"
+          }
+        }
+      }
+    },
+    "Clean up filler words in transcripts": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "转写去掉语气词"
           }
         }
       }
@@ -2172,6 +2202,16 @@
         }
       }
     },
+    "Hides filler words, stutters and repeats when you read, copy or export a transcript. The original text is kept; switch between Clean and Original above a transcript.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "阅读、拷贝、导出转写时去掉语气词、口吃和重复。原文照常保留，转写上方可以在「干净」和「原文」之间切换。"
+          }
+        }
+      }
+    },
     "Highlights": {
       "localizations": {
         "zh-Hans": {
@@ -3138,6 +3178,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "OpenBean 不会对录音豆做配对、解绑、恢复出厂或固件升级；只在你要求、且录音已经完整保存在这台 Mac 上时删除录音豆上的录音，或在语音输入结束后删掉它为这次语音输入新建的文件（见上面）。"
+          }
+        }
+      }
+    },
+    "Original": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "原文"
           }
         }
       }
@@ -5028,6 +5078,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "全文"
+          }
+        }
+      }
+    },
+    "Transcript text": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "转写文字"
           }
         }
       }

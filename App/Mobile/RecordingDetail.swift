@@ -32,6 +32,8 @@ struct RecordingDetail: View {
 
     private func content(_ r: Recording) -> some View {
         let segs = r.transcribed ? library.transcript(r.id) : []
+        // 每句显示的文字（干净版或原文，跟着设置）；下标和 segs 一一对应
+        let shown = r.transcribed ? library.readingLines(r.id) : []
         let marks = r.downloaded ? library.marks(r.id) : []
         let active = playback.id == r.id
         let current = active && (playback.playing || playback.time > 0) ? Self.segment(at: playback.time, in: segs) : nil
@@ -40,8 +42,8 @@ struct RecordingDetail: View {
             List {
                 header(r)
                 SummaryCard(library: library, recording: r)
-                if !marks.isEmpty { marksSection(r, marks: marks, segs: segs) }
-                transcriptSection(r, segs: segs, sections: sections, marks: marks, current: current)
+                if !marks.isEmpty { marksSection(r, marks: marks, segs: segs, shown: shown) }
+                transcriptSection(r, segs: segs, shown: shown, sections: sections, marks: marks, current: current)
             }
             .listStyle(.insetGrouped)
             .environment(\.openURL, OpenURLAction { url in handle(url, segs: segs) })
@@ -127,7 +129,7 @@ struct RecordingDetail: View {
 
     // MARK: 重点标记
 
-    private func marksSection(_ r: Recording, marks: [Double], segs: [TranscriptSegment]) -> some View {
+    private func marksSection(_ r: Recording, marks: [Double], segs: [TranscriptSegment], shown: [String]) -> some View {
         Section {
             ForEach(marks, id: \.self) { m in
                 Button {
@@ -137,7 +139,8 @@ struct RecordingDetail: View {
                         Image(systemName: "flag.fill").foregroundStyle(.orange)
                         Text(LibraryStore.clock(m)).font(.subheadline.monospacedDigit()).foregroundStyle(.secondary)
                         if let i = MarkPlacement.line(for: m, spans: segs.map { ($0.start, $0.end) }) {
-                            Text(segs[i].text).lineLimit(2).foregroundStyle(.primary)
+                            // 干净版里这句空了（整句是语气词）就显示原文
+                            Text(i < shown.count && !shown[i].isEmpty ? shown[i] : segs[i].text).lineLimit(2).foregroundStyle(.primary)
                         }
                     }
                 }
@@ -154,24 +157,36 @@ struct RecordingDetail: View {
     // MARK: 转写
 
     @ViewBuilder
-    private func transcriptSection(_ r: Recording, segs: [TranscriptSegment], sections: TranscriptLayout,
+    private func transcriptSection(_ r: Recording, segs: [TranscriptSegment], shown: [String], sections: TranscriptLayout,
                                    marks: [Double], current: Int?) -> some View {
         Section {
             if let p = library.transcribing[r.id] {
                 ProgressView(value: p) { Text("Transcribing on this iPhone…") }
             } else if r.transcribed {
-                if segs.isEmpty { Text("No speech found.").foregroundStyle(.secondary) }
+                if segs.isEmpty {
+                    Text("No speech found.").foregroundStyle(.secondary)
+                } else {
+                    TranscriptStylePicker(settings: library.settings)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
                 let byLine = MarkPlacement.byLine(marks, spans: segs.map { ($0.start, $0.end) })
                 ForEach(Array(sections.paragraphs.enumerated()), id: \.offset) { k, range in
-                    VStack(alignment: .leading, spacing: 8) {
-                        if let c = sections.heading(before: k) { ConversationTitle(conversation: c) }
-                        ParagraphText(segments: Array(segs[range]), first: range.lowerBound,
-                                      current: current.flatMap { range.contains($0) ? $0 : nil },
-                                      marks: byLine.filter { range.contains($0.key) }, query: query,
-                                      wearer: library.speakers.showsMarks)
-                            .equatable()
+                    let pMarks = byLine.filter { range.contains($0.key) }
+                    let texts = Array(shown[range])
+                    // 干净版里整段都是语气词（又没有标记、没有小标题）时不显示这段
+                    if sections.heading(before: k) != nil || !pMarks.isEmpty || texts.contains(where: { !$0.isEmpty }) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            if let c = sections.heading(before: k) { ConversationTitle(conversation: c) }
+                            if !pMarks.isEmpty || texts.contains(where: { !$0.isEmpty }) {
+                                ParagraphText(segments: Array(segs[range]), texts: texts, first: range.lowerBound,
+                                              current: current.flatMap { range.contains($0) ? $0 : nil },
+                                              marks: pMarks, query: query,
+                                              wearer: library.speakers.showsMarks)
+                                    .equatable()
+                            }
+                        }
+                        .id(ParagraphID(index: k))
                     }
-                    .id(ParagraphID(index: k))
                 }
             } else if r.downloaded, !r.audioRemoved {
                 Text("Not transcribed yet.").foregroundStyle(.secondary)
@@ -209,7 +224,7 @@ struct RecordingDetail: View {
     private func scrollToHit(segs: [TranscriptSegment], sections: TranscriptLayout, proxy: ScrollViewProxy) {
         let q = query.trimmingCharacters(in: .whitespaces)
         guard !scrolledToHit, !q.isEmpty,
-              let i = segs.firstIndex(where: { $0.text.localizedCaseInsensitiveContains(q) }),
+              let i = segs.firstIndex(where: { LibraryStore.sentence($0.text, contains: q) }),
               let p = sections.paragraph(containing: i) else { return }
         scrolledToHit = true
         follow = false
@@ -342,6 +357,8 @@ struct ConversationTitle: View {
 /// 一段转写：前面是这段第一句的时间，后面是连在一起的句子。每句是一个链接，点了从那句播；正在播的那句标亮
 struct ParagraphText: View, Equatable {
     let segments: [TranscriptSegment]
+    /// 每句显示的文字（干净版或原文）；空的句子不显示（它的标记照样显示）
+    let texts: [String]
     let first: Int
     let current: Int?
     let marks: [Int: [Double]]
@@ -364,16 +381,23 @@ struct ParagraphText: View, Equatable {
 
     private var attributed: AttributedString {
         var out = AttributedString()
+        var previous: String?
         for (k, seg) in segments.enumerated() {
-            if k > 0 { out += AttributedString(TranscriptParagraphs.joiner(after: segments[k - 1].text, before: seg.text)) }
-            for m in marks[first + k] ?? [] {
+            let text = k < texts.count ? texts[k] : seg.text
+            let flags = marks[first + k] ?? []
+            // 干净版里空了的句子不显示（落在它上面的标记照样显示）
+            if text.isEmpty && flags.isEmpty { continue }
+            if let p = previous, !text.isEmpty { out += AttributedString(TranscriptParagraphs.joiner(after: p, before: text)) }
+            for m in flags {
                 var flag = AttributedString("⚑\u{2009}")
                 flag.link = URL(string: "openbean-mark://\(Int((m * 100).rounded()))")
                 flag.foregroundColor = .orange
                 out += flag
             }
+            guard !text.isEmpty else { continue }
+            previous = text
             if wearer, seg.isWearer == true { out += WearerMark.prefix }
-            var piece = Highlight.text(seg.text, query)
+            var piece = Highlight.text(text, query)
             piece.link = URL(string: "openbean-seek://\(first + k)")
             if first + k == current {
                 piece.foregroundColor = .accentColor

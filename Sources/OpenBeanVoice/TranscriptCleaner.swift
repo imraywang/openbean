@@ -38,6 +38,28 @@ public enum TranscriptCleaner {
     /// 干净版的一句；整句都是语气词时返回空字符串
     public static func clean(_ text: String) -> String { trace(text).text }
 
+    /// 同 clean，记住算过的句子（界面每次重画、搜索都会再要）。按原文记，所以词表改了句子就自然换成新的
+    public static func cached(_ text: String) -> String {
+        cacheLock.lock()
+        if let hit = cache[text] { cacheLock.unlock(); return hit }
+        cacheLock.unlock()
+        let out = clean(text)
+        cacheLock.lock()
+        if cache.count >= 200_000 { cache.removeAll(keepingCapacity: true) }
+        cache[text] = out
+        cacheLock.unlock()
+        return out
+    }
+
+    /// 一篇转写读的时候每句显示什么：clean 时是干净版（整句是语气词的为空，界面上藏起来），否则原文。
+    /// 下标和句子一一对应（点句子跳转、播放标亮、标记、佩戴者小圆点都按下标）
+    public static func lines(_ texts: [String], clean: Bool) -> [String] {
+        clean ? texts.map(cached) : texts
+    }
+
+    private static let cacheLock = NSLock()
+    nonisolated(unsafe) private static var cache: [String: String] = [:]
+
     public static func trace(_ text: String) -> Trace {
         var removed: [Rule: Int] = [:]
         let full = fixedPoint(Array(text), discourse: true, &removed)

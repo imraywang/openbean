@@ -141,6 +141,9 @@ final class Settings {
     }
     #endif
     var autoTranscribe: Bool { didSet { d.set(autoTranscribe, forKey: "autoTranscribe") } }
+    /// 录音转写显示干净版（去语气词、口吃和重复，见 TranscriptCleaner）；复制、导出、笔记里的转写也跟着它。
+    /// 存着的转写、摘要、日记都用原文，不受它影响
+    var cleanTranscripts: Bool { didSet { d.set(cleanTranscripts, forKey: "cleanTranscripts") } }
     /// 连上录音豆、或放回充电盒时自动经蓝牙下载新录音
     var autoSync: Bool { didSet { d.set(autoSync, forKey: "autoSync") } }
     var onboardingDone: Bool { didSet { d.set(onboardingDone, forKey: "onboardingDone") } }
@@ -221,7 +224,7 @@ final class Settings {
                               "polishEndpoint": Self.defaultEndpoint, "polishModel": "local",
                               "llmBackend": "", "cloudProvider": "", "cloudConfirmed": false, "modelWifiOnly": true,
                               "paragraphGap": 2.5, "sentencePause": 0.8,
-                              "autoTranscribe": true,
+                              "autoTranscribe": true, "cleanTranscripts": true,
                               "onboardingDone": false, "buttonDictates": true, "readySound": true,
                               "keepHistory": true, "autoSync": true, "summarizeRecordings": false,
                               "notesEnabled": false, "notesFolder": "", "dayStartHour": 4,
@@ -246,6 +249,7 @@ final class Settings {
         hotkeyCustom = d.data(forKey: "hotkeyCustom").flatMap { try? JSONDecoder().decode(Hotkey.Combo.self, from: $0) }
         #endif
         autoTranscribe = d.bool(forKey: "autoTranscribe")
+        cleanTranscripts = d.bool(forKey: "cleanTranscripts")
         autoSync = d.bool(forKey: "autoSync")
         onboardingDone = d.bool(forKey: "onboardingDone")
         buttonDictates = d.bool(forKey: "buttonDictates")

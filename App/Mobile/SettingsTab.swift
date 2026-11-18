@@ -44,6 +44,15 @@ struct MobileSettingsTab: View {
                     Text("Runs on this iPhone, offline.")
                 }
 
+                // 读转写：干净版（去语气词、口吃和重复）还是原文；转写上方也能切
+                Section {
+                    Toggle("Clean up filler words in transcripts", isOn: $settings.cleanTranscripts)
+                } header: {
+                    Text("Transcripts")
+                } footer: {
+                    Text("Hides filler words, stutters and repeats when you read, copy or share a transcript. The original text is kept; switch between Clean and Original above a transcript.")
+                }
+
                 // 自动摘要与日记
                 Section {
                     Toggle("Transcribe after syncing", isOn: $settings.autoTranscribe)

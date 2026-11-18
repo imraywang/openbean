@@ -118,9 +118,13 @@ extension LibraryStore {
         if let s = notes.cachedSummary(r.id),
            ([s.summary] + s.keyPoints + s.actionItems).contains(where: { $0.localizedCaseInsensitiveContains(q) }) { count += 1 }
         if r.transcribed {
-            for (i, seg) in transcript(r.id).enumerated() where seg.text.localizedCaseInsensitiveContains(q) {
-                count += Self.occurrences(of: q, in: seg.text)
-                if first == nil { first = SearchHit(segment: i, text: seg.text, start: seg.start, count: 0) }
+            // 原文或干净版里有都算（「合合合作」搜「合作」也找得到）；摘录用读的时候显示的那份
+            let shown = readingLines(r.id)
+            for (i, seg) in transcript(r.id).enumerated() where Self.sentence(seg.text, contains: q) {
+                let text = seg.text.localizedCaseInsensitiveContains(q) && (shown[i].isEmpty || !shown[i].localizedCaseInsensitiveContains(q))
+                    ? seg.text : shown[i]
+                count += Self.occurrences(of: q, in: text)
+                if first == nil { first = SearchHit(segment: i, text: text, start: seg.start, count: 0) }
             }
         }
         guard count > 0 else { return nil }
@@ -167,6 +171,8 @@ extension LibraryStore {
     func plainText(_ id: UInt32) -> String {
         guard let r = recordings.first(where: { $0.id == id }) else { return "" }
         let segs = transcript(id)
+        // 转写跟着「去掉语气词」的设置；干净版里空了的句子不写
+        let shown = readingLines(id)
         var s = "\(listTitle(r))\n\(r.start.formatted(date: .long, time: .shortened)) · \(Self.clock(r.duration))\n\n"
         if let sum = notes.summary(id) {
             s += sum.summary + "\n\n"
@@ -177,10 +183,11 @@ extension LibraryStore {
         }
         for p in TranscriptParagraphs.group(segs) {
             var line = ""
-            for i in p {
-                if i > p.lowerBound { line += TranscriptParagraphs.joiner(after: segs[i - 1].text, before: segs[i].text) }
-                line += segs[i].text
+            for i in p where !shown[i].isEmpty {
+                if !line.isEmpty { line += TranscriptParagraphs.joiner(after: line, before: shown[i]) }
+                line += shown[i]
             }
+            guard !line.isEmpty else { continue }
             s += "[\(Self.clock(segs[p.lowerBound].start))] \(line)\n\n"
         }
         return s

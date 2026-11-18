@@ -287,14 +287,30 @@ final class LibraryStore {
         guard let d = try? Data(contentsOf: transcriptURL(id)),
               let t = try? JSONDecoder().decode([TranscriptSegment].self, from: d) else { return [] }
         transcripts[id] = t
+        // 读的时候要干净版：先在后台把这篇算好，打开长录音时界面不卡
+        if settings.cleanTranscripts {
+            let texts = t.map(\.text)
+            Task.detached(priority: .utility) { _ = TranscriptCleaner.lines(texts, clean: true) }
+        }
         return t
+    }
+
+    /// 读转写时每句显示的文字：设置开着是干净版（整句是语气词的为空），否则原文；下标和 transcript(id) 一一对应。
+    /// 只给人读（详情、复制、导出、笔记）；摘要、日记、切段、认佩戴者、词表都用 transcript(id) 的原文
+    func readingLines(_ id: UInt32) -> [String] {
+        TranscriptCleaner.lines(transcript(id).map(\.text), clean: settings.cleanTranscripts)
+    }
+
+    /// 一句里有没有搜的词：原文或干净版里有都算（「合合合作」搜「合作」也找得到）
+    static func sentence(_ text: String, contains q: String) -> Bool {
+        text.localizedCaseInsensitiveContains(q) || TranscriptCleaner.cached(text).localizedCaseInsensitiveContains(q)
     }
 
     func matches(_ r: Recording, query: String) -> Bool {
         let q = query.trimmingCharacters(in: .whitespaces)
         guard !q.isEmpty else { return true }
         if r.displayTitle.localizedCaseInsensitiveContains(q) { return true }
-        return r.transcribed && transcript(r.id).contains { $0.text.localizedCaseInsensitiveContains(q) }
+        return r.transcribed && transcript(r.id).contains { Self.sentence($0.text, contains: q) }
     }
 
     /// 转写文件被词表回填改过：丢掉缓存（列表摘要、搜索、导出、详情都会读新文字），笔记按规则刷新
@@ -1174,7 +1190,10 @@ final class LibraryStore {
             if !sum.actionItems.isEmpty { s += "## Action items\n\n" + sum.actionItems.map { "- [ ] \($0)\n" }.joined() + "\n" }
             s += "## Transcript\n\n"
         }
-        for seg in transcript(id) { s += "**[\(Self.clock(seg.start))]** \(seg.text)\n\n" }
+        // 转写跟着「去掉语气词」的设置；干净版里空了的句子不写
+        for (seg, text) in zip(transcript(id), readingLines(id)) where !text.isEmpty {
+            s += "**[\(Self.clock(seg.start))]** \(text)\n\n"
+        }
         return s
     }
 

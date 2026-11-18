@@ -284,6 +284,10 @@ struct GeneralSettingsPage: View {
                         Text("Transcribe recordings after download")
                         Text("Runs on this Mac with SenseVoice")
                     }
+                    Toggle(isOn: $settings.cleanTranscripts) {
+                        Text("Clean up filler words in transcripts")
+                        Text("Hides filler words, stutters and repeats when you read, copy or export a transcript. The original text is kept; switch between Clean and Original above a transcript.")
+                    }
                     LabeledContent("Library folder") {
                         Button("Show in Finder") { NSWorkspace.shared.open(AppPaths.library) }
                     }

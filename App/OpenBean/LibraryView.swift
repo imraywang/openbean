@@ -282,6 +282,8 @@ struct RecordingDetail: View {
     /// 按文档排：标题、摘要导语、待办、要点、全文（按停顿并成段落；有多段对话时按段分节）；播放条浮在底部
     private var document: some View {
         let segs = library.transcript(recording.id)
+        // 每句显示的文字（干净版或原文，跟着设置）；下标和 segs 一一对应
+        let shown = library.readingLines(recording.id)
         let sections = TranscriptSections(segs, conversations: library.conversations.conversations(recording.id))
         let paras = sections.paragraphs
         // 重点标记归到句子上（先敲后说：落在两句之间的归后一句）
@@ -292,7 +294,7 @@ struct RecordingDetail: View {
                 VStack(alignment: .leading, spacing: 22) {
                     header
                     SummaryCard(recording: recording, notes: library.notes)
-                    transcript(segs, sections: sections, marks: marks, current: current)
+                    transcript(segs, shown: shown, sections: sections, marks: marks, current: current)
                 }
                 .frame(maxWidth: 680, alignment: .leading)
                 .padding(.horizontal, 32).padding(.top, 20)
@@ -412,7 +414,9 @@ struct RecordingDetail: View {
                 Menu {
                     Button("Copy transcript") {
                         NSPasteboard.general.clearContents()
-                        NSPasteboard.general.setString(library.transcript(recording.id).map(\.text).joined(separator: "\n"), forType: .string)
+                        // 跟着「去掉语气词」的设置
+                        NSPasteboard.general.setString(library.readingLines(recording.id).filter { !$0.isEmpty }.joined(separator: "\n"),
+                                                       forType: .string)
                     }.disabled(!recording.transcribed)
                     Divider()
                     Button("Export transcript as Markdown…") { library.exportMarkdown(recording.id) }.disabled(!recording.transcribed)
@@ -428,8 +432,8 @@ struct RecordingDetail: View {
         }
     }
 
-    @ViewBuilder private func transcript(_ segs: [TranscriptSegment], sections: TranscriptSections, marks: [Int: [Double]],
-                                         current: Int?) -> some View {
+    @ViewBuilder private func transcript(_ segs: [TranscriptSegment], shown: [String], sections: TranscriptSections,
+                                         marks: [Int: [Double]], current: Int?) -> some View {
         let paras = sections.paragraphs
         if segs.isEmpty {
             VStack(alignment: .leading, spacing: 10) {
@@ -444,20 +448,28 @@ struct RecordingDetail: View {
             }
         } else {
             VStack(alignment: .leading, spacing: 12) {
-                Text("Transcript").font(.headline)
+                HStack {
+                    Text("Transcript").font(.headline)
+                    Spacer()
+                    TranscriptStylePicker(settings: library.settings)
+                }
                 LazyVStack(alignment: .leading, spacing: 14) {
                     ForEach(paras.indices, id: \.self) { p in
                         let r = paras[p]
+                        let pMarks = marks.filter { r.contains($0.key) }
                         VStack(alignment: .leading, spacing: 14) {
                             // 一段对话的第一个段落前放这段的小标题（只有一段对话时没有）
                             if let c = sections.heading(before: p) {
                                 ConversationHeading(conversation: c).padding(.top, p == 0 ? 0 : 12)
                             }
-                            TranscriptParagraph(segments: Array(segs[r]), first: r.lowerBound,
-                                                current: current.flatMap { r.contains($0) ? $0 : nil },
-                                                marks: marks.filter { r.contains($0.key) }, heart: heart,
-                                                wearer: library.speakers.showsMarks)
-                                .equatable()
+                            // 干净版里整段都是语气词（又没有标记）时不显示这段
+                            if !pMarks.isEmpty || shown[r].contains(where: { !$0.isEmpty }) {
+                                TranscriptParagraph(segments: Array(segs[r]), texts: Array(shown[r]), first: r.lowerBound,
+                                                    current: current.flatMap { r.contains($0) ? $0 : nil },
+                                                    marks: pMarks, heart: heart,
+                                                    wearer: library.speakers.showsMarks)
+                                    .equatable()
+                            }
                         }
                         .id(p)
                     }
@@ -538,6 +550,8 @@ struct ConversationHeading: View {
 /// 转写的一段：左边是这段第一句的时间，右边是连在一起的句子。每句是一个链接，点了从那句播放；正在播的那句标亮
 struct TranscriptParagraph: View, Equatable {
     let segments: [TranscriptSegment]
+    /// 每句显示的文字（干净版或原文）；空的句子不显示（它的标记照样显示）
+    let texts: [String]
     /// segments[0] 在整份转写里的下标
     let first: Int
     let current: Int?
@@ -549,7 +563,8 @@ struct TranscriptParagraph: View, Equatable {
     var wearer = false
 
     static func == (a: Self, b: Self) -> Bool {
-        a.first == b.first && a.current == b.current && a.segments == b.segments && a.marks == b.marks && a.heart == b.heart
+        a.first == b.first && a.current == b.current && a.segments == b.segments && a.texts == b.texts && a.marks == b.marks
+            && a.heart == b.heart
             && a.wearer == b.wearer
     }
 
@@ -574,17 +589,24 @@ struct TranscriptParagraph: View, Equatable {
 
     private var attributed: AttributedString {
         var out = AttributedString()
+        var previous: String?
         for (k, seg) in segments.enumerated() {
-            if k > 0 { out += AttributedString(TranscriptParagraphs.joiner(after: segments[k - 1].text, before: seg.text)) }
-            for m in marks[first + k] ?? [] {
+            let text = k < texts.count ? texts[k] : seg.text
+            let flags = marks[first + k] ?? []
+            // 干净版里空了的句子不显示（落在它上面的标记照样显示）
+            if text.isEmpty && flags.isEmpty { continue }
+            if let p = previous, !text.isEmpty { out += AttributedString(TranscriptParagraphs.joiner(after: p, before: text)) }
+            for m in flags {
                 var flag = AttributedString("⚑\u{2009}")
                 flag.link = URL(string: "openbean-mark://\(Int((m * 100).rounded()))")
                 flag.foregroundColor = .orange
                 out += flag
             }
+            guard !text.isEmpty else { continue }
+            previous = text
             if wearer, seg.isWearer == true { out += WearerMark.prefix }
-            // 显示用 text（过了词表的），不用 raw
-            var piece = AttributedString(seg.text)
+            // 显示用 text（过了词表的，读的时候按设置去掉语气词），不用 raw
+            var piece = AttributedString(text)
             piece.link = URL(string: "openbean-seek://\(first + k)")
             if first + k == current {
                 piece.foregroundColor = .accentColor

@@ -972,12 +972,42 @@
         }
       }
     },
+    "Clean": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "干净"
+          }
+        }
+      }
+    },
+    "Clean hides filler words, stutters and repeats. Original is the text as recognised.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "干净：去掉语气词、口吃和重复；原文：识别出来的原样文字。"
+          }
+        }
+      }
+    },
     "Clean up Heart bean": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "清理心力豆"
+          }
+        }
+      }
+    },
+    "Clean up filler words in transcripts": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "转写去掉语气词"
           }
         }
       }
@@ -1922,6 +1952,16 @@
         }
       }
     },
+    "Hides filler words, stutters and repeats when you read, copy or share a transcript. The original text is kept; switch between Clean and Original above a transcript.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "阅读、拷贝、分享转写时去掉语气词、口吃和重复。原文照常保留，转写上方可以在「干净」和「原文」之间切换。"
+          }
+        }
+      }
+    },
     "Highlights": {
       "localizations": {
         "zh-Hans": {
@@ -2818,6 +2858,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "可选。转写里出现这些写法时，都改成上面的词条。中文要一字不差；英文不分大小写，空格和连字符可有可无。"
+          }
+        }
+      }
+    },
+    "Original": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "原文"
           }
         }
       }
@@ -4658,6 +4708,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "只剩转写"
+          }
+        }
+      }
+    },
+    "Transcript text": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "转写文字"
+          }
+        }
+      }
+    },
+    "Transcripts": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "转写"
           }
         }
       }

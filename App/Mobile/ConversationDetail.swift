@@ -30,6 +30,8 @@ struct ConversationDetailView: View {
 
     private func content(_ r: Recording, _ c: Conversation) -> some View {
         let lines = library.transcript(r.id)
+        // 每句显示的文字（干净版或原文，跟着设置）；下标和 lines 一一对应
+        let shown = library.readingLines(r.id)
         let range = c.lines.clamped(to: 0..<lines.count)
         let typed = Set(c.voiceTyping)
         let audio = hasAudio(r)
@@ -49,8 +51,12 @@ struct ConversationDetailView: View {
                 Section {
                     if range.isEmpty {
                         Text("No transcript for this conversation.").foregroundStyle(.secondary)
+                    } else {
+                        TranscriptStylePicker(settings: library.settings)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    ForEach(Array(range), id: \.self) { i in
+                    // 干净版里空了的句子（整句是语气词）不显示
+                    ForEach(Array(range).filter { !shown[$0].isEmpty }, id: \.self) { i in
                         let line = lines[i]
                         Button {
                             play(from: line.start, r)
@@ -59,8 +65,8 @@ struct ConversationDetailView: View {
                                 Text(verbatim: r.start.addingTimeInterval(line.start).formatted(date: .omitted, time: .shortened))
                                     .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
                                     .frame(width: 52, alignment: .leading)
-                                Text(library.speakers.showsMarks && line.isWearer == true ? WearerMark.prefix + AttributedString(line.text)
-                                     : AttributedString(line.text))
+                                Text(library.speakers.showsMarks && line.isWearer == true ? WearerMark.prefix + AttributedString(shown[i])
+                                     : AttributedString(shown[i]))
                                     .foregroundStyle(typed.contains(i) ? .secondary : .primary)
                                     .fontWeight(isPlaying(line) ? .semibold : .regular)
                                     .frame(maxWidth: .infinity, alignment: .leading)

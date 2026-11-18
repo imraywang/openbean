@@ -79,8 +79,9 @@ public enum NoteTemplate {
             self.sections = sections
         }
 
+        /// 文字为空的句子（干净版里整句是语气词）不写，除非这句有标记
         func transcript(_ r: Range<Int>) -> String {
-            r.map { i in
+            r.filter { !lines[$0].text.isEmpty || marks[$0] != nil }.map { i in
                 let l = lines[i]
                 let flag = marks[i].map { m in " ⚑ " + m.map { "[\(Summarizer.clock($0))]" }.joined(separator: " ") } ?? ""
                 return "[\(Summarizer.clock(l.start))]\(flag) \(l.text)"
